@@ -1,0 +1,194 @@
+.card-container {
+    height: 400px;
+    width: 300px;
+    margin: auto;
+    position: relative;
+    outline: auto;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+}
+
+.card-container > img {
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    position: absolute;
+    z-index: 0;
+}
+
+.card-header{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    height: 30px;
+    width: 300px;
+    position: relative;
+    z-index: 1;
+}
+
+.card-element{
+    top: 8px;
+    height: 50px;
+    width: 50px;
+    position: relative;
+    border-radius: 50%;
+}
+
+.card-element img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.card-rarity{
+    height: 15px;
+    width: 15px;
+    right: 15px;
+    bottom: 5px;
+    position: relative;
+    border-radius: 50%;
+}
+
+.card-rarity img {
+    height: 100%;
+    width: 100%;
+    display: block;
+}
+
+.card-name {
+    position: relative;
+    right: 20px;
+    font-size: 18px;
+    font-family: 'Archivo Black';
+}
+
+.card-cost {
+    right: 8px;
+    margin-left: auto;
+    position: relative;
+    font-size: 8px;
+    font-family: 'Archivo Black';
+}
+
+.card-image {
+    height: 150px;
+    width: 260px;
+    position: relative;
+}
+
+.card-image img {
+    height: 100%;
+    width: 100%;
+    display: block;
+    border-radius: 10px;
+    border-color: black;
+    outline: auto;
+    z-index: 1;
+}
+
+.card-attributes {
+    height: 15px;
+    width: 260px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    outline: auto;
+    position: relative;
+}
+
+.card-class {
+    height: 8px;
+    max-width: 50px;
+    padding: 2px;
+    position: relative;
+    outline: auto;
+    background-color: lightgray;
+    font-size: 8px;
+    font-family: 'Archivo Black';
+    text-align: center;
+    z-index: 1;
+}
+
+.card-perks {
+    margin-left: auto;
+    right: 10px;
+    position: relative;
+    font-size: 8px;
+    font-family: 'Archivo Black';
+    text-align: center;
+}
+
+.card-body {
+    height: 200px;
+    width: 275px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    align-items: center;
+    font-size: 10px;
+    font-family: 'Archivo Black';
+    position: relative;
+}
+
+.card-footer {
+    height: 30px;
+    width: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    z-index: 1;
+    position: relative;
+}
+
+.card-attack {
+    height: 50px;
+    width: 50px;
+    bottom: 8px;
+    position: relative;
+    border-radius: 50%;
+}
+
+.card-attack img {
+    height: 100%;
+    width: 100%;
+    display: block;
+}
+
+.card-attack-stat {
+    position: relative;
+    right: 15px;
+    font-size: 24px;
+    font-family: 'Archivo Black';
+}
+
+.card-health-stat {
+    position: relative;
+    margin-left: auto;
+    left: 10px;
+    font-size: 24px;
+    font-family: 'Archivo Black';
+}
+
+.card-health {
+    height: 50px;
+    width: 50px;
+    bottom: 8px;
+    position: relative;
+    border-radius: 50%;
+}
+
+.card-health img {
+    margin-left: auto;
+    height: 100%;
+    width: 100%;
+    display: block;
+}
