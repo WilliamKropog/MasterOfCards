@@ -3,13 +3,12 @@ import { CommonModule } from '@angular/common';
 import {CreatureCard, LandCard, SpellCard } from '../../models/card';
 
 @Component({
-  selector: 'app-card',
-  standalone: true,
-  imports: [
-    CommonModule,
-  ],
-  templateUrl: './card.component.html',
-  styleUrl: './card.component.css'
+    selector: 'app-card',
+    imports: [
+        CommonModule,
+    ],
+    templateUrl: './card.component.html',
+    styleUrl: './card.component.css'
 })
 export class CardComponent {
   @Input() card!: CreatureCard | SpellCard | LandCard;

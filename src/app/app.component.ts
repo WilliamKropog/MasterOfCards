@@ -8,17 +8,16 @@ import { NavbarComponent } from './navbar/navbar.component';
 import { AuthenticationComponent } from './pages/authentication/authentication.component';
 
 @Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [
-    RouterOutlet, 
-    CardComponent,
-    CommonModule,
-    NavbarComponent,
-    AuthenticationComponent
-  ],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+    selector: 'app-root',
+    imports: [
+        RouterOutlet,
+        CardComponent,
+        CommonModule,
+        NavbarComponent,
+        AuthenticationComponent
+    ],
+    templateUrl: './app.component.html',
+    styleUrl: './app.component.css'
 })
 export class AppComponent {
   title = 'master-of-cards';

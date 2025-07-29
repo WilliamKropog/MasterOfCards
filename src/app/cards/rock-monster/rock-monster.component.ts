@@ -1,11 +1,10 @@
 import { Component } from '@angular/core';
 
 @Component({
-  selector: 'app-rock-monster',
-  standalone: true,
-  imports: [],
-  templateUrl: './rock-monster.component.html',
-  styleUrl: './rock-monster.component.css'
+    selector: 'app-rock-monster',
+    imports: [],
+    templateUrl: './rock-monster.component.html',
+    styleUrl: './rock-monster.component.css'
 })
 export class RockMonsterComponent {
   name: String = "Rock Monster";
