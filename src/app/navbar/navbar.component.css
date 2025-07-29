@@ -13,15 +13,41 @@
   justify-content: center;
   border-radius: 50px;
   margin-left: auto;
-  margin-right: 10px;
-  align-items: center;
+  margin-right: 20px;
   height: 40px;
   line-height: 40px;
-  color: darkblue !important;
   background-color: white;
+  color: darkblue !important;
 }
 
 .login-button:hover {
     background-color: lightgray;
     transition: 0.2s;
+}
+
+.login-button mat-icon {
+  transform: scale(1.75);
+  transform-origin: center;
+  display: inline-block;
+  color: darkblue;
+}
+
+.home-button {
+  margin-right: auto;
+  border-radius: 50px;
+  margin-left: 20px;
+  height: 40px;
+  background-color: white;
+}
+
+.home-button:hover {
+    background-color: lightgray;
+    transition: 0.2s;
+}
+
+.home-button mat-icon {
+  transform: scale(1.75);
+  transform-origin: center;
+  margin-left: 5px;
+  color: darkblue;
 }

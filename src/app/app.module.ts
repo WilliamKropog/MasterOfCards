@@ -1,16 +1,24 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { NavbarComponent } from './navbar/navbar.component';
 import { AppComponent } from './app.component';
-import { CardComponent } from './cards/card/card.component';
+import { RouterModule, Routes } from '@angular/router';
+import { AuthenticationComponent } from './pages/authentication/authentication.component';
+import { HomeComponent } from './pages/home/home.component';
+
+// const routes: Routes = [
+//   { path: '', component: HomeComponent },
+//   { path: 'login', component: AuthenticationComponent },
+//   { path: '**', redirectTo: ''}
+// ];
+
 @NgModule({
   declarations: [
     AppComponent,
-    CardComponent,
-    NavbarComponent
+    HomeComponent
   ],
   imports: [
-    BrowserModule
+    BrowserModule,
+    // RouterModule.forRoot(routes)
   ],
   providers: [],
   bootstrap: [AppComponent]
