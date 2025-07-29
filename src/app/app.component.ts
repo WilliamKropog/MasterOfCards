@@ -3,19 +3,18 @@ import { RouterOutlet } from '@angular/router';
 import { CardComponent } from './cards/card/card.component';
 import { CreatureCard, SpellCard, LandCard } from './models/card';
 import { ROCK_MONSTER, BOULDER_TOSS, MOUNTAIN_RANGE, GRAND_GOPHER, TEMPLE_OF_BEING, MUD_HUT, ARMOREDILLO, RUPTAR, ELDER_GOPHER_STATUE, ROCK_SLIDE, ROCKTERRIOR, EXCAVATION_SITE, EARTH_SHATTER, THOUSAND_MILE_WALL, KING_COLOSSUS } from './data/mock-cards';
-import { CommonModule } from '@angular/common';
+
 import { NavbarComponent } from './navbar/navbar.component';
 import { AuthenticationComponent } from './pages/authentication/authentication.component';
 
 @Component({
     selector: 'app-root',
     imports: [
-        RouterOutlet,
-        CardComponent,
-        CommonModule,
-        NavbarComponent,
-        AuthenticationComponent
-    ],
+    RouterOutlet,
+    CardComponent,
+    NavbarComponent,
+    AuthenticationComponent
+],
     templateUrl: './app.component.html',
     styleUrl: './app.component.css'
 })

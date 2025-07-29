@@ -1,74 +1,73 @@
 <div class="card-container">
-    <img src="../assets/images/icons/Background{{ card.element }}.png">
-    <div class="card-header">
-        <div class="card-element">
-            <img src="../assets/images/icons/{{ card.element }}Symbol.png">
+  <img src="../assets/images/icons/Background{{ card.element }}.png">
+  <div class="card-header">
+    <div class="card-element">
+      <img src="../assets/images/icons/{{ card.element }}Symbol.png">
+    </div>
+    <div class="card-rarity">
+      <img src="../assets/images/icons/{{ card.rarity }}Symbol.png">
+    </div>
+    <div class="card-name">
+      {{ card.name }}
+    </div>
+    <div class="card-cost">
+      @if (isFree) {
+        <div style="text-align: center; margin-top: 15px; font-size: 8px;">
+          No Cost
         </div>
-        <div class="card-rarity">
-            <img src="../assets/images/icons/{{ card.rarity }}Symbol.png">
-        </div>
-        <div class="card-name">
-            {{ card.name }}
-        </div>
-        <div class="card-cost">
-            <ng-container *ngIf = "isFree; else hasCost">
-                <div style="text-align: center; margin-top: 15px; font-size: 8px;">
-                    No Cost
-                </div>
-            </ng-container>
+      } @else {
+        @for (entry of costEntries; track entry) {
+          <span class="cost-number"> {{ entry.value }}</span>
+          <img [src] = "'../assets/images/icons/' + entry.key + 'Symbol.png'" [alt]="entry.key + 'mana'">
+        }
+      }
 
-            <ng-template #hasCost>
-                <ng-container *ngFor="let entry of costEntries">
-                    <span class="cost-number"> {{ entry.value }}</span>
-                    <img [src] = "'../assets/images/icons/' + entry.key + 'Symbol.png'" [alt]="entry.key + 'mana'">
-                </ng-container>
-            </ng-template>
-        </div>
     </div>
-    <div class="card-image">
-        <img [src]="card.imageUrl">
+  </div>
+  <div class="card-image">
+    <img [src]="card.imageUrl">
+  </div>
+  <div class="card-attributes">
+    <div class="card-class">
+      {{ card.class }}
     </div>
-    <div class="card-attributes">
-        <div class="card-class">
-            {{ card.class }}
-        </div>
-        <div class="card-perks">
-            {{ card.perks }}
-        </div>
+    <div class="card-perks">
+      {{ card.perks }}
     </div>
-    <div class="card-body" [ngStyle]="card.description.length < 1 ? { 'background-color': 'transparent', 'outline': 'none' } : {}">
-        {{ card.description }}
-    </div>
-    <div class="card-footer">
-        <ng-container *ngIf="card.cardType === 'Creature'">
-            <div class="card-attack">
-                <img src="../assets/images/icons/AttackSymbol.png" alt="Attack">
-            </div>
-            <div class="card-attack-stat">
-                {{ card.stats.attack }}
-            </div>
-            <div class="card-health-stat">
-                {{ card.stats.health }}
-            </div>
-            <div class="card-health">
-                <img src="../../assets/images/icons/HeartSymbol.png" alt="Health">
-            </div>
-        </ng-container>
-        <ng-container *ngIf="card.cardType === 'Land'">
-            <div class="card-mana">
-                <ng-container *ngFor="let entry of generationEntries">
-                    <span class="gen-icon">
-                        +{{ entry.value }}
-                    </span>
-                    <img [src] = "'../assets/images/icons/' + entry.key + 'Symbol.png'" [alt]="entry.key + 'mana'">
-                </ng-container>
-            </div>
-            <div class="card-health-stat">
-                {{ card.stats.health }}
-            </div>
-            <div class="card-health">
-                <img src="../../assets/images/icons/HeartSymbol.png" alt="Health">
-            </div>
-        </ng-container>
-    </div>
+  </div>
+  <div class="card-body" [ngStyle]="card.description.length < 1 ? { 'background-color': 'transparent', 'outline': 'none' } : {}">
+    {{ card.description }}
+  </div>
+  <div class="card-footer">
+    @if (card.cardType === 'Creature') {
+      <div class="card-attack">
+        <img src="../assets/images/icons/AttackSymbol.png" alt="Attack">
+      </div>
+      <div class="card-attack-stat">
+        {{ card.stats.attack }}
+      </div>
+      <div class="card-health-stat">
+        {{ card.stats.health }}
+      </div>
+      <div class="card-health">
+        <img src="../../assets/images/icons/HeartSymbol.png" alt="Health">
+      </div>
+    }
+    @if (card.cardType === 'Land') {
+      <div class="card-mana">
+        @for (entry of generationEntries; track entry) {
+          <span class="gen-icon">
+            +{{ entry.value }}
+          </span>
+          <img [src] = "'../assets/images/icons/' + entry.key + 'Symbol.png'" [alt]="entry.key + 'mana'">
+        }
+      </div>
+      <div class="card-health-stat">
+        {{ card.stats.health }}
+      </div>
+      <div class="card-health">
+        <img src="../../assets/images/icons/HeartSymbol.png" alt="Health">
+      </div>
+    }
+  </div>
 </div>
