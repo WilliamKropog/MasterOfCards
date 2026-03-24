@@ -1,4 +1,13 @@
-<h1 class="app-title">{{ title() }}</h1>
+<header class="app-header">
+  <div class="app-header-top">
+    <h1 class="app-title">{{ title() }}</h1>
+    <p class="app-turn-counter">
+      <span class="app-turn-counter-label">Turn Counter:</span>
+      <span class="app-turn-counter-value">{{ engine.turnCounter() }}</span>
+    </p>
+  </div>
+  <button matButton="filled" type="button">Start</button>
+</header>
 
 <section class="battle-layout" aria-label="Game table">
   <div class="player-hand-row">
