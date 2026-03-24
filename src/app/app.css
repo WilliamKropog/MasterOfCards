@@ -81,7 +81,9 @@
 .play-field-area app-play-field {
   flex: 1;
   min-height: 0;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 /* Full-width row; content-sized hand centered horizontally */
