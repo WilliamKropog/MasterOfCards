@@ -1,12 +1,18 @@
 <header class="app-header">
   <div class="app-header-top">
     <h1 class="app-title">{{ title() }}</h1>
-    <p class="app-turn-counter">
-      <span class="app-turn-counter-label">Turn Counter:</span>
-      <span class="app-turn-counter-value">{{ engine.turnCounter() }}</span>
-    </p>
+    <div class="app-header-stats">
+      <p class="app-turn-counter">
+        <span class="app-stat-label">Turn Counter:</span>
+        <span class="app-stat-value">{{ engine.turnCounter() }}</span>
+      </p>
+      <p class="app-current-turn">
+        <span class="app-stat-label">Current Turn:</span>
+        <span class="app-stat-value">{{ engine.currentTurnDisplay() }}</span>
+      </p>
+    </div>
   </div>
-  <button matButton="filled" type="button">Start</button>
+  <button matButton="filled" type="button" (click)="engine.startGame()">Start</button>
 </header>
 
 <section class="battle-layout" aria-label="Game table">
