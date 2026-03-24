@@ -1,11 +1,22 @@
 .player-hand {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   border: 1px solid #ccc;
+  transition: margin 0.15s ease, padding 0.15s ease;
+}
+
+.player-hand--collapsed {
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0.35rem;
 }
 
 .player-hand-title {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
+}
+
+.player-hand--collapsed .player-hand-title {
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
 }
 
 .player-hand-cards {
@@ -14,4 +25,9 @@
   gap: 0.5rem;
   align-items: flex-start;
   min-height: 2rem;
+}
+
+.player-hand--collapsed .player-hand-cards {
+  gap: 0.25rem;
+  min-height: 0;
 }

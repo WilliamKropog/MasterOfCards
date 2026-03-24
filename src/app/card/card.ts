@@ -17,6 +17,9 @@ export class Card {
    */
   readonly currentHealth = input<number | undefined>(undefined);
 
+  /** Minimal face: name + current health only (inactive player hand). */
+  readonly compact = input(false);
+
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
