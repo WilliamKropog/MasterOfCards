@@ -1,10 +1,11 @@
 import { Component, signal } from '@angular/core';
 import { CardIds } from './game/card-catalog';
+import { PlayField } from './play-field/play-field';
 import { PlayerHand } from './player-hand/player-hand';
 
 @Component({
   selector: 'app-root',
-  imports: [PlayerHand],
+  imports: [PlayerHand, PlayField],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })

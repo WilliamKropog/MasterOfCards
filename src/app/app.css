@@ -22,14 +22,25 @@
   flex-direction: column;
 }
 
+/* Fills space between the two hands */
+.play-field-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.play-field-area app-play-field {
+  flex: 1;
+  min-height: 0;
+  display: block;
+}
+
 /* Full-width row; content-sized hand centered horizontally */
 .player-hand-row {
   display: flex;
   justify-content: center;
   width: 100%;
-}
-
-/* Push this row to the bottom of .battle-layout */
-.player-hand-row--bottom {
-  margin-top: auto;
+  flex-shrink: 0;
 }

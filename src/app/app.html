@@ -1,10 +1,15 @@
 <h1 class="app-title">{{ title() }}</h1>
 
-<section class="battle-layout" aria-label="Player hands">
+<section class="battle-layout" aria-label="Game table">
   <div class="player-hand-row">
     <app-player-hand playerSlot="player1" [cardIds]="starterHand" />
   </div>
-  <div class="player-hand-row player-hand-row--bottom">
+
+  <div class="play-field-area">
+    <app-play-field />
+  </div>
+
+  <div class="player-hand-row">
     <app-player-hand playerSlot="player2" [cardIds]="starterHand" />
   </div>
 </section>

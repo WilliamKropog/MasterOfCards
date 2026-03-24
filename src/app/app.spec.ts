@@ -18,8 +18,9 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('section[aria-label="Player hands"]')).toBeTruthy();
+    expect(compiled.querySelector('section[aria-label="Game table"]')).toBeTruthy();
     expect(compiled.querySelectorAll('app-player-hand').length).toBe(2);
+    expect(compiled.querySelector('app-play-field')).toBeTruthy();
     expect(compiled.querySelectorAll('app-card').length).toBe(6);
   });
 });
