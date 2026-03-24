@@ -1,0 +1,25 @@
+.card-description {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  max-width: 10rem;
+}
+
+.card {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 8rem;
+  margin: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.card-header {
+  font-weight: 600;
+}
+
+.card-stat {
+  font-variant-numeric: tabular-nums;
+}

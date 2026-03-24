@@ -1,0 +1,16 @@
+.player-hand {
+  margin-bottom: 1rem;
+}
+
+.player-hand-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.player-hand-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+  min-height: 2rem;
+}

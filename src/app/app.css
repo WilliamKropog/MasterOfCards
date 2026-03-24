@@ -1,0 +1,35 @@
+:host {
+  position: relative;
+  display: block;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Out of document flow so hands use the full viewport height */
+.app-title {
+  position: absolute;
+  z-index: 1;
+  margin-right: auto;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.battle-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Full-width row; content-sized hand centered horizontally */
+.player-hand-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Push this row to the bottom of .battle-layout */
+.player-hand-row--bottom {
+  margin-top: auto;
+}

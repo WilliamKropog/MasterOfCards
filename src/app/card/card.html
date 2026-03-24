@@ -1,0 +1,37 @@
+<article class="card">
+  <header class="card-header">{{ displayName() }}</header>
+
+  @if (displayDescription(); as desc) {
+    <p class="card-description">Description: {{ desc }}</p>
+  }
+
+  <div class="card-stat" aria-label="Element">Element: {{ displayCardElement() }}</div>
+
+  <div class="card-stat" aria-label="Rarity">Rarity: {{ displayRarity() }}</div>
+
+  @if (displayMonsterClass() !== null) {
+    <div class="card-stat" aria-label="Class">Class: {{ displayMonsterClass() }}</div>
+  }
+
+  @if (displayAttributes() !== null) {
+    <div class="card-stat" aria-label="Attributes">Attributes: {{ displayAttributes() }}</div>
+  }
+
+  @if (displayMana() !== null) {
+    <div class="card-stat" aria-label="Mana cost">Mana Cost: {{ displayMana() }}</div>
+  }
+
+  @if (displayAttack() !== null) {
+    <div class="card-stat" aria-label="Attack">Attack: {{ displayAttack() }}</div>
+  }
+
+  @if (displayHealth() !== null) {
+    <div class="card-stat" aria-label="Current health">Current health: {{ displayHealth() }} / {{ maxHealth() }}</div>
+  }
+
+  @if (displayGenerateMana() !== null) {
+    <div class="card-stat" aria-label="Mana generated">Generates: {{ displayGenerateMana() }}</div>
+  }
+
+  <div class="card-stat" aria-label="Card type">Card Type: {{ displayType() }}</div>
+</article>

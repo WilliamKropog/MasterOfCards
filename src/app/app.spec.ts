@@ -14,10 +14,12 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render title', () => {
+  it('should render two player hands', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, masterofcards');
+    expect(compiled.querySelector('section[aria-label="Player hands"]')).toBeTruthy();
+    expect(compiled.querySelectorAll('app-player-hand').length).toBe(2);
+    expect(compiled.querySelectorAll('app-card').length).toBe(6);
   });
 });
