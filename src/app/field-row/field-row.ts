@@ -23,15 +23,20 @@ export class FieldRow {
     return `${player}'s ${zone} row`;
   });
 
-  /** Pulsing green when dragging a Monster from this player's hand over a valid row. */
-  protected readonly showMonsterDropHighlight = computed(() => {
+  /** Pulsing green when dragging a Monster or Land from this player's hand onto the matching row. */
+  protected readonly showDropHighlight = computed(() => {
     const drag = this.cardDrag.activeDrag();
-    if (!drag || drag.cardType !== 'Monster') {
+    if (!drag || drag.ownerPlayerSlot !== this.playerSlot()) {
       return false;
     }
-    if (this.zone() !== 'monster') {
-      return false;
+    const zone = this.zone();
+    const type = drag.cardType;
+    if (zone === 'monster' && type === 'Monster') {
+      return true;
     }
-    return drag.ownerPlayerSlot === this.playerSlot();
+    if (zone === 'land' && type === 'Land') {
+      return true;
+    }
+    return false;
   });
 }
