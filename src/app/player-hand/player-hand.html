@@ -4,7 +4,12 @@
   [attr.aria-label]="displayLabel() + ' hand'"
 >
   <h2 class="player-hand-title">{{ displayLabel() }}</h2>
-  <div class="player-hand-cards">
+  <div
+    class="player-hand-cards"
+    cdkDropList
+    [cdkDropListData]="cardIds()"
+    (cdkDropListDropped)="onHandDropped($event)"
+  >
     @for (cardId of cardIds(); track cardId) {
       <app-card [cardId]="cardId" [compact]="isHandCollapsed()" [ownerPlayerSlot]="playerSlot()" />
     }

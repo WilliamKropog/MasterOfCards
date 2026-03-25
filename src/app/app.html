@@ -15,9 +15,9 @@
   <button matButton="filled" type="button" (click)="engine.startGame()">Start</button>
 </header>
 
-<section class="battle-layout" aria-label="Game table">
+<section class="battle-layout" cdkDropListGroup aria-label="Game table">
   <div class="player-hand-row">
-    <app-player-hand playerSlot="player1" [cardIds]="starterHand" />
+    <app-player-hand playerSlot="player1" [cardIds]="engine.player1Hand()" />
   </div>
 
   <div class="play-field-area">
@@ -25,6 +25,6 @@
   </div>
 
   <div class="player-hand-row">
-    <app-player-hand playerSlot="player2" [cardIds]="starterHand" />
+    <app-player-hand playerSlot="player2" [cardIds]="engine.player2Hand()" />
   </div>
 </section>

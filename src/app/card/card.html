@@ -3,6 +3,7 @@
   [class.card--compact]="compact()"
   [class.card--drag-disabled]="dragDisabled()"
   cdkDrag
+  [cdkDragData]="dragPayload()"
   [cdkDragDisabled]="dragDisabled()"
   previewContainer="global"
   (cdkDragStarted)="onDragStarted()"

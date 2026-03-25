@@ -1,17 +1,29 @@
+import {
+  CdkDrag,
+  CdkDragDrop,
+  CdkDropList,
+  moveItemInArray,
+  transferArrayItem,
+} from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
+import { getCardDefinition } from '../game/card-catalog';
+import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
+import { GameEngineService } from '../services/game-engine.service';
+import { Card } from '../card/card';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
 export type FieldZone = 'land' | 'monster';
 
 @Component({
   selector: 'app-field-row',
-  imports: [],
+  imports: [Card, CdkDropList],
   templateUrl: './field-row.html',
   styleUrl: './field-row.css',
 })
 export class FieldRow {
   private readonly cardDrag = inject(CardDragService);
+  private readonly engine = inject(GameEngineService);
 
   readonly playerSlot = input.required<PlayerSlot>();
   readonly zone = input.required<FieldZone>();
@@ -21,6 +33,15 @@ export class FieldRow {
     const player = this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2';
     const zone = this.zone() === 'land' ? 'land' : 'monster';
     return `${player}'s ${zone} row`;
+  });
+
+  protected readonly fieldCards = computed(() => {
+    const slot = this.playerSlot();
+    const zone = this.zone();
+    if (slot === 'player1') {
+      return zone === 'land' ? this.engine.player1FieldLand() : this.engine.player1FieldMonster();
+    }
+    return zone === 'land' ? this.engine.player2FieldLand() : this.engine.player2FieldMonster();
   });
 
   /** Pulsing green when dragging a Monster or Land from this player's hand onto the matching row. */
@@ -39,4 +60,39 @@ export class FieldRow {
     }
     return false;
   });
+
+  protected readonly canEnterRow = (
+    drag: CdkDrag<CardDragPayload | null>,
+    _drop: CdkDropList<string[]>,
+  ): boolean => {
+    const data = drag.data;
+    if (!data?.ownerPlayerSlot || data.ownerPlayerSlot !== this.playerSlot()) {
+      return false;
+    }
+    const def = getCardDefinition(data.cardId);
+    if (!def) {
+      return false;
+    }
+    if (this.zone() === 'land' && def.cardType !== 'Land') {
+      return false;
+    }
+    if (this.zone() === 'monster' && def.cardType !== 'Monster') {
+      return false;
+    }
+    return true;
+  };
+
+  protected onDropped(event: CdkDragDrop<string[]>): void {
+    if (event.previousContainer === event.container) {
+      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+    } else {
+      transferArrayItem(
+        event.previousContainer.data,
+        event.container.data,
+        event.previousIndex,
+        event.currentIndex,
+      );
+    }
+    this.engine.touchDropContainers(event);
+  }
 }

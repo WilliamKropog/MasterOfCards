@@ -1,4 +1,6 @@
 import { computed, Injectable, signal } from '@angular/core';
+import type { CdkDragDrop } from '@angular/cdk/drag-drop';
+import { STARTER_HAND } from '../game/card-catalog';
 
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
@@ -13,6 +15,16 @@ export type PlayerId = 1 | 2;
 export class GameEngineService {
   /** True after `startGame()` has been called for this session. */
   readonly gameStarted = signal(false);
+
+  /** Hand contents (catalog ids); mutated by CDK drag-drop, then `touchDropContainers` refreshes signals. */
+  readonly player1Hand = signal<string[]>([...STARTER_HAND]);
+  readonly player2Hand = signal<string[]>([...STARTER_HAND]);
+
+  /** Cards played onto each field row (catalog ids). */
+  readonly player1FieldLand = signal<string[]>([]);
+  readonly player1FieldMonster = signal<string[]>([]);
+  readonly player2FieldLand = signal<string[]>([]);
+  readonly player2FieldMonster = signal<string[]>([]);
 
   /** Whose turn it is once the match has started; `null` before `startGame()`. */
   readonly currentTurn = signal<PlayerId | null>(null);
@@ -43,6 +55,41 @@ export class GameEngineService {
     this.activePlayer.set(1);
     this.player1MovedThisRound = false;
     this.player2MovedThisRound = false;
+    this.player1Hand.set([...STARTER_HAND]);
+    this.player2Hand.set([...STARTER_HAND]);
+    this.player1FieldLand.set([]);
+    this.player1FieldMonster.set([]);
+    this.player2FieldLand.set([]);
+    this.player2FieldMonster.set([]);
+  }
+
+  /**
+   * CDK mutates list arrays in place; call after `moveItemInArray` / `transferArrayItem`
+   * so Angular signals notify dependents.
+   */
+  touchDropContainers(event: CdkDragDrop<string[]>): void {
+    const prev = event.previousContainer.data;
+    const next = event.container.data;
+    if (prev !== next) {
+      this.touchArrayByRef(prev);
+    }
+    this.touchArrayByRef(next);
+  }
+
+  private touchArrayByRef(data: string[]): void {
+    if (data === this.player1Hand()) {
+      this.player1Hand.update((a) => [...a]);
+    } else if (data === this.player2Hand()) {
+      this.player2Hand.update((a) => [...a]);
+    } else if (data === this.player1FieldLand()) {
+      this.player1FieldLand.update((a) => [...a]);
+    } else if (data === this.player1FieldMonster()) {
+      this.player1FieldMonster.update((a) => [...a]);
+    } else if (data === this.player2FieldLand()) {
+      this.player2FieldLand.update((a) => [...a]);
+    } else if (data === this.player2FieldMonster()) {
+      this.player2FieldMonster.update((a) => [...a]);
+    }
   }
 
   /**
@@ -73,6 +120,12 @@ export class GameEngineService {
     this.activePlayer.set(1);
     this.player1MovedThisRound = false;
     this.player2MovedThisRound = false;
+    this.player1Hand.set([...STARTER_HAND]);
+    this.player2Hand.set([...STARTER_HAND]);
+    this.player1FieldLand.set([]);
+    this.player1FieldMonster.set([]);
+    this.player2FieldLand.set([]);
+    this.player2FieldMonster.set([]);
   }
 
   /** Stub — advance turn / pass priority when you add phases. */

@@ -14,7 +14,8 @@
 .field-row {
   flex: 1;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: center;
   width: 100%;
   min-height: 0;
@@ -23,9 +24,36 @@
 }
 
 .field-row-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.9rem;
   color: rgba(0, 0, 0, 0.55);
   text-align: center;
+}
+
+/** Centered row: first card in the middle; more cards spread with equal gaps, symmetric about center. */
+.field-row-cards {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 0;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+.field-row-card-slot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @keyframes field-row-drop-pulse {

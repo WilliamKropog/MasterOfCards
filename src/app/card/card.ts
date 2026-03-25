@@ -1,6 +1,7 @@
 import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
+import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService } from '../services/game-engine.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
@@ -30,10 +31,21 @@ export class Card {
   /** Minimal face: name + current health only (inactive player hand). */
   readonly compact = input(false);
 
-  /** No drag before Start, or when this hand is collapsed (not their turn). */
+  /** Cards on the field are not draggable back to hand (for now). */
+  readonly onField = input(false);
+
+  /** No drag before Start, when collapsed, or when placed on the field. */
   protected readonly dragDisabled = computed(
-    () => this.compact() || !this.engine.gameStarted(),
+    () => this.compact() || !this.engine.gameStarted() || this.onField(),
   );
+
+  protected readonly dragPayload = computed((): CardDragPayload | null => {
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return null;
+    }
+    return { cardId: this.cardId(), ownerPlayerSlot: slot };
+  });
 
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
@@ -106,9 +118,7 @@ export class Card {
     });
   }
 
-  /** Free drag for feedback; snap back to origin when released. */
-  protected onDragEnded(event: CdkDragEnd): void {
-    event.source.reset();
+  protected onDragEnded(_event: CdkDragEnd): void {
     this.cardDrag.endDrag();
   }
 }
