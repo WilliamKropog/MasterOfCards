@@ -6,7 +6,7 @@
   <h2 class="player-hand-title">{{ displayLabel() }}</h2>
   <div class="player-hand-cards">
     @for (cardId of cardIds(); track cardId) {
-      <app-card [cardId]="cardId" [compact]="isHandCollapsed()" />
+      <app-card [cardId]="cardId" [compact]="isHandCollapsed()" [ownerPlayerSlot]="playerSlot()" />
     }
   </div>
 </section>

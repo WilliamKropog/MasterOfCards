@@ -1,15 +1,25 @@
-import { Component, computed, input } from '@angular/core';
+import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
+import { Component, computed, inject, input } from '@angular/core';
 import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
+import { CardDragService } from '../services/card-drag.service';
+import { GameEngineService } from '../services/game-engine.service';
+import type { PlayerSlot } from '../player-hand/player-hand';
 
 @Component({
   selector: 'app-card',
-  imports: [],
+  imports: [CdkDrag],
   templateUrl: './card.html',
   styleUrl: './card.css',
 })
 export class Card {
+  private readonly engine = inject(GameEngineService);
+  private readonly cardDrag = inject(CardDragService);
+
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
+
+  /** Hand / board owner — required for field highlights while dragging. */
+  readonly ownerPlayerSlot = input<PlayerSlot | null>(null);
 
   /**
    * Battle/runtime override. When unset, creatures/lands use catalog `maxHealth`.
@@ -19,6 +29,11 @@ export class Card {
 
   /** Minimal face: name + current health only (inactive player hand). */
   readonly compact = input(false);
+
+  /** No drag before Start, or when this hand is collapsed (not their turn). */
+  protected readonly dragDisabled = computed(
+    () => this.compact() || !this.engine.gameStarted(),
+  );
 
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
@@ -74,4 +89,26 @@ export class Card {
     const max = this.def()?.maxHealth;
     return max !== undefined ? max : null;
   });
+
+  protected onDragStarted(): void {
+    if (this.dragDisabled()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    const def = this.def();
+    if (slot === null || !def) {
+      return;
+    }
+    this.cardDrag.beginDrag({
+      cardId: this.cardId(),
+      cardType: def.cardType,
+      ownerPlayerSlot: slot,
+    });
+  }
+
+  /** Free drag for feedback; snap back to origin when released. */
+  protected onDragEnded(event: CdkDragEnd): void {
+    event.source.reset();
+    this.cardDrag.endDrag();
+  }
 }

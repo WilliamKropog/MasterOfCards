@@ -1,3 +1,7 @@
-<section class="field-row" [attr.aria-label]="rowLabel()">
+<section
+  class="field-row"
+  [class.field-row--monster-drop-target]="showMonsterDropHighlight()"
+  [attr.aria-label]="rowLabel()"
+>
   <span class="field-row-placeholder">{{ rowLabel() }}</span>
 </section>

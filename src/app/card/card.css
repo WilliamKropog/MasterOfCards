@@ -14,6 +14,23 @@
   padding: 0.5rem 0.75rem;
   border: 1px solid #ccc;
   border-radius: 4px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.card.card--drag-disabled {
+  cursor: default;
+  touch-action: auto;
+}
+
+.card:not(.card--drag-disabled):active {
+  cursor: grabbing;
+}
+
+/* While CDK moves the element */
+.card.cdk-drag-dragging {
+  cursor: grabbing;
+  z-index: 1;
 }
 
 .card-header {
@@ -31,6 +48,12 @@
   padding: 0.35rem 0.5rem;
   gap: 0.2rem;
   font-size: 0.8rem;
+  cursor: default;
+  touch-action: auto;
+}
+
+.card--compact:active {
+  cursor: default;
 }
 
 .card-compact-name {
