@@ -1,5 +1,6 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { Card } from '../card/card';
+import { GameEngineService } from '../services/game-engine.service';
 
 export type PlayerSlot = 'player1' | 'player2';
 
@@ -10,6 +11,8 @@ export type PlayerSlot = 'player1' | 'player2';
   styleUrl: './player-hand.css',
 })
 export class PlayerHand {
+  private readonly engine = inject(GameEngineService);
+
   /** Which player this hand belongs to. */
   readonly playerSlot = input.required<PlayerSlot>();
 
@@ -19,4 +22,17 @@ export class PlayerHand {
   protected readonly displayLabel = computed(() =>
     this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2',
   );
+
+  /** Inactive hand uses compact cards once the match has started. */
+  protected readonly isHandCollapsed = computed(() => {
+    if (!this.engine.gameStarted()) {
+      return false;
+    }
+    const turn = this.engine.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const mine = this.playerSlot() === 'player1' ? 1 : 2;
+    return turn !== mine;
+  });
 }

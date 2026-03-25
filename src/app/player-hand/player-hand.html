@@ -1,8 +1,12 @@
-<section class="player-hand" [attr.aria-label]="displayLabel() + ' hand'">
+<section
+  class="player-hand"
+  [class.player-hand--collapsed]="isHandCollapsed()"
+  [attr.aria-label]="displayLabel() + ' hand'"
+>
   <h2 class="player-hand-title">{{ displayLabel() }}</h2>
   <div class="player-hand-cards">
     @for (cardId of cardIds(); track cardId) {
-      <app-card [cardId]="cardId" />
+      <app-card [cardId]="cardId" [compact]="isHandCollapsed()" />
     }
   </div>
 </section>

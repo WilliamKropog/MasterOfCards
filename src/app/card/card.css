@@ -23,3 +23,23 @@
 .card-stat {
   font-variant-numeric: tabular-nums;
 }
+
+.card--compact {
+  min-width: 5.5rem;
+  max-width: 9rem;
+  margin: 0.2rem;
+  padding: 0.35rem 0.5rem;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.card-compact-name {
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.card-compact-hp {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
