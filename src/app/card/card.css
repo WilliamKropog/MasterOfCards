@@ -33,6 +33,34 @@
   z-index: 1;
 }
 
+/**
+ * CDK clones the card for the floating preview (`.cdk-drag-preview`) and the in-list slot
+ * (`.cdk-drag-placeholder`). The preview is affected by CDK’s reset layer (`background: none`, etc.);
+ * the placeholder can look faint in some layouts — give both the same opaque face as `.card`.
+ */
+.card.cdk-drag-preview,
+.card.cdk-drag-placeholder {
+  opacity: 1;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
+
+.card.card--compact.cdk-drag-preview,
+.card.card--compact.cdk-drag-placeholder {
+  padding: 0.35rem 0.5rem;
+}
+
+/**
+ * Field row empty label (`.field-row-placeholder`) is absolutely positioned with z-index 0.
+ * Without a stacking context, the in-flow placeholder paints under it — text looks “through” the card.
+ */
+.card.cdk-drag-placeholder {
+  position: relative;
+  z-index: 2;
+}
+
 .card-header {
   font-weight: 600;
 }
