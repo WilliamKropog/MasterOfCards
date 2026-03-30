@@ -19,15 +19,28 @@
   font-size: 0.85rem;
 }
 
+/**
+ * Single horizontal row: CDK’s default list orientation is vertical, which sorts by Y and
+ * fights a row layout (placeholder index flickers → “jitter”). `cdkDropListOrientation="horizontal"`
+ * matches pointer movement along the row.
+ */
 .player-hand-cards {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.5rem;
-  align-items: flex-start;
-  min-height: 2rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 0;
 }
 
 .player-hand--collapsed .player-hand-cards {
   gap: 0.25rem;
-  min-height: 0;
+}
+
+/* Reserve stable inline space so the placeholder doesn’t collapse and nudge siblings. */
+.player-hand-cards .cdk-drag-placeholder {
+  flex: 0 0 auto;
+  box-sizing: border-box;
 }
