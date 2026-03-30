@@ -12,7 +12,14 @@
       </p>
     </div>
   </div>
-  <button matButton="filled" type="button" (click)="engine.startGame()">Start</button>
+  <button
+    matButton="filled"
+    type="button"
+    [attr.aria-label]="engine.gameStarted() ? 'End game and reset board' : 'Start game'"
+    (click)="onStartOrEndClick()"
+  >
+    {{ engine.gameStarted() ? 'End' : 'Start' }}
+  </button>
 </header>
 
 <section class="battle-layout" cdkDropListGroup aria-label="Game table">

@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { PlayField } from './play-field/play-field';
 import { PlayerHand } from './player-hand/player-hand';
+import { CardDragService } from './services/card-drag.service';
 import { GameEngineService } from './services/game-engine.service';
 
 @Component({
@@ -13,6 +14,16 @@ import { GameEngineService } from './services/game-engine.service';
 })
 export class App {
   protected readonly engine = inject(GameEngineService);
+  private readonly cardDrag = inject(CardDragService);
 
   protected readonly title = signal('masterofcards');
+
+  protected onStartOrEndClick(): void {
+    if (this.engine.gameStarted()) {
+      this.cardDrag.endDrag();
+      this.engine.resetMatch();
+    } else {
+      this.engine.startGame();
+    }
+  }
 }
