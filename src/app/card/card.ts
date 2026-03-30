@@ -1,15 +1,26 @@
-import { Component, computed, input } from '@angular/core';
+import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
+import { Component, computed, inject, input } from '@angular/core';
 import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
+import type { CardDragPayload } from '../services/card-drag-payload';
+import { CardDragService } from '../services/card-drag.service';
+import { GameEngineService } from '../services/game-engine.service';
+import type { PlayerSlot } from '../player-hand/player-hand';
 
 @Component({
   selector: 'app-card',
-  imports: [],
+  imports: [CdkDrag],
   templateUrl: './card.html',
   styleUrl: './card.css',
 })
 export class Card {
+  private readonly engine = inject(GameEngineService);
+  private readonly cardDrag = inject(CardDragService);
+
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
+
+  /** Hand / board owner — required for field highlights while dragging. */
+  readonly ownerPlayerSlot = input<PlayerSlot | null>(null);
 
   /**
    * Battle/runtime override. When unset, creatures/lands use catalog `maxHealth`.
@@ -19,6 +30,22 @@ export class Card {
 
   /** Minimal face: name + current health only (inactive player hand). */
   readonly compact = input(false);
+
+  /** Cards on the field are not draggable back to hand (for now). */
+  readonly onField = input(false);
+
+  /** No drag before Start, when collapsed, or when placed on the field. */
+  protected readonly dragDisabled = computed(
+    () => this.compact() || !this.engine.gameStarted() || this.onField(),
+  );
+
+  protected readonly dragPayload = computed((): CardDragPayload | null => {
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return null;
+    }
+    return { cardId: this.cardId(), ownerPlayerSlot: slot };
+  });
 
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
@@ -74,4 +101,24 @@ export class Card {
     const max = this.def()?.maxHealth;
     return max !== undefined ? max : null;
   });
+
+  protected onDragStarted(): void {
+    if (this.dragDisabled()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    const def = this.def();
+    if (slot === null || !def) {
+      return;
+    }
+    this.cardDrag.beginDrag({
+      cardId: this.cardId(),
+      cardType: def.cardType,
+      ownerPlayerSlot: slot,
+    });
+  }
+
+  protected onDragEnded(_event: CdkDragEnd): void {
+    this.cardDrag.endDrag();
+  }
 }

@@ -1,3 +1,4 @@
+import { CdkDragDrop, CdkDropList, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { Card } from '../card/card';
 import { GameEngineService } from '../services/game-engine.service';
@@ -6,7 +7,7 @@ export type PlayerSlot = 'player1' | 'player2';
 
 @Component({
   selector: 'app-player-hand',
-  imports: [Card],
+  imports: [Card, CdkDropList],
   templateUrl: './player-hand.html',
   styleUrl: './player-hand.css',
 })
@@ -35,4 +36,18 @@ export class PlayerHand {
     const mine = this.playerSlot() === 'player1' ? 1 : 2;
     return turn !== mine;
   });
+
+  protected onHandDropped(event: CdkDragDrop<string[]>): void {
+    if (event.previousContainer === event.container) {
+      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+    } else {
+      transferArrayItem(
+        event.previousContainer.data,
+        event.container.data,
+        event.previousIndex,
+        event.currentIndex,
+      );
+    }
+    this.engine.touchDropContainers(event);
+  }
 }

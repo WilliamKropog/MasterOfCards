@@ -1,3 +1,28 @@
-<section class="field-row" [attr.aria-label]="rowLabel()">
-  <span class="field-row-placeholder">{{ rowLabel() }}</span>
+<section
+  class="field-row"
+  [class.field-row--drop-target]="showDropHighlight()"
+  [attr.aria-label]="rowLabel()"
+>
+  <!--
+    cdkDropList lives on the horizontal row so CDK inserts the placeholder into the same
+    flex container as the cards (justify-content: center). If it stays on the outer section,
+    the placeholder becomes a direct child of a column flex host and pins to the left.
+  -->
+  <div
+    class="field-row-cards"
+    cdkDropList
+    cdkDropListOrientation="horizontal"
+    [cdkDropListData]="fieldCards()"
+    [cdkDropListEnterPredicate]="canEnterRow"
+    (cdkDropListDropped)="onDropped($event)"
+  >
+    @if (fieldCards().length === 0) {
+      <span class="field-row-placeholder">{{ rowLabel() }}</span>
+    }
+    @for (cardId of fieldCards(); track $index) {
+      <div class="field-row-card-slot">
+        <app-card [cardId]="cardId" [ownerPlayerSlot]="playerSlot()" [onField]="true" />
+      </div>
+    }
+  </div>
 </section>

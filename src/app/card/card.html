@@ -1,4 +1,14 @@
-<article class="card" [class.card--compact]="compact()">
+<article
+  class="card"
+  [class.card--compact]="compact()"
+  [class.card--drag-disabled]="dragDisabled()"
+  cdkDrag
+  [cdkDragData]="dragPayload()"
+  [cdkDragDisabled]="dragDisabled()"
+  previewContainer="global"
+  (cdkDragStarted)="onDragStarted()"
+  (cdkDragEnded)="onDragEnded($event)"
+>
   @if (compact()) {
     <div class="card-compact-name">{{ displayName() }}</div>
     <div class="card-compact-hp" aria-label="Current health">

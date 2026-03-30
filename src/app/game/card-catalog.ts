@@ -86,3 +86,10 @@ export const CardIds = {
   boulderToss: 'boulder-toss',
   mudHut: 'mud-hut',
 } as const;
+
+/** Default opening hand for local testing (same for both players). */
+export const STARTER_HAND: string[] = [
+  CardIds.rockMonster,
+  CardIds.boulderToss,
+  CardIds.mudHut,
+];
