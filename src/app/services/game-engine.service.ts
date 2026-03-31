@@ -39,6 +39,15 @@ export class GameEngineService {
   readonly activePlayer = signal<PlayerId>(1);
 
   /**
+   * True after the active player has placed a Land or Monster on the field this turn
+   * (required before "Next Turn" is enabled). Spells do not set this.
+   */
+  readonly placedFieldCardThisTurn = signal(false);
+
+  /** Next Turn is available only after a field placement (Land or Monster) this turn. */
+  readonly canAdvanceTurn = computed(() => this.gameStarted() && this.placedFieldCardThisTurn());
+
+  /**
    * Round counter. `0` before the game starts; becomes `1` when `startGame()` runs;
    * then increases when both players complete a move in a round.
    */
@@ -61,6 +70,41 @@ export class GameEngineService {
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
+    this.placedFieldCardThisTurn.set(false);
+  }
+
+  /**
+   * Call when a Land or Monster is played from hand onto this player's field row during their turn.
+   */
+  notifyPlacedFieldCardFromHand(handData: string[]): void {
+    if (!this.gameStarted()) {
+      return;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return;
+    }
+    const owner: PlayerId | null =
+      handData === this.player1Hand() ? 1 : handData === this.player2Hand() ? 2 : null;
+    if (owner === null || owner !== turn) {
+      return;
+    }
+    this.placedFieldCardThisTurn.set(true);
+  }
+
+  /** Advance to the other player after they end their turn (Next Turn). */
+  nextTurn(): void {
+    if (!this.gameStarted() || !this.placedFieldCardThisTurn()) {
+      return;
+    }
+    const t = this.currentTurn();
+    if (t === null) {
+      return;
+    }
+    const next: PlayerId = t === 1 ? 2 : 1;
+    this.currentTurn.set(next);
+    this.activePlayer.set(next);
+    this.placedFieldCardThisTurn.set(false);
   }
 
   /**
@@ -126,6 +170,7 @@ export class GameEngineService {
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
+    this.placedFieldCardThisTurn.set(false);
   }
 
   /** Stub — advance turn / pass priority when you add phases. */

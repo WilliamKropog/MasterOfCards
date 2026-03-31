@@ -1,25 +1,40 @@
 <header class="app-header">
   <div class="app-header-top">
-    <h1 class="app-title">{{ title() }}</h1>
-    <div class="app-header-stats">
-      <p class="app-turn-counter">
-        <span class="app-stat-label">Turn Counter:</span>
-        <span class="app-stat-value">{{ engine.turnCounter() }}</span>
-      </p>
-      <p class="app-current-turn">
-        <span class="app-stat-label">Current Turn:</span>
-        <span class="app-stat-value">{{ engine.currentTurnDisplay() }}</span>
-      </p>
+    <div class="app-header-left">
+      <h1 class="app-title">{{ title() }}</h1>
+      <div class="app-header-stats">
+        <p class="app-turn-counter">
+          <span class="app-stat-label">Turn Counter:</span>
+          <span class="app-stat-value">{{ engine.turnCounter() }}</span>
+        </p>
+        <p class="app-current-turn">
+          <span class="app-stat-label">Current Turn:</span>
+          <span class="app-stat-value">{{ engine.currentTurnDisplay() }}</span>
+        </p>
+      </div>
+    </div>
+    <div class="app-header-actions">
+      <button
+        matButton="filled"
+        type="button"
+        [attr.aria-label]="engine.gameStarted() ? 'End game and reset board' : 'Start game'"
+        (click)="onStartOrEndClick()"
+      >
+        {{ engine.gameStarted() ? 'End' : 'Start' }}
+      </button>
+      <button
+        matButton="filled"
+        type="button"
+        [disabled]="!engine.canAdvanceTurn()"
+        [attr.aria-label]="
+          engine.canAdvanceTurn() ? 'End turn and pass to the other player' : 'Place a land or monster on the field to end your turn'
+        "
+        (click)="onNextTurnClick()"
+      >
+        Next Turn
+      </button>
     </div>
   </div>
-  <button
-    matButton="filled"
-    type="button"
-    [attr.aria-label]="engine.gameStarted() ? 'End game and reset board' : 'Start game'"
-    (click)="onStartOrEndClick()"
-  >
-    {{ engine.gameStarted() ? 'End' : 'Start' }}
-  </button>
 </header>
 
 <section class="battle-layout" cdkDropListGroup aria-label="Game table">

@@ -86,13 +86,34 @@ export class FieldRow {
     if (event.previousContainer === event.container) {
       moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
     } else {
+      const prevData = event.previousContainer.data;
+      const cardId = prevData[event.previousIndex];
       transferArrayItem(
-        event.previousContainer.data,
+        prevData,
         event.container.data,
         event.previousIndex,
         event.currentIndex,
       );
+      if (this.isHandContainer(prevData) && this.isFieldContainer(event.container.data)) {
+        const def = getCardDefinition(cardId);
+        if (def && (def.cardType === 'Land' || def.cardType === 'Monster')) {
+          this.engine.notifyPlacedFieldCardFromHand(prevData);
+        }
+      }
     }
     this.engine.touchDropContainers(event);
+  }
+
+  private isHandContainer(data: string[]): boolean {
+    return data === this.engine.player1Hand() || data === this.engine.player2Hand();
+  }
+
+  private isFieldContainer(data: string[]): boolean {
+    return (
+      data === this.engine.player1FieldLand() ||
+      data === this.engine.player1FieldMonster() ||
+      data === this.engine.player2FieldLand() ||
+      data === this.engine.player2FieldMonster()
+    );
   }
 }
