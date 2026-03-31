@@ -58,6 +58,37 @@
   }
 }
 
+/** Field: land/monster ready to act this turn (summoning sickness cleared). */
+.card.card--field-ready {
+  position: relative;
+  border-color: rgba(56, 142, 180, 0.55);
+  animation: card-field-ready-glow 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.card--field-ready {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(56, 142, 180, 0.5);
+  }
+}
+
+@keyframes card-field-ready-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(56, 142, 180, 0.45),
+      0 0 10px rgba(125, 211, 252, 0.2),
+      inset 0 0 18px rgba(186, 230, 253, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(14, 165, 233, 0.65),
+      0 0 16px rgba(125, 211, 252, 0.35),
+      inset 0 0 22px rgba(186, 230, 253, 0.18);
+  }
+}
+
 /* While CDK moves the element */
 .card.cdk-drag-dragging {
   cursor: grabbing;

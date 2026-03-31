@@ -19,9 +19,14 @@
     @if (fieldCards().length === 0) {
       <span class="field-row-placeholder">{{ rowLabel() }}</span>
     }
-    @for (cardId of fieldCards(); track $index) {
+    @for (entry of fieldCards(); track $index) {
       <div class="field-row-card-slot">
-        <app-card [cardId]="cardId" [ownerPlayerSlot]="playerSlot()" [onField]="true" />
+        <app-card
+          [cardId]="entry.cardId"
+          [placedAtTurnCounter]="entry.placedAtTurnCounter"
+          [ownerPlayerSlot]="playerSlot()"
+          [onField]="true"
+        />
       </div>
     }
   </div>

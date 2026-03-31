@@ -34,6 +34,12 @@ export class Card {
   /** Cards on the field are not draggable back to hand (for now). */
   readonly onField = input(false);
 
+  /**
+   * Turn counter when this card was placed on the field (land/monster). Used for
+   * "can't act until your next turn" and the field-ready highlight.
+   */
+  readonly placedAtTurnCounter = input<number | null>(null);
+
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
   /**
@@ -71,6 +77,34 @@ export class Card {
 
   /** Subtle gold hint on cards that can be dragged this turn (active hand). */
   protected readonly playableHighlight = computed(() => !this.dragDisabled());
+
+  /**
+   * Light blue glisten: land/monster on field can be used (attack/abilities) on the owner's
+   * turn once `turnCounter` has advanced past the turn they were played.
+   */
+  protected readonly fieldReadyHighlight = computed(() => {
+    if (!this.onField() || !this.engine.gameStarted()) {
+      return false;
+    }
+    const placedAt = this.placedAtTurnCounter();
+    if (placedAt === null) {
+      return false;
+    }
+    const type = this.def()?.cardType;
+    if (type !== 'Land' && type !== 'Monster') {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return false;
+    }
+    const slotId: 1 | 2 = slot === 'player1' ? 1 : 2;
+    const turn = this.engine.currentTurn();
+    if (turn === null || turn !== slotId) {
+      return false;
+    }
+    return this.engine.turnCounter() > placedAt;
+  });
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
     const slot = this.ownerPlayerSlot();

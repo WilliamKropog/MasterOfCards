@@ -5,6 +5,12 @@ import { STARTER_HAND } from '../game/card-catalog';
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
 
+/** Field row entry: catalog id + turn counter when played (for summoning / tap rules). */
+export interface FieldCardEntry {
+  cardId: string;
+  placedAtTurnCounter: number;
+}
+
 /**
  * Central place for match state and rule-driven updates.
  * Inject in components with `inject(GameEngineService)` or constructor DI.
@@ -20,11 +26,11 @@ export class GameEngineService {
   readonly player1Hand = signal<string[]>([...STARTER_HAND]);
   readonly player2Hand = signal<string[]>([...STARTER_HAND]);
 
-  /** Cards played onto each field row (catalog ids). */
-  readonly player1FieldLand = signal<string[]>([]);
-  readonly player1FieldMonster = signal<string[]>([]);
-  readonly player2FieldLand = signal<string[]>([]);
-  readonly player2FieldMonster = signal<string[]>([]);
+  /** Cards played onto each field row. */
+  readonly player1FieldLand = signal<FieldCardEntry[]>([]);
+  readonly player1FieldMonster = signal<FieldCardEntry[]>([]);
+  readonly player2FieldLand = signal<FieldCardEntry[]>([]);
+  readonly player2FieldMonster = signal<FieldCardEntry[]>([]);
 
   /** Whose turn it is once the match has started; `null` before `startGame()`. */
   readonly currentTurn = signal<PlayerId | null>(null);
@@ -110,16 +116,16 @@ export class GameEngineService {
    * CDK mutates list arrays in place; call after `moveItemInArray` / `transferArrayItem`
    * so Angular signals notify dependents.
    */
-  touchDropContainers(event: CdkDragDrop<string[]>): void {
-    const prev = event.previousContainer.data;
-    const next = event.container.data;
+  touchDropContainers(event: CdkDragDrop<any>): void {
+    const prev = event.previousContainer.data as string[] | FieldCardEntry[];
+    const next = event.container.data as string[] | FieldCardEntry[];
     if (prev !== next) {
       this.touchArrayByRef(prev);
     }
     this.touchArrayByRef(next);
   }
 
-  private touchArrayByRef(data: string[]): void {
+  private touchArrayByRef(data: string[] | FieldCardEntry[]): void {
     if (data === this.player1Hand()) {
       this.player1Hand.update((a) => [...a]);
     } else if (data === this.player2Hand()) {
