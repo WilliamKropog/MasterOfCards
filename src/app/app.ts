@@ -26,4 +26,8 @@ export class App {
       this.engine.startGame();
     }
   }
+
+  protected onNextTurnClick(): void {
+    this.engine.nextTurn();
+  }
 }

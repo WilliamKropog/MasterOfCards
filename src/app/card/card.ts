@@ -34,10 +34,43 @@ export class Card {
   /** Cards on the field are not draggable back to hand (for now). */
   readonly onField = input(false);
 
-  /** No drag before Start, when collapsed, or when placed on the field. */
+  private readonly def = computed(() => getCardDefinition(this.cardId()));
+
+  /**
+   * One land or monster per turn: after placing on the field, other lands/monsters in this
+   * player's hand cannot be dragged until next turn (spells may still be played).
+   */
+  private readonly fieldLandOrMonsterLocked = computed(() => {
+    if (this.onField() || this.compact()) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null || !this.engine.gameStarted() || !this.engine.placedFieldCardThisTurn()) {
+      return false;
+    }
+    const turn = this.engine.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const slotId: 1 | 2 = slot === 'player1' ? 1 : 2;
+    if (slotId !== turn) {
+      return false;
+    }
+    const type = this.def()?.cardType;
+    return type === 'Land' || type === 'Monster';
+  });
+
+  /** No drag before Start, when collapsed, on the field, or when land/monster slot used this turn. */
   protected readonly dragDisabled = computed(
-    () => this.compact() || !this.engine.gameStarted() || this.onField(),
+    () =>
+      this.compact() ||
+      !this.engine.gameStarted() ||
+      this.onField() ||
+      this.fieldLandOrMonsterLocked(),
   );
+
+  /** Subtle gold hint on cards that can be dragged this turn (active hand). */
+  protected readonly playableHighlight = computed(() => !this.dragDisabled());
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
     const slot = this.ownerPlayerSlot();
@@ -46,8 +79,6 @@ export class Card {
     }
     return { cardId: this.cardId(), ownerPlayerSlot: slot };
   });
-
-  private readonly def = computed(() => getCardDefinition(this.cardId()));
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
 

@@ -39,13 +39,19 @@ export class GameEngineService {
   readonly activePlayer = signal<PlayerId>(1);
 
   /**
+   * True after the active player has placed a Land or Monster on the field this turn
+   * (required before "Next Turn" is enabled). Spells do not set this.
+   */
+  readonly placedFieldCardThisTurn = signal(false);
+
+  /** Next Turn is available only after a field placement (Land or Monster) this turn. */
+  readonly canAdvanceTurn = computed(() => this.gameStarted() && this.placedFieldCardThisTurn());
+
+  /**
    * Round counter. `0` before the game starts; becomes `1` when `startGame()` runs;
-   * then increases when both players complete a move in a round.
+   * then increases by 1 each time both players have pressed Next Turn (full round completes).
    */
   readonly turnCounter = signal(0);
-
-  private player1MovedThisRound = false;
-  private player2MovedThisRound = false;
 
   /** Begin the match: turn counter → 1, current turn → Player 1. */
   startGame(): void {
@@ -53,14 +59,51 @@ export class GameEngineService {
     this.turnCounter.set(1);
     this.currentTurn.set(1);
     this.activePlayer.set(1);
-    this.player1MovedThisRound = false;
-    this.player2MovedThisRound = false;
     this.player1Hand.set([...STARTER_HAND]);
     this.player2Hand.set([...STARTER_HAND]);
     this.player1FieldLand.set([]);
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
+    this.placedFieldCardThisTurn.set(false);
+  }
+
+  /**
+   * Call when a Land or Monster is played from hand onto this player's field row during their turn.
+   */
+  notifyPlacedFieldCardFromHand(handData: string[]): void {
+    if (!this.gameStarted()) {
+      return;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return;
+    }
+    const owner: PlayerId | null =
+      handData === this.player1Hand() ? 1 : handData === this.player2Hand() ? 2 : null;
+    if (owner === null || owner !== turn) {
+      return;
+    }
+    this.placedFieldCardThisTurn.set(true);
+  }
+
+  /** Advance to the other player after they end their turn (Next Turn). */
+  nextTurn(): void {
+    if (!this.gameStarted() || !this.placedFieldCardThisTurn()) {
+      return;
+    }
+    const t = this.currentTurn();
+    if (t === null) {
+      return;
+    }
+    const next: PlayerId = t === 1 ? 2 : 1;
+    // Full round = P1 Next Turn + P2 Next Turn; advancing P2 → P1 completes that round.
+    if (t === 2 && next === 1) {
+      this.turnCounter.update((n) => n + 1);
+    }
+    this.currentTurn.set(next);
+    this.activePlayer.set(next);
+    this.placedFieldCardThisTurn.set(false);
   }
 
   /**
@@ -92,40 +135,19 @@ export class GameEngineService {
     }
   }
 
-  /**
-   * Call when a player successfully finishes a move. After both players have
-   * moved this round, `turnCounter` increases by 1 and round flags reset.
-   */
-  recordMoveComplete(player: PlayerId): void {
-    if (!this.gameStarted()) {
-      return;
-    }
-    if (player === 1) {
-      this.player1MovedThisRound = true;
-    } else {
-      this.player2MovedThisRound = true;
-    }
-    if (this.player1MovedThisRound && this.player2MovedThisRound) {
-      this.turnCounter.update((n) => n + 1);
-      this.player1MovedThisRound = false;
-      this.player2MovedThisRound = false;
-    }
-  }
-
   /** Start or restart a local match to a known baseline (pre-game). */
   resetMatch(): void {
     this.gameStarted.set(false);
     this.turnCounter.set(0);
     this.currentTurn.set(null);
     this.activePlayer.set(1);
-    this.player1MovedThisRound = false;
-    this.player2MovedThisRound = false;
     this.player1Hand.set([...STARTER_HAND]);
     this.player2Hand.set([...STARTER_HAND]);
     this.player1FieldLand.set([]);
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
+    this.placedFieldCardThisTurn.set(false);
   }
 
   /** Stub — advance turn / pass priority when you add phases. */

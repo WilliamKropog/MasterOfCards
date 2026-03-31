@@ -50,6 +50,13 @@ export class FieldRow {
     if (!drag || drag.ownerPlayerSlot !== this.playerSlot()) {
       return false;
     }
+    if (drag.cardType === 'Land' || drag.cardType === 'Monster') {
+      const ownerId: 1 | 2 = drag.ownerPlayerSlot === 'player1' ? 1 : 2;
+      const turn = this.engine.currentTurn();
+      if (this.engine.placedFieldCardThisTurn() && turn === ownerId) {
+        return false;
+      }
+    }
     const zone = this.zone();
     const type = drag.cardType;
     if (zone === 'monster' && type === 'Monster') {
@@ -79,6 +86,13 @@ export class FieldRow {
     if (this.zone() === 'monster' && def.cardType !== 'Monster') {
       return false;
     }
+    if (def.cardType === 'Land' || def.cardType === 'Monster') {
+      const ownerId: 1 | 2 = data.ownerPlayerSlot === 'player1' ? 1 : 2;
+      const turn = this.engine.currentTurn();
+      if (this.engine.placedFieldCardThisTurn() && turn === ownerId) {
+        return false;
+      }
+    }
     return true;
   };
 
@@ -86,13 +100,34 @@ export class FieldRow {
     if (event.previousContainer === event.container) {
       moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
     } else {
+      const prevData = event.previousContainer.data;
+      const cardId = prevData[event.previousIndex];
       transferArrayItem(
-        event.previousContainer.data,
+        prevData,
         event.container.data,
         event.previousIndex,
         event.currentIndex,
       );
+      if (this.isHandContainer(prevData) && this.isFieldContainer(event.container.data)) {
+        const def = getCardDefinition(cardId);
+        if (def && (def.cardType === 'Land' || def.cardType === 'Monster')) {
+          this.engine.notifyPlacedFieldCardFromHand(prevData);
+        }
+      }
     }
     this.engine.touchDropContainers(event);
+  }
+
+  private isHandContainer(data: string[]): boolean {
+    return data === this.engine.player1Hand() || data === this.engine.player2Hand();
+  }
+
+  private isFieldContainer(data: string[]): boolean {
+    return (
+      data === this.engine.player1FieldLand() ||
+      data === this.engine.player1FieldMonster() ||
+      data === this.engine.player2FieldLand() ||
+      data === this.engine.player2FieldMonster()
+    );
   }
 }
