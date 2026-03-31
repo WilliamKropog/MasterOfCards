@@ -1,14 +1,15 @@
 import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
+import { MatButton } from '@angular/material/button';
 import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
-import { GameEngineService } from '../services/game-engine.service';
+import { GameEngineService, type FieldZone } from '../services/game-engine.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
 @Component({
   selector: 'app-card',
-  imports: [CdkDrag],
+  imports: [CdkDrag, MatButton],
   templateUrl: './card.html',
   styleUrl: './card.css',
 })
@@ -36,11 +37,39 @@ export class Card {
 
   /**
    * Turn counter when this card was placed on the field (land/monster). Used for
-   * "can't act until your next turn" and the field-ready highlight.
+   * "can't act until your next turn" and the monster field-ready highlight.
    */
   readonly placedAtTurnCounter = input<number | null>(null);
 
+  /** Land vs monster row; set when `onField` is true. */
+  readonly fieldZone = input<FieldZone | null>(null);
+
+  /** Index in that row’s field list (for attack mode source identity). */
+  readonly fieldCardIndex = input<number | null>(null);
+
   private readonly def = computed(() => getCardDefinition(this.cardId()));
+
+  /** Live field row entry (HP / acted flags); null when not on the field. */
+  private readonly fieldEntry = computed(() => {
+    if (!this.onField()) {
+      return null;
+    }
+    const idx = this.fieldCardIndex();
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    if (idx === null || slot === null || zone === null) {
+      return null;
+    }
+    const arr =
+      zone === 'land'
+        ? slot === 'player1'
+          ? this.engine.player1FieldLand()
+          : this.engine.player2FieldLand()
+        : slot === 'player1'
+          ? this.engine.player1FieldMonster()
+          : this.engine.player2FieldMonster();
+    return arr[idx] ?? null;
+  });
 
   /**
    * One land or monster per turn: after placing on the field, other lands/monsters in this
@@ -79,8 +108,8 @@ export class Card {
   protected readonly playableHighlight = computed(() => !this.dragDisabled());
 
   /**
-   * Light blue glisten: land/monster on field can be used (attack/abilities) on the owner's
-   * turn once `turnCounter` has advanced past the turn they were played.
+   * Light blue glisten: monsters on field can act (attack/abilities) on the owner's turn once
+   * `turnCounter` has advanced past the turn they were played. Lands are passive and never get this.
    */
   protected readonly fieldReadyHighlight = computed(() => {
     if (!this.onField() || !this.engine.gameStarted()) {
@@ -91,7 +120,10 @@ export class Card {
       return false;
     }
     const type = this.def()?.cardType;
-    if (type !== 'Land' && type !== 'Monster') {
+    if (type !== 'Monster') {
+      return false;
+    }
+    if (this.fieldEntry()?.hasActedThisTurn) {
       return false;
     }
     const slot = this.ownerPlayerSlot();
@@ -104,6 +136,54 @@ export class Card {
       return false;
     }
     return this.engine.turnCounter() > placedAt;
+  });
+
+  /**
+   * Red shimmer: this card is a legal target while the owner’s monster is in attack mode.
+   * Enemy monsters must be cleared before enemy lands can be targeted.
+   */
+  protected readonly attackTargetHighlight = computed(() => {
+    if (!this.onField() || !this.engine.gameStarted()) {
+      return false;
+    }
+    const zone = this.fieldZone();
+    const owner = this.ownerPlayerSlot();
+    if (zone === null || owner === null) {
+      return false;
+    }
+    const mode = this.engine.attackMode();
+    if (!mode) {
+      return false;
+    }
+    const enemy: PlayerSlot = mode.attackerSlot === 'player1' ? 'player2' : 'player1';
+    if (owner !== enemy) {
+      return false;
+    }
+    const enemyMonsters =
+      enemy === 'player1' ? this.engine.player1FieldMonster().length : this.engine.player2FieldMonster().length;
+    const enemyLands =
+      enemy === 'player1' ? this.engine.player1FieldLand().length : this.engine.player2FieldLand().length;
+    if (enemyMonsters > 0) {
+      return zone === 'monster';
+    }
+    if (enemyLands > 0) {
+      return zone === 'land';
+    }
+    return false;
+  });
+
+  /** Marks the card that opened attack mode (for click-outside detection on the host). */
+  protected readonly isAttackSource = computed(() => {
+    const mode = this.engine.attackMode();
+    if (!mode || !this.onField()) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (slot === null || idx === null) {
+      return false;
+    }
+    return mode.attackerSlot === slot && mode.attackerMonsterIndex === idx;
   });
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
@@ -157,11 +237,15 @@ export class Card {
     return formatManaGenerationMap(map);
   });
 
-  /** Effective HP shown: override, else catalog maxHealth, else null (e.g. spells). */
+  /** Effective HP shown: field runtime HP, input override, else catalog maxHealth, else null. */
   protected readonly displayHealth = computed(() => {
     const override = this.currentHealth();
     if (override !== undefined) {
       return override;
+    }
+    const entryHp = this.fieldEntry()?.currentHealth;
+    if (entryHp !== undefined) {
+      return entryHp;
     }
     const max = this.def()?.maxHealth;
     return max !== undefined ? max : null;
@@ -185,5 +269,35 @@ export class Card {
 
   protected onDragEnded(_event: CdkDragEnd): void {
     this.cardDrag.endDrag();
+  }
+
+  protected onAttackClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (!this.fieldReadyHighlight()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (slot === null || idx === null) {
+      return;
+    }
+    this.engine.beginAttackFromMonster(slot, idx);
+  }
+
+  protected onFieldCardClick(event: MouseEvent): void {
+    if (!this.onField()) {
+      return;
+    }
+    if (!this.attackTargetHighlight()) {
+      return;
+    }
+    event.stopPropagation();
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (slot === null || zone === null || idx === null) {
+      return;
+    }
+    this.engine.resolveAttackOnTarget(slot, zone, idx);
   }
 }

@@ -89,6 +89,49 @@
   }
 }
 
+/** Enemy card legal target while the attacker is in attack mode (monsters before lands). */
+.card.card--attack-target {
+  position: relative;
+  border-color: rgba(185, 28, 28, 0.65);
+  animation: card-attack-target-glow 2.8s ease-in-out infinite;
+  cursor: pointer;
+  touch-action: manipulation;
+  background-color: #fff;
+  transition: background-color 0.18s ease;
+}
+
+.card.card--attack-target:hover {
+  background-color: rgba(252, 165, 165, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.card--attack-target {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.55);
+  }
+
+  .card.card--attack-target:hover {
+    background-color: rgba(252, 165, 165, 0.5);
+  }
+}
+
+@keyframes card-attack-target-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(220, 38, 38, 0.45),
+      0 0 10px rgba(248, 113, 113, 0.35),
+      inset 0 0 18px rgba(254, 202, 202, 0.18);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(185, 28, 28, 0.75),
+      0 0 16px rgba(239, 68, 68, 0.45),
+      inset 0 0 22px rgba(252, 165, 165, 0.22);
+  }
+}
+
 /* While CDK moves the element */
 .card.cdk-drag-dragging {
   cursor: grabbing;
@@ -155,4 +198,129 @@
 .card-compact-hp {
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+}
+
+/** Field row: tall slim face; actions are an in-card overlay (no extension below the card). */
+.card.card--field {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 12rem;
+  min-width: 7.5rem;
+  margin: 0.2rem;
+  padding: 0.45rem 0.5rem;
+  gap: 0.4rem;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 0;
+  overflow: visible;
+}
+
+.card-field-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: flex-start;
+}
+
+.card-field-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.card-field-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.card-field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.card-field-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.card-field-max {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/**
+ * Awakened-only: full-card dim overlay; buttons centered until hover or focus-within.
+ */
+.card.card--field:not(.card--field-ready) .card-field-actions {
+  display: none;
+}
+
+.card.card--field.card--field-ready .card-field-actions {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  box-sizing: border-box;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.card.card--field.card--field-ready:hover,
+.card.card--field.card--field-ready:focus-within {
+  z-index: 40;
+}
+
+.card.card--field.card--field-ready:hover .card-field-actions,
+.card.card--field.card--field-ready:focus-within .card-field-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-field-action-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.75rem;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+
+.card.card--field.cdk-drag-preview,
+.card.card--field.cdk-drag-placeholder {
+  display: flex;
+  flex-direction: column;
+  min-height: 6rem;
+  padding: 0.45rem 0.5rem;
+}
+
+.card.card--field.cdk-drag-preview .card-field-actions,
+.card.card--field.cdk-drag-placeholder .card-field-actions {
+  display: none;
 }

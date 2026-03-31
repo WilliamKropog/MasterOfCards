@@ -9,12 +9,10 @@ import { Component, computed, inject, input } from '@angular/core';
 import { getCardDefinition } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
-import type { FieldCardEntry } from '../services/game-engine.service';
+import type { FieldCardEntry, FieldZone } from '../services/game-engine.service';
 import { GameEngineService } from '../services/game-engine.service';
 import { Card } from '../card/card';
 import type { PlayerSlot } from '../player-hand/player-hand';
-
-export type FieldZone = 'land' | 'monster';
 
 @Component({
   selector: 'app-field-row',
