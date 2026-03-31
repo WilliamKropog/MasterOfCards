@@ -50,6 +50,13 @@ export class FieldRow {
     if (!drag || drag.ownerPlayerSlot !== this.playerSlot()) {
       return false;
     }
+    if (drag.cardType === 'Land' || drag.cardType === 'Monster') {
+      const ownerId: 1 | 2 = drag.ownerPlayerSlot === 'player1' ? 1 : 2;
+      const turn = this.engine.currentTurn();
+      if (this.engine.placedFieldCardThisTurn() && turn === ownerId) {
+        return false;
+      }
+    }
     const zone = this.zone();
     const type = drag.cardType;
     if (zone === 'monster' && type === 'Monster') {
@@ -78,6 +85,13 @@ export class FieldRow {
     }
     if (this.zone() === 'monster' && def.cardType !== 'Monster') {
       return false;
+    }
+    if (def.cardType === 'Land' || def.cardType === 'Monster') {
+      const ownerId: 1 | 2 = data.ownerPlayerSlot === 'player1' ? 1 : 2;
+      const turn = this.engine.currentTurn();
+      if (this.engine.placedFieldCardThisTurn() && turn === ownerId) {
+        return false;
+      }
     }
     return true;
   };
