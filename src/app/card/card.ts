@@ -69,6 +69,9 @@ export class Card {
       this.fieldLandOrMonsterLocked(),
   );
 
+  /** Subtle gold hint on cards that can be dragged this turn (active hand). */
+  protected readonly playableHighlight = computed(() => !this.dragDisabled());
+
   protected readonly dragPayload = computed((): CardDragPayload | null => {
     const slot = this.ownerPlayerSlot();
     if (slot === null) {
