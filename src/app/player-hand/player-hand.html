@@ -9,6 +9,7 @@
     cdkDropList
     cdkDropListOrientation="horizontal"
     [cdkDropListData]="cardIds()"
+    [cdkDropListEnterPredicate]="canEnterHand"
     (cdkDropListDropped)="onHandDropped($event)"
   >
     @for (cardId of cardIds(); track cardId) {
