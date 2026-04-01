@@ -20,14 +20,16 @@
         [attr.aria-label]="engine.gameStarted() ? 'End game and reset board' : 'Start game'"
         (click)="onStartOrEndClick()"
       >
-        {{ engine.gameStarted() ? 'End' : 'Start' }}
+        {{ engine.gameStarted() ? 'End Game' : 'Start Game' }}
       </button>
       <button
         matButton="filled"
         type="button"
         [disabled]="!engine.canAdvanceTurn()"
         [attr.aria-label]="
-          engine.canAdvanceTurn() ? 'End turn and pass to the other player' : 'Place a land or monster on the field to end your turn'
+          engine.canAdvanceTurn()
+            ? 'End turn and pass to the other player'
+            : 'Place a land or monster on the field to end your turn (not required if your hand has no land or monster cards)'
         "
         (click)="onNextTurnClick()"
       >

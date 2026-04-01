@@ -1,5 +1,5 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { Component, inject, signal } from '@angular/core';
+import { Component, HostListener, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { PlayField } from './play-field/play-field';
 import { PlayerHand } from './player-hand/player-hand';
@@ -29,5 +29,40 @@ export class App {
 
   protected onNextTurnClick(): void {
     this.engine.nextTurn();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  protected onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.engine.cancelAttackMode();
+    }
+  }
+
+  /**
+   * Clicking outside the attacking card dismisses attack mode (red targets). Clicks on the
+   * attacker or on a valid target stay inside the flow (composedPath covers shadow DOM buttons).
+   */
+  @HostListener('document:click', ['$event'])
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.engine.attackMode()) {
+      return;
+    }
+    let insideAttackSource = false;
+    let insideAttackTarget = false;
+    for (const n of event.composedPath()) {
+      if (!(n instanceof Element)) {
+        continue;
+      }
+      if (n.hasAttribute('data-attack-source')) {
+        insideAttackSource = true;
+      }
+      if (n.classList.contains('card--attack-target')) {
+        insideAttackTarget = true;
+      }
+    }
+    if (insideAttackSource || insideAttackTarget) {
+      return;
+    }
+    this.engine.cancelAttackMode();
   }
 }

@@ -1,8 +1,13 @@
 <article
   class="card"
+  [attr.data-attack-source]="isAttackSource() ? '' : null"
+  (click)="onFieldCardClick($event)"
   [class.card--compact]="compact()"
+  [class.card--field]="onField()"
   [class.card--drag-disabled]="dragDisabled()"
   [class.card--playable]="playableHighlight()"
+  [class.card--field-ready]="fieldReadyHighlight()"
+  [class.card--attack-target]="attackTargetHighlight()"
   cdkDrag
   [cdkDragData]="dragPayload()"
   [cdkDragDisabled]="dragDisabled()"
@@ -14,6 +19,33 @@
     <div class="card-compact-name">{{ displayName() }}</div>
     <div class="card-compact-hp" aria-label="Current health">
       Current health: {{ displayHealth() === null ? '—' : displayHealth() }}
+    </div>
+  } @else if (onField()) {
+    <div class="card-field-main">
+      <header class="card-field-name">{{ displayName() }}</header>
+      <div class="card-field-stat" aria-label="Current health">
+        <span class="card-field-label">Current health</span>
+        <span class="card-field-value">
+          {{ displayHealth() === null ? '—' : displayHealth() }}@if (maxHealth() !== null) {
+            <span class="card-field-max"> / {{ maxHealth() }}</span>
+          }
+        </span>
+      </div>
+      <div class="card-field-stat" aria-label="Attack">
+        <span class="card-field-label">Attack</span>
+        <span class="card-field-value">{{ displayAttack() === null ? '—' : displayAttack() }}</span>
+      </div>
+    </div>
+    <div class="card-field-actions">
+      <button
+        matButton="filled"
+        type="button"
+        class="card-field-action-btn"
+        (click)="onAttackClick($event)"
+      >
+        Attack
+      </button>
+      <button matButton="filled" type="button" class="card-field-action-btn">Defend</button>
     </div>
   } @else {
     <header class="card-header">{{ displayName() }}</header>
