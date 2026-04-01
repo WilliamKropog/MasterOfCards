@@ -41,6 +41,7 @@
 
 <section class="battle-layout" cdkDropListGroup aria-label="Game table">
   <div class="player-hand-row">
+    <app-player-deck playerSlot="player1" />
     <app-player-hand playerSlot="player1" [cardIds]="engine.player1Hand()" />
   </div>
 
@@ -49,6 +50,7 @@
   </div>
 
   <div class="player-hand-row">
+    <app-player-deck playerSlot="player2" />
     <app-player-hand playerSlot="player2" [cardIds]="engine.player2Hand()" />
   </div>
 </section>

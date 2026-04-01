@@ -93,3 +93,35 @@ export const STARTER_HAND: string[] = [
   CardIds.boulderToss,
   CardIds.mudHut,
 ];
+
+/** Catalog ids allowed in a constructed deck (expand as you add cards). */
+export const DECK_CARD_POOL: readonly string[] = [
+  CardIds.rockMonster,
+  CardIds.boulderToss,
+  CardIds.mudHut,
+];
+
+export const DECK_SIZE = 25;
+
+function shuffleInPlace<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = t;
+  }
+}
+
+/**
+ * Builds a face-down deck: `DECK_SIZE` random picks from `DECK_CARD_POOL`, then shuffled
+ * so draw order is independent of pick order.
+ */
+export function buildShuffledDeck(): string[] {
+  const deck: string[] = [];
+  const pool = DECK_CARD_POOL;
+  for (let i = 0; i < DECK_SIZE; i++) {
+    deck.push(pool[Math.floor(Math.random() * pool.length)]!);
+  }
+  shuffleInPlace(deck);
+  return deck;
+}

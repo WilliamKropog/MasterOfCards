@@ -1,0 +1,12 @@
+<div
+  class="player-deck"
+  [class.player-deck--empty]="deckCount() === 0"
+  [attr.aria-label]="ariaLabel()"
+>
+  @if (gameStarted()) {
+    <span class="player-deck-count">{{ deckCount() }}</span>
+    <span class="player-deck-label">Deck</span>
+  } @else {
+    <span class="player-deck-label">Deck</span>
+  }
+</div>

@@ -1,6 +1,6 @@
 import { computed, Injectable, signal } from '@angular/core';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { getCardDefinition, STARTER_HAND } from '../game/card-catalog';
+import { buildShuffledDeck, getCardDefinition, STARTER_HAND } from '../game/card-catalog';
 
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
@@ -40,6 +40,12 @@ export class GameEngineService {
   /** Hand contents (catalog ids); mutated by CDK drag-drop, then `touchDropContainers` refreshes signals. */
   readonly player1Hand = signal<string[]>([...STARTER_HAND]);
   readonly player2Hand = signal<string[]>([...STARTER_HAND]);
+
+  /**
+   * Draw pile (front = index 0). Built in `startGame()`; cards are shifted off when drawn.
+   */
+  readonly player1Deck = signal<string[]>([]);
+  readonly player2Deck = signal<string[]>([]);
 
   /** Cards played onto each field row. */
   readonly player1FieldLand = signal<FieldCardEntry[]>([]);
@@ -90,6 +96,12 @@ export class GameEngineService {
     this.activePlayer.set(1);
     this.player1Hand.set([...STARTER_HAND]);
     this.player2Hand.set([...STARTER_HAND]);
+    const deck1 = buildShuffledDeck();
+    const deck2 = buildShuffledDeck();
+    this.player1Deck.set(deck1);
+    this.player2Deck.set(deck2);
+    console.log('Player 1 deck:', deck1);
+    console.log('Player 2 deck:', deck2);
     this.player1FieldLand.set([]);
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
@@ -345,6 +357,8 @@ export class GameEngineService {
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
+    this.player1Deck.set([]);
+    this.player2Deck.set([]);
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
   }

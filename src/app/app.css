@@ -104,10 +104,14 @@
   width: 100%;
 }
 
-/* Full-width row; content-sized hand centered horizontally */
+/* Deck + hand: deck sits to the side of the centered hand group */
 .player-hand-row {
   display: flex;
+  flex-direction: row;
+  align-items: center;
   justify-content: center;
+  gap: 1rem;
   width: 100%;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
