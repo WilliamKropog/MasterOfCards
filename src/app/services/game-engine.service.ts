@@ -318,6 +318,34 @@ export class GameEngineService {
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.clearFieldActedFlags();
+    // Both players already received their opening hand at startGame; skip the draw on the first
+    // handoff (P1 → P2) while still on round 1. Every later turn-start still draws one.
+    const isFirstHandoffToPlayer2 =
+      t === 1 && next === 2 && this.turnCounter() === 1;
+    if (!isFirstHandoffToPlayer2) {
+      this.drawOneCardFromDeckForPlayer(next);
+    }
+  }
+
+  /** Top of deck (index 0) → append to hand. No-op if deck is empty. */
+  private drawOneCardFromDeckForPlayer(playerId: PlayerId): void {
+    if (playerId === 1) {
+      const deck = this.player1Deck();
+      if (deck.length === 0) {
+        return;
+      }
+      const [card, ...rest] = deck;
+      this.player1Deck.set(rest);
+      this.player1Hand.update((h) => [...h, card!]);
+    } else {
+      const deck = this.player2Deck();
+      if (deck.length === 0) {
+        return;
+      }
+      const [card, ...rest] = deck;
+      this.player2Deck.set(rest);
+      this.player2Hand.update((h) => [...h, card!]);
+    }
   }
 
   /**
