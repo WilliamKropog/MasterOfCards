@@ -87,12 +87,8 @@ export const CardIds = {
   mudHut: 'mud-hut',
 } as const;
 
-/** Default opening hand for local testing (same for both players). */
-export const STARTER_HAND: string[] = [
-  CardIds.rockMonster,
-  CardIds.boulderToss,
-  CardIds.mudHut,
-];
+/** Cards dealt from the top of the deck when a match starts (before any draw phase). */
+export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
