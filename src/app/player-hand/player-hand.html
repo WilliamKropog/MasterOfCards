@@ -9,11 +9,19 @@
     cdkDropList
     cdkDropListOrientation="horizontal"
     [cdkDropListData]="cardIds()"
+    [style.--hand-size]="cardIds().length"
     [cdkDropListEnterPredicate]="canEnterHand"
     (cdkDropListDropped)="onHandDropped($event)"
   >
-    @for (cardId of cardIds(); track cardId) {
-      <app-card [cardId]="cardId" [compact]="isHandCollapsed()" [ownerPlayerSlot]="playerSlot()" />
+    @for (cardId of cardIds(); track cardId; let i = $index) {
+      <app-card
+        class="player-hand-card-slot"
+        [style.--hand-index]="i"
+        [cardId]="cardId"
+        [compact]="isHandCollapsed()"
+        [inPlayerHand]="true"
+        [ownerPlayerSlot]="playerSlot()"
+      />
     }
   </div>
 </section>
