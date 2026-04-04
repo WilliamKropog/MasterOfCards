@@ -132,6 +132,80 @@
   }
 }
 
+/** Enemy land/monster while a spell is dragged (soft); tethered target uses full fill below. */
+.card.card--spell-target:not(.card--spell-tether-active) {
+  position: relative;
+  border-color: rgba(220, 90, 90, 0.5);
+  animation: card-spell-target-glow 2.4s ease-in-out infinite;
+  cursor: default;
+  touch-action: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.card--spell-target:not(.card--spell-tether-active) {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(239, 130, 130, 0.45);
+  }
+}
+
+/**
+ * Spell snap line is active to this card: entire face reads red (not just border glow).
+ */
+.card.card--spell-tether-active {
+  position: relative;
+  cursor: default;
+  touch-action: auto;
+  border-color: rgba(185, 28, 28, 0.85);
+  background-color: rgba(252, 165, 165, 0.65);
+  background-clip: padding-box;
+  animation: card-spell-tether-whole 2.2s ease-in-out infinite;
+}
+
+.card.card--spell-tether-active:hover {
+  background-color: rgba(248, 113, 113, 0.72);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.card--spell-tether-active {
+    animation: none;
+    background-color: rgba(252, 165, 165, 0.75);
+  }
+}
+
+@keyframes card-spell-tether-whole {
+  0%,
+  100% {
+    background-color: rgba(254, 202, 202, 0.55);
+    box-shadow:
+      inset 0 0 0 2px rgba(185, 28, 28, 0.35),
+      0 0 14px rgba(239, 68, 68, 0.28);
+  }
+
+  50% {
+    background-color: rgba(248, 113, 113, 0.62);
+    box-shadow:
+      inset 0 0 0 2px rgba(185, 28, 28, 0.5),
+      0 0 20px rgba(239, 68, 68, 0.38);
+  }
+}
+
+@keyframes card-spell-target-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(239, 130, 130, 0.38),
+      0 0 8px rgba(252, 165, 165, 0.22),
+      inset 0 0 14px rgba(254, 215, 215, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(220, 100, 100, 0.55),
+      0 0 14px rgba(248, 150, 150, 0.32),
+      inset 0 0 18px rgba(254, 202, 202, 0.16);
+  }
+}
+
 /* While CDK moves the element */
 .card.cdk-drag-dragging {
   cursor: grabbing;
@@ -159,6 +233,42 @@
 .card.card--compact.cdk-drag-preview,
 .card.card--compact.cdk-drag-placeholder {
   padding: 0.35rem 0.5rem;
+}
+
+/**
+ * Spell targeting: while the snap line is active, the CDK preview is a clone of the full hand
+ * face — collapse it to match `.card--compact` footprint (name-forward, stats hidden).
+ */
+.cdk-drag-preview.card.spell-drag-preview--compact {
+  min-width: 5.5rem;
+  max-width: 9rem;
+  max-height: 5.5rem;
+  margin: 0.2rem;
+  padding: 0.35rem 0.5rem;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  transition:
+    /* transform 0.18s ease, */
+    padding 0.18s ease,
+    min-width 0.18s ease,
+    max-width 0.18s ease;
+}
+
+.cdk-drag-preview.card.spell-drag-preview--compact .card-description,
+.cdk-drag-preview.card.spell-drag-preview--compact .card-stat {
+  display: none !important;
+}
+
+.cdk-drag-preview.card.spell-drag-preview--compact .card-header {
+  font-size: 0.85rem;
+  line-height: 1.2;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdk-drag-preview.card.spell-drag-preview--compact {
+    transition: none;
+  }
 }
 
 /**

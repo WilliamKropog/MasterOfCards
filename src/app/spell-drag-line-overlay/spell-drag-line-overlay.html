@@ -1,0 +1,11 @@
+@if (spellLine.line(); as l) {
+  <svg class="spell-drag-line-svg" aria-hidden="true">
+    <line
+      class="spell-drag-line"
+      [attr.x1]="l.x1"
+      [attr.y1]="l.y1"
+      [attr.x2]="l.x2"
+      [attr.y2]="l.y2"
+    />
+  </svg>
+}

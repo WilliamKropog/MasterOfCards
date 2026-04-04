@@ -1,9 +1,10 @@
-import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragEnd, type CdkDragMove } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
+import { SpellDragLineService } from '../services/spell-drag-line.service';
 import { GameEngineService, type FieldZone } from '../services/game-engine.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
@@ -16,6 +17,7 @@ import type { PlayerSlot } from '../player-hand/player-hand';
 export class Card {
   private readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
+  private readonly spellDragLine = inject(SpellDragLineService);
 
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
@@ -175,6 +177,9 @@ export class Card {
     if (!this.onField() || !this.engine.gameStarted()) {
       return false;
     }
+    if (this.cardDrag.activeDrag()?.cardType === 'Spell') {
+      return false;
+    }
     const zone = this.fieldZone();
     const owner = this.ownerPlayerSlot();
     if (zone === null || owner === null) {
@@ -199,6 +204,48 @@ export class Card {
       return zone === 'land';
     }
     return false;
+  });
+
+  /**
+   * Soft red pulse on enemy lands/monsters while the active player drags a spell (e.g. direct damage).
+   */
+  protected readonly spellTargetHighlight = computed(() => {
+    if (!this.onField() || !this.engine.gameStarted()) {
+      return false;
+    }
+    const drag = this.cardDrag.activeDrag();
+    if (!drag || drag.cardType !== 'Spell') {
+      return false;
+    }
+    const turn = this.engine.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const casterId: 1 | 2 = drag.ownerPlayerSlot === 'player1' ? 1 : 2;
+    if (turn !== casterId) {
+      return false;
+    }
+    const owner = this.ownerPlayerSlot();
+    if (owner === null || owner === drag.ownerPlayerSlot) {
+      return false;
+    }
+    const type = this.def()?.cardType;
+    return type === 'Land' || type === 'Monster';
+  });
+
+  /** Full-card red tether highlight: this field card is the spell snap-line target. */
+  protected readonly spellTetherHighlight = computed(() => {
+    const t = this.spellDragLine.tetherTarget();
+    if (t === null) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (slot === null || zone === null || idx === null) {
+      return false;
+    }
+    return t.slot === slot && t.zone === zone && t.index === idx;
   });
 
   /** Marks the card that opened attack mode (for click-outside detection on the host). */
@@ -297,7 +344,15 @@ export class Card {
   }
 
   protected onDragEnded(_event: CdkDragEnd): void {
+    this.spellDragLine.clear();
     this.cardDrag.endDrag();
+  }
+
+  protected onDragMoved(event: CdkDragMove<CardDragPayload | null>): void {
+    if (this.def()?.cardType !== 'Spell' || !this.inPlayerHand()) {
+      return;
+    }
+    this.spellDragLine.updateFromDragMove(event);
   }
 
   protected onAttackClick(event: MouseEvent): void {

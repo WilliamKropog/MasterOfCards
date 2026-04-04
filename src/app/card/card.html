@@ -9,11 +9,17 @@
   [class.card--playable]="playableHighlight()"
   [class.card--field-ready]="fieldReadyHighlight()"
   [class.card--attack-target]="attackTargetHighlight()"
+  [class.card--spell-target]="spellTargetHighlight()"
+  [class.card--spell-tether-active]="spellTetherHighlight()"
+  [attr.data-field-slot]="onField() ? ownerPlayerSlot() : null"
+  [attr.data-field-zone]="onField() ? fieldZone() : null"
+  [attr.data-field-index]="onField() ? fieldCardIndex() : null"
   cdkDrag
   [cdkDragData]="dragPayload()"
   [cdkDragDisabled]="dragDisabled()"
   previewContainer="global"
   (cdkDragStarted)="onDragStarted()"
+  (cdkDragMoved)="onDragMoved($event)"
   (cdkDragEnded)="onDragEnded($event)"
 >
   @if (compact()) {
