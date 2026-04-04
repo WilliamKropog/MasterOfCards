@@ -138,6 +138,10 @@
   z-index: 1;
 }
 
+.card.card--in-hand.cdk-drag-dragging {
+  z-index: 2000;
+}
+
 /**
  * CDK clones the card for the floating preview (`.cdk-drag-preview`) and the in-list slot
  * (`.cdk-drag-placeholder`). The preview is affected by CDK’s reset layer (`background: none`, etc.);
@@ -183,6 +187,20 @@
   font-size: 0.8rem;
   cursor: default;
   touch-action: auto;
+}
+
+/** Player hand fan: tighter margins + solid face so overlaps are not see-through. */
+.card.card--in-hand {
+  background-color: #fff;
+  background-clip: padding-box;
+}
+
+.card.card--in-hand:not(.card--compact) {
+  margin: 0.2rem 0.0rem;
+}
+
+.card.card--in-hand.card--compact {
+  margin: 0.2rem 0.3rem;
 }
 
 .card--compact:active {

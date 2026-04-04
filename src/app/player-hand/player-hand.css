@@ -2,6 +2,13 @@
   margin-bottom: 0.5rem;
   border: 1px solid #ccc;
   transition: margin 0.15s ease, padding 0.15s ease;
+  /**
+   * Hover lift = section inset + title column + cards strip padding-top + (row height − card height) / 2.
+   * Line-height is fixed on .player-hand-title so these calcs stay in sync with the heading.
+   */
+  --hand-hover-lift-section-pad: 0rem;
+  --hand-hover-lift-title-stack: calc(1.1rem * 1.25 + 0.0rem + 0.35rem);
+  --hand-hover-lift-row-center: 0.7rem;
 }
 
 .player-hand--collapsed {
@@ -12,6 +19,7 @@
 .player-hand-title {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
+  line-height: 1.25;
 }
 
 .player-hand--collapsed .player-hand-title {
@@ -24,19 +32,88 @@
  * fights a row layout (placeholder index flickers → “jitter”). `cdkDropListOrientation="horizontal"`
  * matches pointer movement along the row.
  */
+/**
+ * --hand-size: card count (set on this element). Up to 5 cards: spacing only, no overlap.
+ * Beyond 5: gap goes to 0 and each extra card adds a bit more pull (capped) so the fan tightens.
+ */
 .player-hand-cards {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.5rem;
-  overflow-x: auto;
-  overflow-y: hidden;
+  gap: clamp(0px, calc((6 - var(--hand-size, 1)) * 0.5rem), 0.5rem);
+  padding: 0.35rem 0.5rem;
+  /* Let the fan grow wider instead of gaining a horizontal scrollbar (edit overflow-x, not y). */
+  overflow-x: visible;
+  overflow-y: visible;
   min-height: 0;
+  max-width: 60rem;
+}
+
+/**
+ * Z-order: --hand-index (0 = leftmost); higher index = further right = on top.
+ */
+.player-hand-cards > .player-hand-card-slot {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: calc(1000 + var(--hand-index, 0));
+  transition: transform 0.5s ease;
+}
+
+.player-hand-cards > .player-hand-card-slot:not(:first-child) {
+  margin-left: calc(
+    -1 * max(0px, min(6.5rem, (var(--hand-size, 1) - 5) * 2.0rem))
+  );
+}
+
+.player-hand-cards > .player-hand-card-slot:hover {
+  z-index: 1500;
+  /* Align card top with the top inner edge of .player-hand (below border; includes title + strip). */
+  transform: translateY(
+    calc(
+      -1 *
+        (
+          var(--hand-hover-lift-section-pad) + var(--hand-hover-lift-title-stack) +
+            var(--hand-hover-lift-row-center)
+        )
+    )
+  );
+}
+
+/* Collapsed (inactive) hand: no hover lift or z-index bump — keep the strip static. */
+.player-hand--collapsed .player-hand-cards > .player-hand-card-slot {
+  transition: none;
+}
+
+.player-hand--collapsed .player-hand-cards > .player-hand-card-slot:hover {
+  transform: none;
+  z-index: calc(1000 + var(--hand-index, 0));
+}
+
+/* CDK applies transform on the inner .card while dragging; clear host lift so they don’t stack oddly. */
+.player-hand-cards > .player-hand-card-slot:has(.card.cdk-drag-dragging) {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-hand-cards > .player-hand-card-slot {
+    transition-duration: 0.01ms;
+  }
+}
+
+/**
+ * Collapsed (inactive) hand: compact cards are narrower but were bleeding wide because overlap
+ * lagged the active hand. Use a stronger pull per card + slightly tighter gap when not overlapping.
+ */
+.player-hand--collapsed .player-hand-cards > .player-hand-card-slot:not(:first-child) {
+  margin-left: calc(
+    -1 * max(0px, min(5.75rem, (var(--hand-size, 1) - 5) * 2.45rem))
+  );
 }
 
 .player-hand--collapsed .player-hand-cards {
-  gap: 0.25rem;
+  gap: clamp(0px, calc((6 - var(--hand-size, 1)) * 0.35rem), 0.35rem);
+  padding: 0.25rem 0.35rem;
 }
 
 /* Reserve stable inline space so the placeholder doesn’t collapse and nudge siblings. */

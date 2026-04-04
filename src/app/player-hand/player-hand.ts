@@ -1,6 +1,7 @@
-import { CdkDragDrop, CdkDropList, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { Card } from '../card/card';
+import type { CardDragPayload } from '../services/card-drag-payload';
 import { GameEngineService } from '../services/game-engine.service';
 
 export type PlayerSlot = 'player1' | 'player2';
@@ -37,7 +38,34 @@ export class PlayerHand {
     return turn !== mine;
   });
 
+  /**
+   * Block drops onto the inactive (collapsed) hand and cross-hand transfers; only the owning
+   * player's active hand may receive their own drags.
+   */
+  protected readonly canEnterHand = (
+    drag: CdkDrag<CardDragPayload | null>,
+    _drop: CdkDropList,
+  ): boolean => {
+    if (this.isHandCollapsed()) {
+      return false;
+    }
+    const data = drag.data;
+    if (!data?.ownerPlayerSlot) {
+      return false;
+    }
+    return data.ownerPlayerSlot === this.playerSlot();
+  };
+
   protected onHandDropped(event: CdkDragDrop<any>): void {
+    if (this.isHandCollapsed()) {
+      return;
+    }
+    if (event.previousContainer !== event.container) {
+      const data = event.item.data as CardDragPayload | undefined;
+      if (data && data.ownerPlayerSlot !== this.playerSlot()) {
+        return;
+      }
+    }
     if (event.previousContainer === event.container) {
       moveItemInArray(event.container.data as string[], event.previousIndex, event.currentIndex);
     } else {

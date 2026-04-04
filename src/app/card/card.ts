@@ -32,6 +32,9 @@ export class Card {
   /** Minimal face: name + current health only (inactive player hand). */
   readonly compact = input(false);
 
+  /** True when rendered in a player hand (enables tighter margins for overlapping layout). */
+  readonly inPlayerHand = input(false);
+
   /** Cards on the field are not draggable back to hand (for now). */
   readonly onField = input(false);
 

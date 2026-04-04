@@ -3,6 +3,7 @@
   [attr.data-attack-source]="isAttackSource() ? '' : null"
   (click)="onFieldCardClick($event)"
   [class.card--compact]="compact()"
+  [class.card--in-hand]="inPlayerHand()"
   [class.card--field]="onField()"
   [class.card--drag-disabled]="dragDisabled()"
   [class.card--playable]="playableHighlight()"

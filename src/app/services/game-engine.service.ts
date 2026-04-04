@@ -1,6 +1,6 @@
 import { computed, Injectable, signal } from '@angular/core';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { getCardDefinition, STARTER_HAND } from '../game/card-catalog';
+import { buildShuffledDeck, getCardDefinition, OPENING_HAND_SIZE } from '../game/card-catalog';
 
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
@@ -38,8 +38,14 @@ export class GameEngineService {
   readonly gameStarted = signal(false);
 
   /** Hand contents (catalog ids); mutated by CDK drag-drop, then `touchDropContainers` refreshes signals. */
-  readonly player1Hand = signal<string[]>([...STARTER_HAND]);
-  readonly player2Hand = signal<string[]>([...STARTER_HAND]);
+  readonly player1Hand = signal<string[]>([]);
+  readonly player2Hand = signal<string[]>([]);
+
+  /**
+   * Draw pile (front = index 0). Built in `startGame()`; cards are shifted off when drawn.
+   */
+  readonly player1Deck = signal<string[]>([]);
+  readonly player2Deck = signal<string[]>([]);
 
   /** Cards played onto each field row. */
   readonly player1FieldLand = signal<FieldCardEntry[]>([]);
@@ -88,8 +94,18 @@ export class GameEngineService {
     this.turnCounter.set(1);
     this.currentTurn.set(1);
     this.activePlayer.set(1);
-    this.player1Hand.set([...STARTER_HAND]);
-    this.player2Hand.set([...STARTER_HAND]);
+    const deck1 = buildShuffledDeck();
+    const deck2 = buildShuffledDeck();
+    const hand1 = deck1.splice(0, OPENING_HAND_SIZE);
+    const hand2 = deck2.splice(0, OPENING_HAND_SIZE);
+    this.player1Hand.set(hand1);
+    this.player2Hand.set(hand2);
+    this.player1Deck.set(deck1);
+    this.player2Deck.set(deck2);
+    console.log('Player 1 opening hand:', hand1);
+    console.log('Player 1 deck (remaining):', deck1);
+    console.log('Player 2 opening hand:', hand2);
+    console.log('Player 2 deck (remaining):', deck2);
     this.player1FieldLand.set([]);
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
@@ -302,6 +318,34 @@ export class GameEngineService {
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.clearFieldActedFlags();
+    // Both players already received their opening hand at startGame; skip the draw on the first
+    // handoff (P1 → P2) while still on round 1. Every later turn-start still draws one.
+    const isFirstHandoffToPlayer2 =
+      t === 1 && next === 2 && this.turnCounter() === 1;
+    if (!isFirstHandoffToPlayer2) {
+      this.drawOneCardFromDeckForPlayer(next);
+    }
+  }
+
+  /** Top of deck (index 0) → append to hand. No-op if deck is empty. */
+  private drawOneCardFromDeckForPlayer(playerId: PlayerId): void {
+    if (playerId === 1) {
+      const deck = this.player1Deck();
+      if (deck.length === 0) {
+        return;
+      }
+      const [card, ...rest] = deck;
+      this.player1Deck.set(rest);
+      this.player1Hand.update((h) => [...h, card!]);
+    } else {
+      const deck = this.player2Deck();
+      if (deck.length === 0) {
+        return;
+      }
+      const [card, ...rest] = deck;
+      this.player2Deck.set(rest);
+      this.player2Hand.update((h) => [...h, card!]);
+    }
   }
 
   /**
@@ -339,12 +383,14 @@ export class GameEngineService {
     this.turnCounter.set(0);
     this.currentTurn.set(null);
     this.activePlayer.set(1);
-    this.player1Hand.set([...STARTER_HAND]);
-    this.player2Hand.set([...STARTER_HAND]);
+    this.player1Hand.set([]);
+    this.player2Hand.set([]);
     this.player1FieldLand.set([]);
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
+    this.player1Deck.set([]);
+    this.player2Deck.set([]);
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
   }

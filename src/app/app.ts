@@ -2,13 +2,14 @@ import { CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { Component, HostListener, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { PlayField } from './play-field/play-field';
+import { PlayerDeck } from './player-deck/player-deck';
 import { PlayerHand } from './player-hand/player-hand';
 import { CardDragService } from './services/card-drag.service';
 import { GameEngineService } from './services/game-engine.service';
 
 @Component({
   selector: 'app-root',
-  imports: [MatButton, PlayerHand, PlayField, CdkDropListGroup],
+  imports: [MatButton, PlayerDeck, PlayerHand, PlayField, CdkDropListGroup],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
