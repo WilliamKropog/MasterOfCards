@@ -39,6 +39,24 @@ export function formatManaGenerationMap(map: ManaGenerationMap): string {
     .join(', ');
 }
 
+/**
+ * Sums `generateMana` from each land card id (e.g. all lands on a player's field).
+ * Multiple copies of the same land stack (three Mud Huts → Rock: 3).
+ */
+export function aggregateManaFromLandCardIds(cardIds: readonly string[]): ManaGenerationMap {
+  const out: ManaGenerationMap = {};
+  for (const id of cardIds) {
+    const def = getCardDefinition(id);
+    if (!def?.generateMana) {
+      continue;
+    }
+    for (const [element, amount] of Object.entries(def.generateMana)) {
+      out[element] = (out[element] ?? 0) + amount;
+    }
+  }
+  return out;
+}
+
 export const CARD_CATALOG: Record<string, CardDefinition> = {
   'rock-monster': {
     id: 'rock-monster',

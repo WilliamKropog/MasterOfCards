@@ -98,13 +98,39 @@ export class Card {
     return type === 'Land' || type === 'Monster';
   });
 
-  /** No drag before Start, when collapsed, on the field, or when land/monster slot used this turn. */
+  /**
+   * Spells/cards with `manaCost` > 0 require that much of `cardElement` mana from lands on the
+   * field (mana is not spent when playing; pool is always “available” while lands stay in play).
+   */
+  private readonly cannotAffordManaCostInHand = computed(() => {
+    if (!this.inPlayerHand()) {
+      return false;
+    }
+    const def = this.def();
+    if (!def) {
+      return true;
+    }
+    const cost = def.manaCost;
+    if (cost === undefined || cost <= 0) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return true;
+    }
+    const pool = slot === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
+    const available = pool[def.cardElement] ?? 0;
+    return available < cost;
+  });
+
+  /** No drag before Start, when collapsed, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
       this.compact() ||
       !this.engine.gameStarted() ||
       this.onField() ||
-      this.fieldLandOrMonsterLocked(),
+      this.fieldLandOrMonsterLocked() ||
+      this.cannotAffordManaCostInHand(),
   );
 
   /** Subtle gold hint on cards that can be dragged this turn (active hand). */

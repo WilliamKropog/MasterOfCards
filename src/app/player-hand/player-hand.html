@@ -3,7 +3,24 @@
   [class.player-hand--collapsed]="isHandCollapsed()"
   [attr.aria-label]="displayLabel() + ' hand'"
 >
-  <h2 class="player-hand-title">{{ displayLabel() }}</h2>
+  <div class="player-hand-title-row">
+    <h2 class="player-hand-title">{{ displayLabel() }}</h2>
+    @if (engine.gameStarted()) {
+      <div
+        class="player-hand-mana"
+        role="status"
+        [attr.aria-label]="manaFromLandsAriaLabel()"
+      >
+        @if (manaFromLandsRows().length === 0) {
+          <span class="player-hand-mana-empty">—</span>
+        } @else {
+          @for (m of manaFromLandsRows(); track m.element) {
+            <span class="player-hand-mana-pill">{{ m.amount }} {{ m.element }}</span>
+          }
+        }
+      </div>
+    }
+  </div>
   <div
     class="player-hand-cards"
     cdkDropList

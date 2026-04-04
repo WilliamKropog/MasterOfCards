@@ -1,6 +1,12 @@
 import { computed, Injectable, signal } from '@angular/core';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { buildShuffledDeck, getCardDefinition, OPENING_HAND_SIZE } from '../game/card-catalog';
+import {
+  aggregateManaFromLandCardIds,
+  buildShuffledDeck,
+  getCardDefinition,
+  OPENING_HAND_SIZE,
+  type ManaGenerationMap,
+} from '../game/card-catalog';
 
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
@@ -61,6 +67,14 @@ export class GameEngineService {
     const t = this.currentTurn();
     return t === null ? '—' : `Player ${t}`;
   });
+
+  /** Mana from lands on the field (catalog `generateMana`, summed per element). */
+  readonly player1Mana = computed<ManaGenerationMap>(() =>
+    aggregateManaFromLandCardIds(this.player1FieldLand().map((e) => e.cardId)),
+  );
+  readonly player2Mana = computed<ManaGenerationMap>(() =>
+    aggregateManaFromLandCardIds(this.player2FieldLand().map((e) => e.cardId)),
+  );
 
   /** Kept in sync with `currentTurn` when a game is active. */
   readonly activePlayer = signal<PlayerId>(1);

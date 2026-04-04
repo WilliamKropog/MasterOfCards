@@ -16,15 +16,53 @@
   padding: 0.25rem 0.35rem;
 }
 
-.player-hand-title {
+.player-hand-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
   margin: 0 0 0.5rem;
+}
+
+.player-hand-title {
+  margin: 0;
   font-size: 1.1rem;
   line-height: 1.25;
 }
 
-.player-hand--collapsed .player-hand-title {
+.player-hand-mana {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 0.72);
+}
+
+.player-hand-mana-empty {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.player-hand-mana-pill {
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+.player-hand--collapsed .player-hand-title-row {
   margin-bottom: 0.25rem;
+}
+
+.player-hand--collapsed .player-hand-title {
   font-size: 0.85rem;
+}
+
+.player-hand--collapsed .player-hand-mana {
+  font-size: 0.8rem;
 }
 
 /**

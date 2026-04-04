@@ -13,7 +13,7 @@ export type PlayerSlot = 'player1' | 'player2';
   styleUrl: './player-hand.css',
 })
 export class PlayerHand {
-  private readonly engine = inject(GameEngineService);
+  protected readonly engine = inject(GameEngineService);
 
   /** Which player this hand belongs to. */
   readonly playerSlot = input.required<PlayerSlot>();
@@ -24,6 +24,24 @@ export class PlayerHand {
   protected readonly displayLabel = computed(() =>
     this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2',
   );
+
+  /** Sorted rows for template: mana type + total amount from lands on the field. */
+  protected readonly manaFromLandsRows = computed(() => {
+    const pool =
+      this.playerSlot() === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
+    return Object.entries(pool)
+      .filter(([, amount]) => amount > 0)
+      .map(([element, amount]) => ({ element, amount }))
+      .sort((a, b) => a.element.localeCompare(b.element));
+  });
+
+  protected readonly manaFromLandsAriaLabel = computed(() => {
+    const rows = this.manaFromLandsRows();
+    if (rows.length === 0) {
+      return 'No mana from lands on the field';
+    }
+    return `Mana from lands: ${rows.map((m) => `${m.amount} ${m.element}`).join(', ')}`;
+  });
 
   /** Inactive hand uses compact cards once the match has started. */
   protected readonly isHandCollapsed = computed(() => {
