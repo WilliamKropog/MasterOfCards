@@ -52,6 +52,9 @@ export class Card {
   /** Index in that row’s field list (for attack mode source identity). */
   readonly fieldCardIndex = input<number | null>(null);
 
+  /** Index in the parent hand list; set for hand cards so spell cast can remove the correct copy. */
+  readonly handIndex = input<number | undefined>(undefined);
+
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
   /** Live field row entry (HP / acted flags); null when not on the field. */
@@ -267,7 +270,9 @@ export class Card {
     if (slot === null) {
       return null;
     }
-    return { cardId: this.cardId(), ownerPlayerSlot: slot };
+    const hi = this.handIndex();
+    const base: CardDragPayload = { cardId: this.cardId(), ownerPlayerSlot: slot };
+    return hi === undefined ? base : { ...base, handIndex: hi };
   });
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
@@ -344,8 +349,24 @@ export class Card {
   }
 
   protected onDragEnded(_event: CdkDragEnd): void {
-    this.spellDragLine.clear();
-    this.cardDrag.endDrag();
+    try {
+      if (this.inPlayerHand() && this.def()?.cardType === 'Spell') {
+        const tether = this.spellDragLine.tetherTarget();
+        const slot = this.ownerPlayerSlot();
+        const idx = this.handIndex();
+        if (tether !== null && slot !== null && idx !== undefined) {
+          this.engine.tryCastSpellFromHand({
+            casterSlot: slot,
+            handIndex: idx,
+            spellCardId: this.cardId(),
+            tether,
+          });
+        }
+      }
+    } finally {
+      this.spellDragLine.clear();
+      this.cardDrag.endDrag();
+    }
   }
 
   protected onDragMoved(event: CdkDragMove<CardDragPayload | null>): void {

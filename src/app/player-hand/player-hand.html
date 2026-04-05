@@ -30,11 +30,12 @@
     [cdkDropListEnterPredicate]="canEnterHand"
     (cdkDropListDropped)="onHandDropped($event)"
   >
-    @for (cardId of cardIds(); track cardId; let i = $index) {
+    @for (cardId of cardIds(); track i; let i = $index) {
       <app-card
         class="player-hand-card-slot"
         [style.--hand-index]="i"
         [cardId]="cardId"
+        [handIndex]="i"
         [compact]="isHandCollapsed()"
         [inPlayerHand]="true"
         [ownerPlayerSlot]="playerSlot()"

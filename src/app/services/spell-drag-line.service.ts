@@ -1,7 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import type { CdkDragMove } from '@angular/cdk/drag-drop';
-import type { FieldZone } from './game-engine.service';
-import type { PlayerSlot } from '../player-hand/player-hand';
+import type { FieldZone, FieldPlayerSlot, SpellTetherTarget } from './game-engine.service';
+
+/** Re-export for consumers that only import this service. */
+export type { SpellTetherTarget } from './game-engine.service';
 
 /** Viewport segment in client (pixel) coordinates. */
 export interface SpellDragLineSegment {
@@ -9,13 +11,6 @@ export interface SpellDragLineSegment {
   y1: number;
   x2: number;
   y2: number;
-}
-
-/** Field card the snap line connects to (see `data-field-*` on tethered `article.card`). */
-export interface SpellTetherTarget {
-  slot: PlayerSlot;
-  zone: FieldZone;
-  index: number;
 }
 
 /** Distance from spell (drag preview) center to target center for snap + line. */
@@ -88,7 +83,7 @@ export class SpellDragLineService {
     if (!Number.isInteger(index) || index < 0) {
       return null;
     }
-    return { slot: slot as PlayerSlot, zone: zone as FieldZone, index };
+    return { slot: slot as FieldPlayerSlot, zone: zone as FieldZone, index };
   }
 
   /**

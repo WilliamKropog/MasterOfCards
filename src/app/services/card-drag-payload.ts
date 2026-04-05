@@ -4,4 +4,6 @@ import type { PlayerSlot } from '../player-hand/player-hand';
 export interface CardDragPayload {
   cardId: string;
   ownerPlayerSlot: PlayerSlot;
+  /** Index in the owning hand list (identifies which copy when duplicates exist). */
+  handIndex?: number;
 }

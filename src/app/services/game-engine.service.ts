@@ -26,6 +26,13 @@ export type FieldZone = 'land' | 'monster';
 
 export type FieldPlayerSlot = 'player1' | 'player2';
 
+/** Field card chosen by spell snap line / tether (see `data-field-*` on field `app-card`). */
+export interface SpellTetherTarget {
+  slot: FieldPlayerSlot;
+  zone: FieldZone;
+  index: number;
+}
+
 /** Monster attack targeting: player is choosing an enemy for this field monster. */
 export interface AttackModeState {
   attackerSlot: FieldPlayerSlot;
@@ -158,6 +165,96 @@ export class GameEngineService {
 
   cancelAttackMode(): void {
     this.attackMode.set(null);
+  }
+
+  /**
+   * Cast a spell from hand onto a tethered enemy field card (after drag release with snap line).
+   * Supports catalog `damage` on spells; e.g. Flying doubles damage for Boulder Toss rules.
+   */
+  tryCastSpellFromHand(params: {
+    casterSlot: FieldPlayerSlot;
+    handIndex: number;
+    spellCardId: string;
+    tether: SpellTetherTarget;
+  }): boolean {
+    const { casterSlot, handIndex, spellCardId, tether } = params;
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const casterId: 1 | 2 = casterSlot === 'player1' ? 1 : 2;
+    if (turn !== casterId) {
+      return false;
+    }
+
+    const hand = casterSlot === 'player1' ? this.player1Hand() : this.player2Hand();
+    if (handIndex < 0 || handIndex >= hand.length || hand[handIndex] !== spellCardId) {
+      return false;
+    }
+
+    const spellDef = getCardDefinition(spellCardId);
+    if (!spellDef || spellDef.cardType !== 'Spell') {
+      return false;
+    }
+
+    const cost = spellDef.manaCost ?? 0;
+    if (cost > 0) {
+      const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
+      const available = pool[spellDef.cardElement] ?? 0;
+      if (available < cost) {
+        return false;
+      }
+    }
+
+    if (tether.slot === casterSlot) {
+      return false;
+    }
+
+    const defenderArr = this.getFieldArray(tether.slot, tether.zone);
+    const defenderEntry = defenderArr[tether.index];
+    if (!defenderEntry) {
+      return false;
+    }
+
+    const baseDamage = spellDef.damage;
+    if (baseDamage === undefined || baseDamage <= 0) {
+      return false;
+    }
+
+    const defenderDef = getCardDefinition(defenderEntry.cardId);
+    if (!defenderDef) {
+      return false;
+    }
+
+    let amount = baseDamage;
+    if (defenderDef.attributes?.includes('Flying')) {
+      amount *= 2;
+    }
+
+    const defenderHp = defenderEntry.currentHealth ?? defenderDef.maxHealth ?? 0;
+    const newHp = Math.max(0, defenderHp - amount);
+    const defenderResult: FieldCardEntry = {
+      ...defenderEntry,
+      currentHealth: newHp,
+    };
+
+    const removeAtIndex = (arr: string[]): string[] => {
+      const next = [...arr];
+      next.splice(handIndex, 1);
+      return next;
+    };
+    if (casterSlot === 'player1') {
+      this.player1Hand.update(removeAtIndex);
+    } else {
+      this.player2Hand.update(removeAtIndex);
+    }
+
+    this.applyFieldEntry(tether.slot, tether.zone, tether.index, defenderResult);
+    this.attackMode.set(null);
+    return true;
   }
 
   /**
