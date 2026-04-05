@@ -1,7 +1,12 @@
 .player-hand {
   margin-bottom: 0.5rem;
   border: 1px solid #ccc;
-  transition: margin 0.15s ease, padding 0.15s ease;
+  transition:
+    margin 0.15s ease,
+    padding 0.15s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
   /**
    * Hover lift = section inset + title column + cards strip padding-top + (row height − card height) / 2.
    * Line-height is fixed on .player-hand-title so these calcs stay in sync with the heading.
@@ -9,6 +14,150 @@
   --hand-hover-lift-section-pad: 0rem;
   --hand-hover-lift-title-stack: calc(1.1rem * 1.25 + 0.0rem + 0.35rem);
   --hand-hover-lift-row-center: 0.7rem;
+}
+
+/**
+ * Monster attack mode: enemy hand when they have no monsters on the field (same pool as enemy lands).
+ * Placed before spell-hand rules so spell drag styling wins if both apply.
+ */
+.player-hand.player-hand--attack-target {
+  border-color: rgba(185, 28, 28, 0.65);
+  animation: player-hand-attack-target-glow 2.8s ease-in-out infinite;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.player-hand.player-hand--attack-target:hover {
+  background-color: rgba(252, 165, 165, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-hand.player-hand--attack-target {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.55);
+  }
+
+  .player-hand.player-hand--attack-target:hover {
+    background-color: rgba(252, 165, 165, 0.12);
+  }
+}
+
+@keyframes player-hand-attack-target-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(220, 38, 38, 0.45),
+      0 0 10px rgba(248, 113, 113, 0.35),
+      inset 0 0 18px rgba(254, 202, 202, 0.18);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(185, 28, 28, 0.75),
+      0 0 16px rgba(239, 68, 68, 0.45),
+      inset 0 0 22px rgba(252, 165, 165, 0.22);
+  }
+}
+
+/**
+ * Eligible enemy hand: opponent is dragging a spell — red border glow (before pointer is over).
+ */
+.player-hand.player-hand--spell-drag-eligible:not(.player-hand--spell-drag-target):not(
+    .player-hand--spell-tether-snap
+  ) {
+  border-color: rgba(220, 38, 38, 0.6);
+  animation: player-hand-spell-eligible-border-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-hand.player-hand--spell-drag-eligible:not(.player-hand--spell-drag-target):not(
+      .player-hand--spell-tether-snap
+    ) {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.45), 0 0 12px rgba(248, 113, 113, 0.28);
+  }
+}
+
+@keyframes player-hand-spell-eligible-border-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(220, 38, 38, 0.45),
+      0 0 14px rgba(248, 113, 113, 0.3),
+      0 0 24px rgba(239, 68, 68, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(185, 28, 28, 0.65),
+      0 0 22px rgba(248, 113, 113, 0.42),
+      0 0 32px rgba(239, 68, 68, 0.2);
+  }
+}
+
+/**
+ * Snap line locked to this hand (same role as `.card--spell-tether-active` on field cards).
+ */
+.player-hand.player-hand--spell-tether-snap:not(.player-hand--spell-drag-target) {
+  border-color: rgba(185, 28, 28, 0.85);
+  background-color: rgba(252, 165, 165, 0.65);
+  background-clip: padding-box;
+  animation: player-hand-spell-tether-snap 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-hand.player-hand--spell-tether-snap:not(.player-hand--spell-drag-target) {
+    animation: none;
+    background-color: rgba(252, 165, 165, 0.75);
+  }
+}
+
+@keyframes player-hand-spell-tether-snap {
+  0%,
+  100% {
+    background-color: rgba(254, 202, 202, 0.55);
+    box-shadow:
+      inset 0 0 0 2px rgba(185, 28, 28, 0.35),
+      0 0 14px rgba(239, 68, 68, 0.28);
+  }
+
+  50% {
+    background-color: rgba(248, 113, 113, 0.62);
+    box-shadow:
+      inset 0 0 0 2px rgba(185, 28, 28, 0.5),
+      0 0 20px rgba(239, 68, 68, 0.38);
+  }
+}
+
+/** Pointer over enemy hand — stronger fill + glow on top of eligible border. */
+.player-hand.player-hand--spell-drag-target {
+  border-color: rgba(185, 28, 28, 0.75);
+  background-color: rgba(254, 202, 202, 0.35);
+  animation: player-hand-spell-target-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-hand.player-hand--spell-drag-target {
+    animation: none;
+    box-shadow:
+      inset 0 0 0 2px rgba(220, 38, 38, 0.35),
+      0 0 12px rgba(248, 113, 113, 0.28);
+  }
+}
+
+@keyframes player-hand-spell-target-pulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 2px rgba(220, 38, 38, 0.28),
+      0 0 12px rgba(248, 113, 113, 0.22);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgba(185, 28, 28, 0.45),
+      0 0 18px rgba(239, 68, 68, 0.32);
+  }
 }
 
 .player-hand--collapsed {
@@ -24,10 +173,27 @@
   margin: 0 0 0.5rem;
 }
 
+.player-hand-title-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+}
+
 .player-hand-title {
   margin: 0;
   font-size: 1.1rem;
   line-height: 1.25;
+}
+
+.player-hand-lp {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  color: rgba(0, 0, 0, 0.78);
+  white-space: nowrap;
 }
 
 .player-hand-mana {
@@ -59,6 +225,10 @@
 
 .player-hand--collapsed .player-hand-title {
   font-size: 0.85rem;
+}
+
+.player-hand--collapsed .player-hand-lp {
+  font-size: 0.8rem;
 }
 
 .player-hand--collapsed .player-hand-mana {

@@ -61,6 +61,9 @@ export class App {
       if (n.classList.contains('card--attack-target')) {
         insideAttackTarget = true;
       }
+      if (n.classList.contains('player-hand--attack-target')) {
+        insideAttackTarget = true;
+      }
     }
     if (insideAttackSource || insideAttackTarget) {
       return;

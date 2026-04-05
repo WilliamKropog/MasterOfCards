@@ -11,6 +11,9 @@ import {
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
 
+/** Starting life total per player (win condition: reduce opponent to 0). */
+export const STARTING_LIFE_POINTS = 2000;
+
 /** Field row entry: catalog id + turn counter when played (for summoning / tap rules). */
 export interface FieldCardEntry {
   cardId: string;
@@ -88,6 +91,7 @@ export class GameEngineService {
 
   /**
    * While set, enemy field cards that are legal attack targets shimmer red (monsters first, then lands).
+   * When the enemy has no monsters, their hand is also a valid target (see `player-hand--attack-target`).
    */
   readonly attackMode = signal<AttackModeState | null>(null);
 
@@ -109,8 +113,14 @@ export class GameEngineService {
    */
   readonly turnCounter = signal(0);
 
+  /** Player life points (game loss at 0). */
+  readonly player1LifePoints = signal(STARTING_LIFE_POINTS);
+  readonly player2LifePoints = signal(STARTING_LIFE_POINTS);
+
   /** Begin the match: turn counter → 1, current turn → Player 1. */
   startGame(): void {
+    this.player1LifePoints.set(STARTING_LIFE_POINTS);
+    this.player2LifePoints.set(STARTING_LIFE_POINTS);
     this.gameStarted.set(true);
     this.turnCounter.set(1);
     this.currentTurn.set(1);
@@ -155,11 +165,6 @@ export class GameEngineService {
     const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
     const enemyMonsters =
       enemy === 'player1' ? this.player1FieldMonster().length : this.player2FieldMonster().length;
-    const enemyLands =
-      enemy === 'player1' ? this.player1FieldLand().length : this.player2FieldLand().length;
-    if (enemyMonsters === 0 && enemyLands === 0) {
-      return;
-    }
     this.attackMode.set({ attackerSlot, attackerMonsterIndex });
   }
 
@@ -258,6 +263,79 @@ export class GameEngineService {
   }
 
   /**
+   * Cast a spell from hand at the opponent's life points (e.g. drag released on their hand).
+   * Uses catalog `damage` as flat LP loss. Flying / field-only modifiers do not apply to LP.
+   */
+  tryCastSpellFromHandAgainstPlayerLife(params: {
+    casterSlot: FieldPlayerSlot;
+    handIndex: number;
+    spellCardId: string;
+    targetPlayerSlot: FieldPlayerSlot;
+  }): boolean {
+    const { casterSlot, handIndex, spellCardId, targetPlayerSlot } = params;
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const casterId: 1 | 2 = casterSlot === 'player1' ? 1 : 2;
+    if (turn !== casterId) {
+      return false;
+    }
+
+    const hand = casterSlot === 'player1' ? this.player1Hand() : this.player2Hand();
+    if (handIndex < 0 || handIndex >= hand.length || hand[handIndex] !== spellCardId) {
+      return false;
+    }
+
+    const spellDef = getCardDefinition(spellCardId);
+    if (!spellDef || spellDef.cardType !== 'Spell') {
+      return false;
+    }
+
+    const cost = spellDef.manaCost ?? 0;
+    if (cost > 0) {
+      const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
+      const available = pool[spellDef.cardElement] ?? 0;
+      if (available < cost) {
+        return false;
+      }
+    }
+
+    if (targetPlayerSlot === casterSlot) {
+      return false;
+    }
+
+    const amount = spellDef.damage;
+    if (amount === undefined || amount <= 0) {
+      return false;
+    }
+
+    const removeAtIndex = (arr: string[]): string[] => {
+      const next = [...arr];
+      next.splice(handIndex, 1);
+      return next;
+    };
+    if (casterSlot === 'player1') {
+      this.player1Hand.update(removeAtIndex);
+    } else {
+      this.player2Hand.update(removeAtIndex);
+    }
+
+    const applyLp = (current: number) => Math.max(0, current - amount);
+    if (targetPlayerSlot === 'player1') {
+      this.player1LifePoints.update(applyLp);
+    } else {
+      this.player2LifePoints.update(applyLp);
+    }
+
+    this.attackMode.set(null);
+    return true;
+  }
+
+  /**
    * Resolves combat: attacker and defender deal damage simultaneously, then both are marked
    * as having acted this turn. Cards at 0 or less HP are removed from the field.
    */
@@ -317,6 +395,59 @@ export class GameEngineService {
 
     this.applyFieldEntry(attackerSlot, 'monster', attackerIdx, attackerResult);
     this.applyFieldEntry(defenderSlot, defenderZone, defenderIndex, defenderResult);
+  }
+
+  /**
+   * Attack the opponent’s life points with the monster currently in attack mode (enemy has no
+   * monsters on the field). Deals the attacker’s catalog `attack` as damage; no counter-damage.
+   */
+  resolveAttackOnEnemyLife(defenderPlayerSlot: FieldPlayerSlot): void {
+    const mode = this.attackMode();
+    if (!mode || !this.gameStarted()) {
+      return;
+    }
+    const attackerSlot = mode.attackerSlot;
+    const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
+    if (defenderPlayerSlot !== enemy) {
+      return;
+    }
+    const enemyMonsters =
+      enemy === 'player1' ? this.player1FieldMonster().length : this.player2FieldMonster().length;
+    if (enemyMonsters > 0) {
+      return;
+    }
+
+    const attackerIdx = mode.attackerMonsterIndex;
+    const attackerArr =
+      attackerSlot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    const attackerEntry = attackerArr[attackerIdx];
+    if (!attackerEntry) {
+      return;
+    }
+
+    const atkDef = getCardDefinition(attackerEntry.cardId);
+    if (!atkDef) {
+      return;
+    }
+    const atkPower = atkDef.attack ?? 0;
+    if (atkPower <= 0) {
+      return;
+    }
+
+    const applyLp = (current: number) => Math.max(0, current - atkPower);
+    if (enemy === 'player1') {
+      this.player1LifePoints.update(applyLp);
+    } else {
+      this.player2LifePoints.update(applyLp);
+    }
+
+    const attackerResult: FieldCardEntry = {
+      ...attackerEntry,
+      hasActedThisTurn: true,
+    };
+
+    this.attackMode.set(null);
+    this.applyFieldEntry(attackerSlot, 'monster', attackerIdx, attackerResult);
   }
 
   private isLegalAttackTarget(
@@ -491,6 +622,8 @@ export class GameEngineService {
   /** Start or restart a local match to a known baseline (pre-game). */
   resetMatch(): void {
     this.gameStarted.set(false);
+    this.player1LifePoints.set(STARTING_LIFE_POINTS);
+    this.player2LifePoints.set(STARTING_LIFE_POINTS);
     this.turnCounter.set(0);
     this.currentTurn.set(null);
     this.activePlayer.set(1);

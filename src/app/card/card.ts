@@ -346,21 +346,39 @@ export class Card {
       cardType: def.cardType,
       ownerPlayerSlot: slot,
     });
+    if (def.cardType !== 'Spell') {
+      this.spellDragLine.clearEnemyHandHover();
+    }
   }
 
   protected onDragEnded(_event: CdkDragEnd): void {
     try {
       if (this.inPlayerHand() && this.def()?.cardType === 'Spell') {
         const tether = this.spellDragLine.tetherTarget();
+        const snapHand = this.spellDragLine.spellSnapHandTarget();
+        const overEnemyHand = this.spellDragLine.spellDragOverEnemyHand();
         const slot = this.ownerPlayerSlot();
         const idx = this.handIndex();
-        if (tether !== null && slot !== null && idx !== undefined) {
+        if (slot === null || idx === undefined) {
+          return;
+        }
+        if (tether !== null) {
           this.engine.tryCastSpellFromHand({
             casterSlot: slot,
             handIndex: idx,
             spellCardId: this.cardId(),
             tether,
           });
+        } else {
+          const targetSlot = snapHand ?? overEnemyHand;
+          if (targetSlot !== null) {
+            this.engine.tryCastSpellFromHandAgainstPlayerLife({
+              casterSlot: slot,
+              handIndex: idx,
+              spellCardId: this.cardId(),
+              targetPlayerSlot: targetSlot,
+            });
+          }
         }
       }
     } finally {

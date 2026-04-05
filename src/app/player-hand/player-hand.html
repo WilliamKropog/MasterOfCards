@@ -1,10 +1,23 @@
 <section
   class="player-hand"
+  [attr.data-player-slot]="playerSlot()"
+  (click)="onEnemyHandAttackClick($event)"
   [class.player-hand--collapsed]="isHandCollapsed()"
+  [class.player-hand--spell-drag-eligible]="spellDragEligibleEnemyHand()"
+  [class.player-hand--spell-tether-snap]="spellSnapTetherThisHand()"
+  [class.player-hand--spell-drag-target]="spellDragTargetingThisHand()"
+  [class.player-hand--attack-target]="attackModeEligibleEnemyHand()"
   [attr.aria-label]="displayLabel() + ' hand'"
 >
   <div class="player-hand-title-row">
-    <h2 class="player-hand-title">{{ displayLabel() }}</h2>
+    <div class="player-hand-title-cluster">
+      <h2 class="player-hand-title">{{ displayLabel() }}</h2>
+      @if (engine.gameStarted()) {
+        <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
+          LP {{ lifePoints() }}
+        </span>
+      }
+    </div>
     @if (engine.gameStarted()) {
       <div
         class="player-hand-mana"
