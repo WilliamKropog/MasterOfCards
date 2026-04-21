@@ -1,9 +1,10 @@
-import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragEnd, type CdkDragMove } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
+import { SpellDragLineService } from '../services/spell-drag-line.service';
 import { GameEngineService, type FieldZone } from '../services/game-engine.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
@@ -16,6 +17,7 @@ import type { PlayerSlot } from '../player-hand/player-hand';
 export class Card {
   private readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
+  private readonly spellDragLine = inject(SpellDragLineService);
 
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
@@ -49,6 +51,9 @@ export class Card {
 
   /** Index in that row’s field list (for attack mode source identity). */
   readonly fieldCardIndex = input<number | null>(null);
+
+  /** Index in the parent hand list; set for hand cards so spell cast can remove the correct copy. */
+  readonly handIndex = input<number | undefined>(undefined);
 
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
@@ -98,13 +103,39 @@ export class Card {
     return type === 'Land' || type === 'Monster';
   });
 
-  /** No drag before Start, when collapsed, on the field, or when land/monster slot used this turn. */
+  /**
+   * Spells/cards with `manaCost` > 0 require that much of `cardElement` mana from lands on the
+   * field (mana is not spent when playing; pool is always “available” while lands stay in play).
+   */
+  private readonly cannotAffordManaCostInHand = computed(() => {
+    if (!this.inPlayerHand()) {
+      return false;
+    }
+    const def = this.def();
+    if (!def) {
+      return true;
+    }
+    const cost = def.manaCost;
+    if (cost === undefined || cost <= 0) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return true;
+    }
+    const pool = slot === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
+    const available = pool[def.cardElement] ?? 0;
+    return available < cost;
+  });
+
+  /** No drag before Start, when collapsed, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
       this.compact() ||
       !this.engine.gameStarted() ||
       this.onField() ||
-      this.fieldLandOrMonsterLocked(),
+      this.fieldLandOrMonsterLocked() ||
+      this.cannotAffordManaCostInHand(),
   );
 
   /** Subtle gold hint on cards that can be dragged this turn (active hand). */
@@ -149,6 +180,9 @@ export class Card {
     if (!this.onField() || !this.engine.gameStarted()) {
       return false;
     }
+    if (this.cardDrag.activeDrag()?.cardType === 'Spell') {
+      return false;
+    }
     const zone = this.fieldZone();
     const owner = this.ownerPlayerSlot();
     if (zone === null || owner === null) {
@@ -175,6 +209,48 @@ export class Card {
     return false;
   });
 
+  /**
+   * Soft red pulse on enemy lands/monsters while the active player drags a spell (e.g. direct damage).
+   */
+  protected readonly spellTargetHighlight = computed(() => {
+    if (!this.onField() || !this.engine.gameStarted()) {
+      return false;
+    }
+    const drag = this.cardDrag.activeDrag();
+    if (!drag || drag.cardType !== 'Spell') {
+      return false;
+    }
+    const turn = this.engine.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const casterId: 1 | 2 = drag.ownerPlayerSlot === 'player1' ? 1 : 2;
+    if (turn !== casterId) {
+      return false;
+    }
+    const owner = this.ownerPlayerSlot();
+    if (owner === null || owner === drag.ownerPlayerSlot) {
+      return false;
+    }
+    const type = this.def()?.cardType;
+    return type === 'Land' || type === 'Monster';
+  });
+
+  /** Full-card red tether highlight: this field card is the spell snap-line target. */
+  protected readonly spellTetherHighlight = computed(() => {
+    const t = this.spellDragLine.tetherTarget();
+    if (t === null) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (slot === null || zone === null || idx === null) {
+      return false;
+    }
+    return t.slot === slot && t.zone === zone && t.index === idx;
+  });
+
   /** Marks the card that opened attack mode (for click-outside detection on the host). */
   protected readonly isAttackSource = computed(() => {
     const mode = this.engine.attackMode();
@@ -194,7 +270,9 @@ export class Card {
     if (slot === null) {
       return null;
     }
-    return { cardId: this.cardId(), ownerPlayerSlot: slot };
+    const hi = this.handIndex();
+    const base: CardDragPayload = { cardId: this.cardId(), ownerPlayerSlot: slot };
+    return hi === undefined ? base : { ...base, handIndex: hi };
   });
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
@@ -268,10 +346,52 @@ export class Card {
       cardType: def.cardType,
       ownerPlayerSlot: slot,
     });
+    if (def.cardType !== 'Spell') {
+      this.spellDragLine.clearEnemyHandHover();
+    }
   }
 
   protected onDragEnded(_event: CdkDragEnd): void {
-    this.cardDrag.endDrag();
+    try {
+      if (this.inPlayerHand() && this.def()?.cardType === 'Spell') {
+        const tether = this.spellDragLine.tetherTarget();
+        const snapHand = this.spellDragLine.spellSnapHandTarget();
+        const overEnemyHand = this.spellDragLine.spellDragOverEnemyHand();
+        const slot = this.ownerPlayerSlot();
+        const idx = this.handIndex();
+        if (slot === null || idx === undefined) {
+          return;
+        }
+        if (tether !== null) {
+          this.engine.tryCastSpellFromHand({
+            casterSlot: slot,
+            handIndex: idx,
+            spellCardId: this.cardId(),
+            tether,
+          });
+        } else {
+          const targetSlot = snapHand ?? overEnemyHand;
+          if (targetSlot !== null) {
+            this.engine.tryCastSpellFromHandAgainstPlayerLife({
+              casterSlot: slot,
+              handIndex: idx,
+              spellCardId: this.cardId(),
+              targetPlayerSlot: targetSlot,
+            });
+          }
+        }
+      }
+    } finally {
+      this.spellDragLine.clear();
+      this.cardDrag.endDrag();
+    }
+  }
+
+  protected onDragMoved(event: CdkDragMove<CardDragPayload | null>): void {
+    if (this.def()?.cardType !== 'Spell' || !this.inPlayerHand()) {
+      return;
+    }
+    this.spellDragLine.updateFromDragMove(event);
   }
 
   protected onAttackClick(event: MouseEvent): void {

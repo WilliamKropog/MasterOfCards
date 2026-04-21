@@ -1,0 +1,27 @@
+:host {
+  display: contents;
+}
+
+.spell-drag-line-svg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 950;
+  overflow: visible;
+}
+
+.spell-drag-line {
+  fill: none;
+  stroke: rgba(185, 28, 28, 0.85);
+  stroke-width: 2;
+  stroke-dasharray: 5 8;
+  stroke-linecap: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spell-drag-line {
+    stroke-dasharray: none;
+  }
+}

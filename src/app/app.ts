@@ -1,6 +1,7 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { Component, HostListener, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
+import { SpellDragLineOverlay } from './spell-drag-line-overlay/spell-drag-line-overlay';
 import { PlayField } from './play-field/play-field';
 import { PlayerDeck } from './player-deck/player-deck';
 import { PlayerHand } from './player-hand/player-hand';
@@ -9,7 +10,7 @@ import { GameEngineService } from './services/game-engine.service';
 
 @Component({
   selector: 'app-root',
-  imports: [MatButton, PlayerDeck, PlayerHand, PlayField, CdkDropListGroup],
+  imports: [MatButton, PlayerDeck, PlayerHand, PlayField, SpellDragLineOverlay, CdkDropListGroup],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -58,6 +59,9 @@ export class App {
         insideAttackSource = true;
       }
       if (n.classList.contains('card--attack-target')) {
+        insideAttackTarget = true;
+      }
+      if (n.classList.contains('player-hand--attack-target')) {
         insideAttackTarget = true;
       }
     }

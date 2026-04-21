@@ -1,9 +1,39 @@
 <section
   class="player-hand"
+  [attr.data-player-slot]="playerSlot()"
+  (click)="onEnemyHandAttackClick($event)"
   [class.player-hand--collapsed]="isHandCollapsed()"
+  [class.player-hand--spell-drag-eligible]="spellDragEligibleEnemyHand()"
+  [class.player-hand--spell-tether-snap]="spellSnapTetherThisHand()"
+  [class.player-hand--spell-drag-target]="spellDragTargetingThisHand()"
+  [class.player-hand--attack-target]="attackModeEligibleEnemyHand()"
   [attr.aria-label]="displayLabel() + ' hand'"
 >
-  <h2 class="player-hand-title">{{ displayLabel() }}</h2>
+  <div class="player-hand-title-row">
+    <div class="player-hand-title-cluster">
+      <h2 class="player-hand-title">{{ displayLabel() }}</h2>
+      @if (engine.gameStarted()) {
+        <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
+          LP {{ lifePoints() }}
+        </span>
+      }
+    </div>
+    @if (engine.gameStarted()) {
+      <div
+        class="player-hand-mana"
+        role="status"
+        [attr.aria-label]="manaFromLandsAriaLabel()"
+      >
+        @if (manaFromLandsRows().length === 0) {
+          <span class="player-hand-mana-empty">—</span>
+        } @else {
+          @for (m of manaFromLandsRows(); track m.element) {
+            <span class="player-hand-mana-pill">{{ m.amount }} {{ m.element }}</span>
+          }
+        }
+      </div>
+    }
+  </div>
   <div
     class="player-hand-cards"
     cdkDropList
@@ -13,11 +43,12 @@
     [cdkDropListEnterPredicate]="canEnterHand"
     (cdkDropListDropped)="onHandDropped($event)"
   >
-    @for (cardId of cardIds(); track cardId; let i = $index) {
+    @for (cardId of cardIds(); track i; let i = $index) {
       <app-card
         class="player-hand-card-slot"
         [style.--hand-index]="i"
         [cardId]="cardId"
+        [handIndex]="i"
         [compact]="isHandCollapsed()"
         [inPlayerHand]="true"
         [ownerPlayerSlot]="playerSlot()"
