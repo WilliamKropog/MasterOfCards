@@ -172,9 +172,17 @@ export class Card {
     return this.engine.turnCounter() > placedAt;
   });
 
+  /** Monster on field is in defense position (horizontal). */
+  protected readonly isDefending = computed(() => {
+    if (!this.onField() || this.fieldZone() !== 'monster') {
+      return false;
+    }
+    return this.fieldEntry()?.defending === true;
+  });
+
   /**
    * Red shimmer: this card is a legal target while the owner’s monster is in attack mode.
-   * Enemy monsters must be cleared before enemy lands can be targeted.
+   * Mirrors {@link GameEngineService.isLegalAttackTargetForAttackMode} (defending monsters first).
    */
   protected readonly attackTargetHighlight = computed(() => {
     if (!this.onField() || !this.engine.gameStarted()) {
@@ -185,28 +193,15 @@ export class Card {
     }
     const zone = this.fieldZone();
     const owner = this.ownerPlayerSlot();
-    if (zone === null || owner === null) {
+    const idx = this.fieldCardIndex();
+    if (zone === null || owner === null || idx === null) {
       return false;
     }
     const mode = this.engine.attackMode();
     if (!mode) {
       return false;
     }
-    const enemy: PlayerSlot = mode.attackerSlot === 'player1' ? 'player2' : 'player1';
-    if (owner !== enemy) {
-      return false;
-    }
-    const enemyMonsters =
-      enemy === 'player1' ? this.engine.player1FieldMonster().length : this.engine.player2FieldMonster().length;
-    const enemyLands =
-      enemy === 'player1' ? this.engine.player1FieldLand().length : this.engine.player2FieldLand().length;
-    if (enemyMonsters > 0) {
-      return zone === 'monster';
-    }
-    if (enemyLands > 0) {
-      return zone === 'land';
-    }
-    return false;
+    return this.engine.isLegalAttackTargetForAttackMode(owner, zone, idx, mode.attackerSlot);
   });
 
   /**
@@ -405,6 +400,20 @@ export class Card {
       return;
     }
     this.engine.beginAttackFromMonster(slot, idx);
+  }
+
+  protected onDefendClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (!this.fieldReadyHighlight()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (slot === null || zone !== 'monster' || idx === null) {
+      return;
+    }
+    this.engine.setMonsterDefending(slot, idx);
   }
 
   protected onFieldCardClick(event: MouseEvent): void {

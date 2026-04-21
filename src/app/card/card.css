@@ -347,6 +347,19 @@
   position: relative;
   z-index: 0;
   overflow: visible;
+  transform-origin: center center;
+  transition: transform 0.5s ease-in-out;
+  transform: rotate(0deg);
+}
+
+.card.card--field.card--defending {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.card--field {
+    transition-duration: 0.01ms;
+  }
 }
 
 .card-field-main {
