@@ -95,20 +95,20 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 1},
     description: '',
   },
-  // 'mighty-gopher': {
-  //   id: 'mighty-gopher',
-  //   name: 'Mighty Gopher',
-  //   cardType: 'Monster',
-  //   maxHealth: 80,
-  //   attack: 10,
-  //   defense: 30,
-  //   manaCost: 0,
-  //   cardElement: 'Rock',
-  //   rarity: 'Common',
-  //   monsterClass: 'Elemental',
-  //   attributes: ['Melee'],
-  //   description: '',
-  // },
+  'mighty-gopher': {
+    id: 'mighty-gopher',
+    name: 'Mighty Gopher',
+    cardType: 'Monster',
+    maxHealth: 50,
+    attack: 10,
+    defense: 20,
+    manaCost: 0,
+    cardElement: 'Rock',
+    rarity: 'Common',
+    monsterClass: 'Elemental',
+    attributes: ['Melee'],
+    description: '',
+  },
 };
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
@@ -118,6 +118,7 @@ export function getCardDefinition(id: string): CardDefinition | undefined {
 /** Use in templates / routes so ids are not magic strings everywhere. */
 export const CardIds = {
   rockMonster: 'rock-monster',
+  mightyGopher: 'mighty-gopher',
   boulderToss: 'boulder-toss',
   mudHut: 'mud-hut',
 } as const;
@@ -128,6 +129,7 @@ export const OPENING_HAND_SIZE = 5;
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
   CardIds.rockMonster,
+  CardIds.mightyGopher,
   CardIds.boulderToss,
   CardIds.mudHut,
 ];
