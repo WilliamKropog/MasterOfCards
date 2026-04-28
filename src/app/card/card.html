@@ -11,6 +11,7 @@
   [class.card--attack-target]="attackTargetHighlight()"
   [class.card--spell-target]="spellTargetHighlight()"
   [class.card--spell-tether-active]="spellTetherHighlight()"
+  [class.card--defending]="isDefending()"
   [attr.data-field-slot]="onField() ? ownerPlayerSlot() : null"
   [attr.data-field-zone]="onField() ? fieldZone() : null"
   [attr.data-field-index]="onField() ? fieldCardIndex() : null"
@@ -43,17 +44,26 @@
         <span class="card-field-value">{{ displayAttack() === null ? '—' : displayAttack() }}</span>
       </div>
     </div>
-    <div class="card-field-actions">
-      <button
-        matButton="filled"
-        type="button"
-        class="card-field-action-btn"
-        (click)="onAttackClick($event)"
-      >
-        Attack
-      </button>
-      <button matButton="filled" type="button" class="card-field-action-btn">Defend</button>
-    </div>
+    @if (fieldZone() === 'monster') {
+      <div class="card-field-actions">
+        <button
+          matButton="filled"
+          type="button"
+          class="card-field-action-btn"
+          (click)="onAttackClick($event)"
+        >
+          Attack
+        </button>
+        <button
+          matButton="filled"
+          type="button"
+          class="card-field-action-btn"
+          (click)="onDefendClick($event)"
+        >
+          Defend
+        </button>
+      </div>
+    }
   } @else {
     <header class="card-header">{{ displayName() }}</header>
 

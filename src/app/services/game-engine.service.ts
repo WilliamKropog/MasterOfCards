@@ -22,6 +22,8 @@ export interface FieldCardEntry {
   currentHealth?: number;
   /** Monster/land has attacked or been in combat this turn; cleared on Next Turn. */
   hasActedThisTurn?: boolean;
+  /** Monster is in defense position (horizontal); cleared when that player’s turn begins. */
+  defending?: boolean;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -90,8 +92,8 @@ export class GameEngineService {
   readonly activePlayer = signal<PlayerId>(1);
 
   /**
-   * While set, enemy field cards that are legal attack targets shimmer red (monsters first, then lands).
-   * When the enemy has no monsters, their hand is also a valid target (see `player-hand--attack-target`).
+   * While set, enemy field cards that are legal attack targets shimmer red — among monsters,
+   * defending enemies first, then others; lands only when no enemy monsters remain; hand when empty field.
    */
   readonly attackMode = signal<AttackModeState | null>(null);
 
@@ -170,6 +172,55 @@ export class GameEngineService {
 
   cancelAttackMode(): void {
     this.attackMode.set(null);
+  }
+
+  /**
+   * Put a monster into defense position for the rest of the opponent’s turn (uses the monster’s
+   * action for this turn). Cleared when this player’s next turn starts.
+   */
+  setMonsterDefending(ownerSlot: FieldPlayerSlot, monsterIndex: number): boolean {
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const ownerId: PlayerId = ownerSlot === 'player1' ? 1 : 2;
+    if (turn !== ownerId) {
+      return false;
+    }
+
+    const arr =
+      ownerSlot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    const entry = arr[monsterIndex];
+    if (!entry) {
+      return false;
+    }
+
+    const def = getCardDefinition(entry.cardId);
+    if (!def || def.cardType !== 'Monster') {
+      return false;
+    }
+
+    if (this.turnCounter() <= entry.placedAtTurnCounter) {
+      return false;
+    }
+    if (entry.hasActedThisTurn) {
+      return false;
+    }
+
+    if (this.attackMode()) {
+      this.attackMode.set(null);
+    }
+
+    const updated: FieldCardEntry = {
+      ...entry,
+      defending: true,
+      hasActedThisTurn: true,
+    };
+    this.applyFieldEntry(ownerSlot, 'monster', monsterIndex, updated);
+    return true;
   }
 
   /**
@@ -348,7 +399,7 @@ export class GameEngineService {
     if (!mode || !this.gameStarted()) {
       return;
     }
-    if (!this.isLegalAttackTarget(defenderSlot, defenderZone, mode.attackerSlot)) {
+    if (!this.isLegalAttackTargetForAttackMode(defenderSlot, defenderZone, defenderIndex, mode.attackerSlot)) {
       return;
     }
 
@@ -450,21 +501,39 @@ export class GameEngineService {
     this.applyFieldEntry(attackerSlot, 'monster', attackerIdx, attackerResult);
   }
 
-  private isLegalAttackTarget(
+  /**
+   * Attack-mode targeting: enemy monsters that are **defending** must be attacked before any
+   * non-defending enemy monsters; then lands when no monsters remain; player hand uses separate checks.
+   */
+  isLegalAttackTargetForAttackMode(
     defenderSlot: FieldPlayerSlot,
     defenderZone: FieldZone,
+    defenderIndex: number,
     attackerSlot: FieldPlayerSlot,
   ): boolean {
     const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
     if (defenderSlot !== enemy) {
       return false;
     }
-    const enemyMonsters =
-      enemy === 'player1' ? this.player1FieldMonster().length : this.player2FieldMonster().length;
+    const enemyMonsterArr =
+      enemy === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    const enemyMonsters = enemyMonsterArr.length;
     const enemyLands =
       enemy === 'player1' ? this.player1FieldLand().length : this.player2FieldLand().length;
+
     if (enemyMonsters > 0) {
-      return defenderZone === 'monster';
+      if (defenderZone !== 'monster') {
+        return false;
+      }
+      const targetEntry = enemyMonsterArr[defenderIndex];
+      if (!targetEntry) {
+        return false;
+      }
+      const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
+      if (hasDefendingEnemy) {
+        return targetEntry.defending === true;
+      }
+      return true;
     }
     if (enemyLands > 0) {
       return defenderZone === 'land';
@@ -522,6 +591,17 @@ export class GameEngineService {
     this.player2FieldMonster.update(clear);
   }
 
+  /** Upright monsters when this player’s turn begins (defense position resets). */
+  private clearDefendingForPlayerStartingTurn(playerId: PlayerId): void {
+    const clearMonster = (a: FieldCardEntry[]): FieldCardEntry[] =>
+      a.map((e) => ({ ...e, defending: false }));
+    if (playerId === 1) {
+      this.player1FieldMonster.update(clearMonster);
+    } else {
+      this.player2FieldMonster.update(clearMonster);
+    }
+  }
+
   /**
    * Call when a Land or Monster is played from hand onto this player's field row during their turn.
    */
@@ -560,6 +640,7 @@ export class GameEngineService {
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.clearFieldActedFlags();
+    this.clearDefendingForPlayerStartingTurn(next);
     // Both players already received their opening hand at startGame; skip the draw on the first
     // handoff (P1 → P2) while still on round 1. Every later turn-start still draws one.
     const isFirstHandoffToPlayer2 =
