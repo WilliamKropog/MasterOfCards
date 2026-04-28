@@ -24,6 +24,8 @@ export interface CardDefinition {
   maxHealth?: number;
   /** Combat power (creatures, weapons, etc.) */
   attack?: number;
+  /** Monster-only: counter-damage while defending (and other defense-mode interactions). */
+  defense?: number;
   /** Spells, abilities */
   manaCost?: number;
   /** Spell-only: damage dealt when this spell’s effect deals damage (omit for non-damage spells). */
@@ -62,8 +64,9 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'rock-monster',
     name: 'Rock Monster',
     cardType: 'Monster',
-    maxHealth: 80,
+    maxHealth: 60,
     attack: 10,
+    defense: 30,
     manaCost: 0,
     cardElement: 'Rock',
     rarity: 'Common',
@@ -92,6 +95,20 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 1},
     description: '',
   },
+  // 'mighty-gopher': {
+  //   id: 'mighty-gopher',
+  //   name: 'Mighty Gopher',
+  //   cardType: 'Monster',
+  //   maxHealth: 80,
+  //   attack: 10,
+  //   defense: 30,
+  //   manaCost: 0,
+  //   cardElement: 'Rock',
+  //   rarity: 'Common',
+  //   monsterClass: 'Elemental',
+  //   attributes: ['Melee'],
+  //   description: '',
+  // },
 };
 
 export function getCardDefinition(id: string): CardDefinition | undefined {

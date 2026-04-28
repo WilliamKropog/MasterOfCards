@@ -43,6 +43,12 @@
         <span class="card-field-label">Attack</span>
         <span class="card-field-value">{{ displayAttack() === null ? '—' : displayAttack() }}</span>
       </div>
+      @if (displayDefense() !== null) {
+        <div class="card-field-stat" aria-label="Defense">
+          <span class="card-field-label">Defense</span>
+          <span class="card-field-value">{{ displayDefense() }}</span>
+        </div>
+      }
     </div>
     @if (fieldZone() === 'monster') {
       <div class="card-field-actions">
@@ -89,6 +95,10 @@
 
     @if (displayAttack() !== null) {
       <div class="card-stat" aria-label="Attack">Attack: {{ displayAttack() }}</div>
+    }
+
+    @if (displayDefense() !== null) {
+      <div class="card-stat" aria-label="Defense">Defense: {{ displayDefense() }}</div>
     }
 
     @if (displayHealth() !== null) {

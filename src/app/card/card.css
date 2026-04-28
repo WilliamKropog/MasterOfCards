@@ -373,7 +373,7 @@
 
 .card-field-name {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.25;
   word-break: break-word;
@@ -383,12 +383,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  font-size: 0.8rem;
+  font-size: 0.65rem;
   line-height: 1.25;
 }
 
 .card-field-label {
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;

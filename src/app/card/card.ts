@@ -304,6 +304,9 @@ export class Card {
   /** Catalog attack; null when not applicable. */
   protected readonly displayAttack = computed(() => this.def()?.attack ?? null);
 
+  /** Monster-only; null when not applicable. */
+  protected readonly displayDefense = computed(() => this.def()?.defense ?? null);
+
   /** Land-only; null when this card does not generate mana from the catalog. */
   protected readonly displayGenerateMana = computed(() => {
     const map = this.def()?.generateMana;
