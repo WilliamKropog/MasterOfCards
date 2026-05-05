@@ -423,10 +423,9 @@ export class GameEngineService {
     }
 
     const atkPower = atkDef.attack ?? 0;
-    const defPower =
-      defenderZone === 'monster' && defenderEntry.defending === true
-        ? (defDef.defense ?? defDef.attack ?? 0)
-        : (defDef.attack ?? 0);
+    // Monster-vs-monster: attacker takes counter-damage equal to target monster DEF,
+    // regardless of whether the target is in attack/defense position.
+    const defPower = defenderZone === 'monster' ? (defDef.defense ?? 0) : (defDef.attack ?? 0);
 
     const attackerHp = attackerEntry.currentHealth ?? atkDef.maxHealth ?? 0;
     const defenderHp = defenderEntry.currentHealth ?? defDef.maxHealth ?? 0;
