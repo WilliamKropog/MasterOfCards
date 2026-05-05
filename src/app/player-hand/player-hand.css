@@ -17,7 +17,7 @@
 }
 
 /**
- * Monster attack mode: enemy hand when they have no monsters on the field (same pool as enemy lands).
+ * Monster attack mode: enemy hand (life points) when the enemy has no defending monsters.
  * Placed before spell-hand rules so spell drag styling wins if both apply.
  */
 .player-hand.player-hand--attack-target {

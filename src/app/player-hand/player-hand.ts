@@ -61,8 +61,9 @@ export class PlayerHand {
   );
 
   /**
-   * Red border: this hand can be attacked by the opponent’s monster when they have no enemy
-   * monsters on the field (same rule as attacking lands).
+   * Red border: this hand (life points) can be attacked by the opponent’s monster whenever the
+   * enemy has **no defending monsters**. If any defending monster exists, attacks must target
+   * those monsters first.
    */
   protected readonly attackModeEligibleEnemyHand = computed(() => {
     if (!this.engine.gameStarted()) {
@@ -76,11 +77,10 @@ export class PlayerHand {
     if (this.playerSlot() !== enemy) {
       return false;
     }
-    const enemyMonsters =
-      enemy === 'player1'
-        ? this.engine.player1FieldMonster().length
-        : this.engine.player2FieldMonster().length;
-    return enemyMonsters === 0;
+    const enemyMonsterArr =
+      enemy === 'player1' ? this.engine.player1FieldMonster() : this.engine.player2FieldMonster();
+    const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
+    return !hasDefendingEnemy;
   });
 
   /** Sorted rows for template: mana type + total amount from lands on the field. */
