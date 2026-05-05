@@ -105,7 +105,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     manaCost: 0,
     cardElement: 'Rock',
     rarity: 'Common',
-    monsterClass: 'Elemental',
+    monsterClass: 'Critter',
     attributes: ['Melee'],
     description: '',
   },
