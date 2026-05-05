@@ -464,9 +464,10 @@ export class GameEngineService {
     if (defenderPlayerSlot !== enemy) {
       return;
     }
-    const enemyMonsters =
-      enemy === 'player1' ? this.player1FieldMonster().length : this.player2FieldMonster().length;
-    if (enemyMonsters > 0) {
+    const enemyMonsterArr =
+      enemy === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
+    if (hasDefendingEnemy) {
       return;
     }
 
@@ -519,28 +520,24 @@ export class GameEngineService {
     }
     const enemyMonsterArr =
       enemy === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
-    const enemyMonsters = enemyMonsterArr.length;
-    const enemyLands =
-      enemy === 'player1' ? this.player1FieldLand().length : this.player2FieldLand().length;
+    const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
 
-    if (enemyMonsters > 0) {
+    // New targeting rule: you may attack anything (monsters, lands, life) unless the enemy has a
+    // defending monster; if they do, you must attack one of those defending monsters first.
+    if (hasDefendingEnemy) {
       if (defenderZone !== 'monster') {
         return false;
       }
       const targetEntry = enemyMonsterArr[defenderIndex];
-      if (!targetEntry) {
-        return false;
-      }
-      const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
-      if (hasDefendingEnemy) {
-        return targetEntry.defending === true;
-      }
-      return true;
+      return targetEntry?.defending === true;
     }
-    if (enemyLands > 0) {
-      return defenderZone === 'land';
+
+    // No defending monsters: any enemy field card is a legal target.
+    if (defenderZone === 'monster') {
+      return enemyMonsterArr[defenderIndex] !== undefined;
     }
-    return false;
+    const enemyLandArr = enemy === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+    return enemyLandArr[defenderIndex] !== undefined;
   }
 
   private getFieldArray(slot: FieldPlayerSlot, zone: FieldZone): FieldCardEntry[] {
