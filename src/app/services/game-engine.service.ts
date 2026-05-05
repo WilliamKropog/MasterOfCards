@@ -24,6 +24,11 @@ export interface FieldCardEntry {
   hasActedThisTurn?: boolean;
   /** Monster is in defense position (horizontal); cleared when that player’s turn begins. */
   defending?: boolean;
+  /**
+   * While true, the card cannot be targeted by spells.
+   * Used by abilities like Mighty Gopher's Burrow.
+   */
+  spellImmune?: boolean;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -224,6 +229,65 @@ export class GameEngineService {
   }
 
   /**
+   * Mighty Gopher ability: Burrow.
+   * Requires 1 Rock mana (mana is not currently spent), enters defense mode, and becomes spell-immune.
+   * Uses the monster's action for the turn.
+   */
+  tryUseBurrow(ownerSlot: FieldPlayerSlot, monsterIndex: number): boolean {
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const ownerId: PlayerId = ownerSlot === 'player1' ? 1 : 2;
+    if (turn !== ownerId) {
+      return false;
+    }
+
+    const arr =
+      ownerSlot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    const entry = arr[monsterIndex];
+    if (!entry) {
+      return false;
+    }
+
+    const def = getCardDefinition(entry.cardId);
+    if (!def || def.cardType !== 'Monster') {
+      return false;
+    }
+    if (def.id !== 'mighty-gopher') {
+      return false;
+    }
+
+    if (this.turnCounter() <= entry.placedAtTurnCounter) {
+      return false;
+    }
+    if (entry.hasActedThisTurn) {
+      return false;
+    }
+
+    const pool = ownerSlot === 'player1' ? this.player1Mana() : this.player2Mana();
+    if ((pool['Rock'] ?? 0) < 1) {
+      return false;
+    }
+
+    if (this.attackMode()) {
+      this.attackMode.set(null);
+    }
+
+    const updated: FieldCardEntry = {
+      ...entry,
+      defending: true,
+      spellImmune: true,
+      hasActedThisTurn: true,
+    };
+    this.applyFieldEntry(ownerSlot, 'monster', monsterIndex, updated);
+    return true;
+  }
+
+  /**
    * Cast a spell from hand onto a tethered enemy field card (after drag release with snap line).
    * Supports catalog `damage` on spells; e.g. Flying doubles damage for Boulder Toss rules.
    */
@@ -274,6 +338,9 @@ export class GameEngineService {
     if (!defenderEntry) {
       return false;
     }
+    if (defenderEntry.spellImmune === true) {
+      return false;
+    }
 
     const baseDamage = spellDef.damage;
     if (baseDamage === undefined || baseDamage <= 0) {
@@ -288,6 +355,10 @@ export class GameEngineService {
     let amount = baseDamage;
     if (defenderDef.attributes?.includes('Flying')) {
       amount *= 2;
+    }
+    const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
+    if (zoneMultiplier !== undefined) {
+      amount *= zoneMultiplier;
     }
 
     const defenderHp = defenderEntry.currentHealth ?? defenderDef.maxHealth ?? 0;
@@ -593,7 +664,7 @@ export class GameEngineService {
   /** Upright monsters when this player’s turn begins (defense position resets). */
   private clearDefendingForPlayerStartingTurn(playerId: PlayerId): void {
     const clearMonster = (a: FieldCardEntry[]): FieldCardEntry[] =>
-      a.map((e) => ({ ...e, defending: false }));
+      a.map((e) => ({ ...e, defending: false, spellImmune: false }));
     if (playerId === 1) {
       this.player1FieldMonster.update(clearMonster);
     } else {

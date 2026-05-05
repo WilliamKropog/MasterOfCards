@@ -52,22 +52,35 @@
     </div>
     @if (fieldZone() === 'monster') {
       <div class="card-field-actions">
-        <button
-          matButton="filled"
-          type="button"
-          class="card-field-action-btn"
-          (click)="onAttackClick($event)"
-        >
-          Attack
-        </button>
-        <button
-          matButton="filled"
-          type="button"
-          class="card-field-action-btn"
-          (click)="onDefendClick($event)"
-        >
-          Defend
-        </button>
+        <div class="card-field-actions-row">
+          <button
+            matButton="filled"
+            type="button"
+            class="card-field-action-btn"
+            (click)="onAttackClick($event)"
+          >
+            Attack
+          </button>
+          <button
+            matButton="filled"
+            type="button"
+            class="card-field-action-btn"
+            (click)="onDefendClick($event)"
+          >
+            Defend
+          </button>
+        </div>
+        @if (showBurrowAbility()) {
+          <button
+            matButton="filled"
+            type="button"
+            class="card-field-action-btn"
+            [disabled]="burrowDisabled()"
+            (click)="onBurrowClick($event)"
+          >
+            Burrow
+          </button>
+        }
       </div>
     }
   } @else {
