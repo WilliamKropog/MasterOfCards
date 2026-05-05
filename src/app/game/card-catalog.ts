@@ -3,6 +3,9 @@
 /** Land-only: elemental keys → amount produced (e.g. `{ Rock: 1, Water: 3 }`). */
 export type ManaGenerationMap = Record<string, number>;
 
+/** Which zone a spell is targeting when tethered from hand. */
+export type TargetZone = 'land' | 'monster';
+
 export interface CardDefinition {
   id: string;
   name: string;
@@ -30,6 +33,11 @@ export interface CardDefinition {
   manaCost?: number;
   /** Spell-only: damage dealt when this spell’s effect deals damage (omit for non-damage spells). */
   damage?: number;
+  /**
+   * Spell-only passive modifiers: multiply `damage` when targeting specific zones.
+   * Example: `{ land: 2 }` doubles damage when the spell hits a land card.
+   */
+  damageMultiplierAgainstZone?: Partial<Record<TargetZone, number>>;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
 }
@@ -82,6 +90,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Common',
     damage: 60,
+    damageMultiplierAgainstZone: { land: 2 },
     description: 'Deals 60 damage to a target. If the target is a Land card, the damage is doubled.',
   },
   'mud-hut': {

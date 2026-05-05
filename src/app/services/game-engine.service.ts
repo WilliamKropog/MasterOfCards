@@ -289,6 +289,10 @@ export class GameEngineService {
     if (defenderDef.attributes?.includes('Flying')) {
       amount *= 2;
     }
+    const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
+    if (zoneMultiplier !== undefined) {
+      amount *= zoneMultiplier;
+    }
 
     const defenderHp = defenderEntry.currentHealth ?? defenderDef.maxHealth ?? 0;
     const newHp = Math.max(0, defenderHp - amount);
