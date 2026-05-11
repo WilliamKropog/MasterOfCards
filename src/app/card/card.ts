@@ -180,6 +180,30 @@ export class Card {
     return this.fieldEntry()?.defending === true;
   });
 
+  /** Mighty Gopher-only: show Burrow ability button when awake/ready. */
+  protected readonly showBurrowAbility = computed(() => {
+    if (!this.onField() || this.fieldZone() !== 'monster') {
+      return false;
+    }
+    if (!this.fieldReadyHighlight()) {
+      return false;
+    }
+    return this.cardId() === 'mighty-gopher';
+  });
+
+  /** Burrow requires 1 Rock mana; button is disabled if you can't afford it. */
+  protected readonly burrowDisabled = computed(() => {
+    if (!this.showBurrowAbility()) {
+      return true;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return true;
+    }
+    const pool = slot === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
+    return (pool['Rock'] ?? 0) < 1;
+  });
+
   /**
    * Red shimmer: this card is a legal target while the owner’s monster is in attack mode.
    * Mirrors {@link GameEngineService.isLegalAttackTargetForAttackMode} (defending monsters first).
@@ -213,6 +237,9 @@ export class Card {
     }
     const drag = this.cardDrag.activeDrag();
     if (!drag || drag.cardType !== 'Spell') {
+      return false;
+    }
+    if (this.fieldEntry()?.spellImmune === true) {
       return false;
     }
     const turn = this.engine.currentTurn();
@@ -417,6 +444,20 @@ export class Card {
       return;
     }
     this.engine.setMonsterDefending(slot, idx);
+  }
+
+  protected onBurrowClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (!this.showBurrowAbility() || this.burrowDisabled()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (slot === null || zone !== 'monster' || idx === null) {
+      return;
+    }
+    this.engine.tryUseBurrow(slot, idx);
   }
 
   protected onFieldCardClick(event: MouseEvent): void {

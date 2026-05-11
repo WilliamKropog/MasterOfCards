@@ -418,9 +418,9 @@
   inset: 0;
   z-index: 2;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   flex-wrap: nowrap;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: 0.35rem;
   padding: 0.45rem;
@@ -432,6 +432,15 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s ease;
+}
+
+.card-field-actions-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
 }
 
 .card.card--field.card--field-ready:hover,

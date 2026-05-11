@@ -3,6 +3,17 @@
 /** Land-only: elemental keys → amount produced (e.g. `{ Rock: 1, Water: 3 }`). */
 export type ManaGenerationMap = Record<string, number>;
 
+/** Which zone a spell is targeting when tethered from hand. */
+export type TargetZone = 'land' | 'monster';
+
+export interface ActivatedAbilityDefinition {
+  id: string;
+  name: string;
+  /** Mana required to use the ability (mana is not currently spent). */
+  manaCost: number;
+  manaElement: string;
+}
+
 export interface CardDefinition {
   id: string;
   name: string;
@@ -28,8 +39,15 @@ export interface CardDefinition {
   defense?: number;
   /** Spells, abilities */
   manaCost?: number;
+  /** Monster-only: activated abilities available while the monster is awake/ready. */
+  abilities?: ActivatedAbilityDefinition[];
   /** Spell-only: damage dealt when this spell’s effect deals damage (omit for non-damage spells). */
   damage?: number;
+  /**
+   * Spell-only passive modifiers: multiply `damage` when targeting specific zones.
+   * Example: `{ land: 2 }` doubles damage when the spell hits a land card.
+   */
+  damageMultiplierAgainstZone?: Partial<Record<TargetZone, number>>;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
 }
@@ -82,6 +100,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Common',
     damage: 60,
+    damageMultiplierAgainstZone: { land: 2 },
     description: 'Deals 60 damage to a target. If the target is a Land card, the damage is doubled.',
   },
   'mud-hut': {
@@ -107,7 +126,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Common',
     monsterClass: 'Critter',
     attributes: ['Melee'],
-    description: '',
+    abilities: [{ id: 'burrow', name: 'Burrow', manaCost: 1, manaElement: 'Rock' }],
+    description: 'Ability: Burrow (requires 1 Rock mana). Enter defense mode and become immune to spells.',
   },
 };
 
