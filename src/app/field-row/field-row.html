@@ -19,7 +19,7 @@
     @if (fieldCards().length === 0) {
       <span class="field-row-placeholder">{{ rowLabel() }}</span>
     }
-    @for (entry of fieldCards(); track $index) {
+    @for (entry of fieldCards(); track entry.fieldInstanceId) {
       <div class="field-row-card-slot">
         <app-card
           [cardId]="entry.cardId"
