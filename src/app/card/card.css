@@ -479,6 +479,12 @@
   padding-right: 0.35rem;
 }
 
+.card-field-actions > .card-field-action-btn {
+  align-self: center;
+  flex: 0 0 auto;
+  width: calc((100% - 0.35rem) / 2);
+}
+
 .card.card--field.cdk-drag-preview,
 .card.card--field.cdk-drag-placeholder {
   display: flex;
