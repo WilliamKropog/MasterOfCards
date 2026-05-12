@@ -39,7 +39,12 @@
   </div>
 </header>
 
-<section class="battle-layout" cdkDropListGroup aria-label="Game table">
+<section
+  class="battle-layout"
+  [class.battle-layout--pre-game]="!engine.gameStarted()"
+  cdkDropListGroup
+  aria-label="Game table"
+>
   <div class="player-hand-row">
     <app-player-deck playerSlot="player1" />
     <app-player-hand playerSlot="player1" [cardIds]="engine.player1Hand()" />

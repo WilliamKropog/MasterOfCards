@@ -114,10 +114,7 @@ export class FieldRow {
       const field = next as FieldCardEntry[];
       const cardId = hand[event.previousIndex];
       hand.splice(event.previousIndex, 1);
-      const entry: FieldCardEntry = {
-        cardId,
-        placedAtTurnCounter: this.engine.turnCounter(),
-      };
+      const entry = this.engine.createFieldCardEntry(cardId);
       field.splice(event.currentIndex, 0, entry);
       const def = getCardDefinition(cardId);
       if (def && (def.cardType === 'Land' || def.cardType === 'Monster')) {

@@ -16,6 +16,8 @@ export const STARTING_LIFE_POINTS = 2000;
 
 /** Field row entry: catalog id + turn counter when played (for summoning / tap rules). */
 export interface FieldCardEntry {
+  /** Stable render identity so removing a neighbor does not reuse another card's DOM state. */
+  fieldInstanceId: number;
   cardId: string;
   placedAtTurnCounter: number;
   /** Battle damage; defaults to catalog `maxHealth` when missing. */
@@ -57,6 +59,8 @@ export interface AttackModeState {
   providedIn: 'root',
 })
 export class GameEngineService {
+  private nextFieldInstanceId = 1;
+
   /** True after `startGame()` has been called for this session. */
   readonly gameStarted = signal(false);
 
@@ -128,6 +132,7 @@ export class GameEngineService {
   startGame(): void {
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
+    this.nextFieldInstanceId = 1;
     this.gameStarted.set(true);
     this.turnCounter.set(1);
     this.currentTurn.set(1);
@@ -150,6 +155,14 @@ export class GameEngineService {
     this.player2FieldMonster.set([]);
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
+  }
+
+  createFieldCardEntry(cardId: string): FieldCardEntry {
+    return {
+      fieldInstanceId: this.nextFieldInstanceId++,
+      cardId,
+      placedAtTurnCounter: this.turnCounter(),
+    };
   }
 
   /**
@@ -778,6 +791,7 @@ export class GameEngineService {
     this.turnCounter.set(0);
     this.currentTurn.set(null);
     this.activePlayer.set(1);
+    this.nextFieldInstanceId = 1;
     this.player1Hand.set([]);
     this.player2Hand.set([]);
     this.player1FieldLand.set([]);

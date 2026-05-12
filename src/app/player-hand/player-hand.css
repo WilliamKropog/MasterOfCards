@@ -1,4 +1,13 @@
+:host {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 60rem;
+}
+
 .player-hand {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   margin-bottom: 0.5rem;
   border: 1px solid #ccc;
   transition:
@@ -249,13 +258,16 @@
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: center;
   gap: clamp(0px, calc((6 - var(--hand-size, 1)) * 0.5rem), 0.5rem);
   padding: 0.35rem 0.5rem;
   /* Let the fan grow wider instead of gaining a horizontal scrollbar (edit overflow-x, not y). */
   overflow-x: visible;
   overflow-y: visible;
   min-height: 0;
-  max-width: 60rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /**

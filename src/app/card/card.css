@@ -301,16 +301,33 @@
 
 /** Player hand fan: tighter margins + solid face so overlaps are not see-through. */
 .card.card--in-hand {
+  --player-hand-card-max-height: 12rem;
+  --player-hand-card-width: 10rem;
   background-color: #fff;
   background-clip: padding-box;
 }
 
 .card.card--in-hand:not(.card--compact) {
+  /* Tune the variables above to change active hand card size before scrolling/wrapping. */
+  box-sizing: border-box;
+  width: var(--player-hand-card-width);
+  max-width: var(--player-hand-card-width);
+  max-height: var(--player-hand-card-max-height);
   margin: 0.2rem 0.0rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .card.card--in-hand.card--compact {
   margin: 0.2rem 0.3rem;
+}
+
+.card.card--in-hand:not(.card--compact) .card-header,
+.card.card--in-hand:not(.card--compact) .card-description,
+.card.card--in-hand:not(.card--compact) .card-stat {
+  overflow-wrap: anywhere;
 }
 
 .card--compact:active {
@@ -460,6 +477,12 @@
   font-size: 0.75rem;
   padding-left: 0.35rem;
   padding-right: 0.35rem;
+}
+
+.card-field-actions > .card-field-action-btn {
+  align-self: center;
+  flex: 0 0 auto;
+  width: calc((100% - 0.35rem) / 2);
 }
 
 .card.card--field.cdk-drag-preview,
