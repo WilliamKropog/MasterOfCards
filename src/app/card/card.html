@@ -43,6 +43,12 @@
         <span class="card-field-label">Attack</span>
         <span class="card-field-value">{{ displayAttack() === null ? '—' : displayAttack() }}</span>
       </div>
+      @if (displayLandBuildTime() !== null) {
+        <div class="card-field-stat" aria-label="Build time">
+          <span class="card-field-label">Build time</span>
+          <span class="card-field-value">{{ displayLandBuildTime() }} turns</span>
+        </div>
+      }
       @if (displayDefense() !== null) {
         <div class="card-field-stat" aria-label="Defense">
           <span class="card-field-label">Defense</span>
@@ -120,6 +126,10 @@
 
     @if (displayGenerateMana() !== null) {
       <div class="card-stat" aria-label="Mana generated">Generates: {{ displayGenerateMana() }}</div>
+    }
+
+    @if (displayLandBuildTime() !== null) {
+      <div class="card-stat" aria-label="Build time">Build time: {{ displayLandBuildTime() }} turns</div>
     }
 
     <div class="card-stat" aria-label="Card type">Card Type: {{ displayType() }}</div>

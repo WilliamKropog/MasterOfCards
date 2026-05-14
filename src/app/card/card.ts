@@ -1,7 +1,11 @@
 import { CdkDrag, CdkDragEnd, type CdkDragMove } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { MatButton } from '@angular/material/button';
-import { formatManaGenerationMap, getCardDefinition } from '../game/card-catalog';
+import {
+  effectiveLandBuildTime,
+  formatManaGenerationMap,
+  getCardDefinition,
+} from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
@@ -341,6 +345,12 @@ export class Card {
       return null;
     }
     return formatManaGenerationMap(map);
+  });
+
+  /** Land-only; turns to activate after play. Null when immediate (`0` or non-land). */
+  protected readonly displayLandBuildTime = computed(() => {
+    const turns = effectiveLandBuildTime(this.def());
+    return turns > 0 ? turns : null;
   });
 
   /** Effective HP shown: field runtime HP, input override, else catalog maxHealth, else null. */

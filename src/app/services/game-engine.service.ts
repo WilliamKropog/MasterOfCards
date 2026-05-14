@@ -89,7 +89,10 @@ export class GameEngineService {
     return t === null ? '—' : `Player ${t}`;
   });
 
-  /** Mana from lands on the field (catalog `generateMana`, summed per element). */
+  /**
+   * Mana from lands on the field (catalog `generateMana`, summed per element).
+   * Land `buildTime` is not yet applied — all placed lands still contribute.
+   */
   readonly player1Mana = computed<ManaGenerationMap>(() =>
     aggregateManaFromLandCardIds(this.player1FieldLand().map((e) => e.cardId)),
   );

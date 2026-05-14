@@ -50,6 +50,11 @@ export interface CardDefinition {
   damageMultiplierAgainstZone?: Partial<Record<TargetZone, number>>;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
+  /**
+   * Land-only: full turns after play before the land is treated as active (mana / effects).
+   * `0` or omit for lands that work immediately.
+   */
+  buildTime?: number;
 }
 
 /** Human-readable label for UI (engine can use the raw map). */
@@ -111,6 +116,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 100,
     cardElement: 'Rock',
     rarity: 'Common',
+    buildTime: 0,
     generateMana: {Rock: 1},
     description: '',
   },
@@ -129,10 +135,30 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     abilities: [{ id: 'burrow', name: 'Burrow', manaCost: 1, manaElement: 'Rock' }],
     description: 'Ability: Burrow (requires 1 Rock mana). Enter defense mode and become immune to spells.',
   },
+  'mountain-range': {
+    id: 'mountain-range',
+    name: 'Mountain Range',
+    cardType: 'Land',
+    manaCost: 0,
+    maxHealth: 250,
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    buildTime: 2,
+    generateMana: {Rock: 3, Ice: 2, Wind: 2},
+    description: 'Generates 3 Rock, 2 Ice, and 2 Wind mana per turn. Reduces opponent Lightning mana by 2.',
+  },
 };
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
+}
+
+/** Full turns after play before a land is active; `0` for non-lands or when unset. */
+export function effectiveLandBuildTime(def: CardDefinition | undefined): number {
+  if (!def || def.cardType !== 'Land') {
+    return 0;
+  }
+  return def.buildTime ?? 0;
 }
 
 /** Use in templates / routes so ids are not magic strings everywhere. */
