@@ -167,6 +167,7 @@ export const CardIds = {
   mightyGopher: 'mighty-gopher',
   boulderToss: 'boulder-toss',
   mudHut: 'mud-hut',
+  mountainRange: 'mountain-range',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -178,6 +179,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.mightyGopher,
   CardIds.boulderToss,
   CardIds.mudHut,
+  CardIds.mountainRange,
 ];
 
 export const DECK_SIZE = 25;
