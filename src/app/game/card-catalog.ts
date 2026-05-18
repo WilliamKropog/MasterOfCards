@@ -51,7 +51,8 @@ export interface CardDefinition {
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
   /**
-   * Land-only: full turns after play before the land is treated as active (mana / effects).
+   * Land-only: how many of the owning player's turns after play before the land is active.
+   * Activates at the start of the owner's turn when their turn counter reaches `placed + buildTime`.
    * `0` or omit for lands that work immediately.
    */
   buildTime?: number;
@@ -161,6 +162,22 @@ export function effectiveLandBuildTime(def: CardDefinition | undefined): number 
   return def.buildTime ?? 0;
 }
 
+/**
+ * True while a land’s `buildTime` has not elapsed for the owning player.
+ * Activates at the start of the owner’s turn when `ownerTurnCounter >= placedAtOwnerTurn + buildTime`.
+ */
+export function isLandStillBuilding(
+  def: CardDefinition | undefined,
+  placedAtOwnerTurnCounter: number,
+  ownerTurnCounter: number,
+): boolean {
+  const buildTime = effectiveLandBuildTime(def);
+  if (buildTime <= 0) {
+    return false;
+  }
+  return ownerTurnCounter < placedAtOwnerTurnCounter + buildTime;
+}
+
 /** Use in templates / routes so ids are not magic strings everywhere. */
 export const CardIds = {
   rockMonster: 'rock-monster',
@@ -175,10 +192,10 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  CardIds.rockMonster,
-  CardIds.mightyGopher,
-  CardIds.boulderToss,
-  CardIds.mudHut,
+  // CardIds.rockMonster,
+  // CardIds.mightyGopher,
+  // CardIds.boulderToss,
+  // CardIds.mudHut,
   CardIds.mountainRange,
 ];
 

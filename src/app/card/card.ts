@@ -5,6 +5,7 @@ import {
   effectiveLandBuildTime,
   formatManaGenerationMap,
   getCardDefinition,
+  isLandStillBuilding,
 } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
@@ -182,6 +183,23 @@ export class Card {
       return false;
     }
     return this.fieldEntry()?.defending === true;
+  });
+
+  /** Land on field still within catalog `buildTime` (horizontal, under construction). */
+  protected readonly isLandUnderConstruction = computed(() => {
+    if (!this.onField() || this.fieldZone() !== 'land') {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    const placedAtOwner = this.fieldEntry()?.placedAtOwnerTurnCounter;
+    if (slot === null || placedAtOwner === undefined) {
+      return false;
+    }
+    return isLandStillBuilding(
+      this.def(),
+      placedAtOwner,
+      this.engine.ownerTurnCounter(slot),
+    );
   });
 
   /** Mighty Gopher-only: show Burrow ability button when awake/ready. */

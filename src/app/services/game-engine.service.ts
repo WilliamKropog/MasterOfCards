@@ -19,7 +19,10 @@ export interface FieldCardEntry {
   /** Stable render identity so removing a neighbor does not reuse another card's DOM state. */
   fieldInstanceId: number;
   cardId: string;
+  /** Global round counter when played (monster summoning sickness, etc.). */
   placedAtTurnCounter: number;
+  /** Owning player's turn-start counter when played (land build timer). */
+  placedAtOwnerTurnCounter: number;
   /** Battle damage; defaults to catalog `maxHealth` when missing. */
   currentHealth?: number;
   /** Monster/land has attacked or been in combat this turn; cleared on Next Turn. */
@@ -127,6 +130,13 @@ export class GameEngineService {
    */
   readonly turnCounter = signal(0);
 
+  /**
+   * How many times each player has started their turn this match (1 on their first turn).
+   * Used for land `buildTime` relative to the owner, not the global round counter.
+   */
+  readonly player1TurnCounter = signal(0);
+  readonly player2TurnCounter = signal(0);
+
   /** Player life points (game loss at 0). */
   readonly player1LifePoints = signal(STARTING_LIFE_POINTS);
   readonly player2LifePoints = signal(STARTING_LIFE_POINTS);
@@ -138,6 +148,8 @@ export class GameEngineService {
     this.nextFieldInstanceId = 1;
     this.gameStarted.set(true);
     this.turnCounter.set(1);
+    this.player1TurnCounter.set(1);
+    this.player2TurnCounter.set(0);
     this.currentTurn.set(1);
     this.activePlayer.set(1);
     const deck1 = buildShuffledDeck();
@@ -161,11 +173,24 @@ export class GameEngineService {
   }
 
   createFieldCardEntry(cardId: string): FieldCardEntry {
+    const turn = this.currentTurn();
+    const placedAtOwnerTurnCounter =
+      turn === 1
+        ? this.player1TurnCounter()
+        : turn === 2
+          ? this.player2TurnCounter()
+          : 0;
     return {
       fieldInstanceId: this.nextFieldInstanceId++,
       cardId,
       placedAtTurnCounter: this.turnCounter(),
+      placedAtOwnerTurnCounter,
     };
+  }
+
+  /** Turn-start count for the given seat (for land build timers). */
+  ownerTurnCounter(slot: FieldPlayerSlot): number {
+    return slot === 'player1' ? this.player1TurnCounter() : this.player2TurnCounter();
   }
 
   /**
@@ -723,6 +748,11 @@ export class GameEngineService {
     }
     this.currentTurn.set(next);
     this.activePlayer.set(next);
+    if (next === 1) {
+      this.player1TurnCounter.update((n) => n + 1);
+    } else {
+      this.player2TurnCounter.update((n) => n + 1);
+    }
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.clearFieldActedFlags();
@@ -792,6 +822,8 @@ export class GameEngineService {
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
     this.turnCounter.set(0);
+    this.player1TurnCounter.set(0);
+    this.player2TurnCounter.set(0);
     this.currentTurn.set(null);
     this.activePlayer.set(1);
     this.nextFieldInstanceId = 1;
