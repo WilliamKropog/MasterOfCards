@@ -163,6 +163,22 @@ export function effectiveLandBuildTime(def: CardDefinition | undefined): number 
 }
 
 /**
+ * Owner turns left before a land is active (`0` when ready or no build time).
+ * At play: equals catalog `buildTime`; ticks down at the start of each of the owner’s turns.
+ */
+export function remainingLandBuildTurns(
+  def: CardDefinition | undefined,
+  placedAtOwnerTurnCounter: number,
+  ownerTurnCounter: number,
+): number {
+  const buildTime = effectiveLandBuildTime(def);
+  if (buildTime <= 0) {
+    return 0;
+  }
+  return Math.max(0, placedAtOwnerTurnCounter + buildTime - ownerTurnCounter);
+}
+
+/**
  * True while a land’s `buildTime` has not elapsed for the owning player.
  * Activates at the start of the owner’s turn when `ownerTurnCounter >= placedAtOwnerTurn + buildTime`.
  */
@@ -171,11 +187,7 @@ export function isLandStillBuilding(
   placedAtOwnerTurnCounter: number,
   ownerTurnCounter: number,
 ): boolean {
-  const buildTime = effectiveLandBuildTime(def);
-  if (buildTime <= 0) {
-    return false;
-  }
-  return ownerTurnCounter < placedAtOwnerTurnCounter + buildTime;
+  return remainingLandBuildTurns(def, placedAtOwnerTurnCounter, ownerTurnCounter) > 0;
 }
 
 /** Use in templates / routes so ids are not magic strings everywhere. */

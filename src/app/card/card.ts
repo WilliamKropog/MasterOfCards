@@ -6,6 +6,7 @@ import {
   formatManaGenerationMap,
   getCardDefinition,
   isLandStillBuilding,
+  remainingLandBuildTurns,
 } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
@@ -365,10 +366,30 @@ export class Card {
     return formatManaGenerationMap(map);
   });
 
-  /** Land-only; turns to activate after play. Null when immediate (`0` or non-land). */
+  /**
+   * Land-only build turns shown on the card. Hand: catalog value. Field: remaining owner turns
+   * (counts down each time that player starts a turn); hidden when ready or no build time.
+   */
   protected readonly displayLandBuildTime = computed(() => {
-    const turns = effectiveLandBuildTime(this.def());
-    return turns > 0 ? turns : null;
+    const def = this.def();
+    const total = effectiveLandBuildTime(def);
+    if (total <= 0) {
+      return null;
+    }
+    if (!this.onField()) {
+      return total;
+    }
+    const slot = this.ownerPlayerSlot();
+    const placedAtOwner = this.fieldEntry()?.placedAtOwnerTurnCounter;
+    if (slot === null || placedAtOwner === undefined) {
+      return total;
+    }
+    const remaining = remainingLandBuildTurns(
+      def,
+      placedAtOwner,
+      this.engine.ownerTurnCounter(slot),
+    );
+    return remaining > 0 ? remaining : null;
   });
 
   /** Effective HP shown: field runtime HP, input override, else catalog maxHealth, else null. */
