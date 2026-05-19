@@ -1,7 +1,10 @@
 /** Static definition for a card in the catalog (rules + display). Runtime battle state stays separate. */
 
-/** Land-only: elemental keys → amount produced (e.g. `{ Rock: 1, Water: 3 }`). */
+/** Elemental keys → amount (mana produced, mana cost to play, etc.). */
 export type ManaGenerationMap = Record<string, number>;
+
+/** Mana required to play a card from hand (e.g. `{ Rock: 2 }`). */
+export type ManaCostMap = ManaGenerationMap;
 
 /** Which zone a spell is targeting when tethered from hand. */
 export type TargetZone = 'land' | 'monster';
@@ -37,8 +40,8 @@ export interface CardDefinition {
   attack?: number;
   /** Monster-only: counter-damage while defending (and other defense-mode interactions). */
   defense?: number;
-  /** Spells, abilities */
-  manaCost?: number;
+  /** Mana required to play from hand (e.g. `{ Rock: 2 }`). Omit when free. */
+  manaCost?: ManaCostMap;
   /** Monster-only: activated abilities available while the monster is awake/ready. */
   abilities?: ActivatedAbilityDefinition[];
   /** Spell-only: damage dealt when this spell’s effect deals damage (omit for non-damage spells). */
@@ -63,6 +66,38 @@ export function formatManaGenerationMap(map: ManaGenerationMap): string {
   return Object.entries(map)
     .map(([element, amount]) => `${element}: ${amount}`)
     .join(', ');
+}
+
+/** True when a card has a non-zero mana cost to play. */
+export function hasManaCost(cost: ManaCostMap | undefined): boolean {
+  if (!cost) {
+    return false;
+  }
+  return Object.values(cost).some((amount) => amount > 0);
+}
+
+/** Whether the player's mana pool satisfies every entry in `cost`. */
+export function canAffordManaCost(pool: ManaGenerationMap, cost: ManaCostMap | undefined): boolean {
+  if (!hasManaCost(cost)) {
+    return true;
+  }
+  for (const [element, amount] of Object.entries(cost!)) {
+    if (amount <= 0) {
+      continue;
+    }
+    if ((pool[element] ?? 0) < amount) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** UI label for mana cost, or `null` when the card is free to play. */
+export function formatManaCostForDisplay(cost: ManaCostMap | undefined): string | null {
+  if (!hasManaCost(cost)) {
+    return null;
+  }
+  return formatManaGenerationMap(cost!);
 }
 
 /**
@@ -91,7 +126,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 60,
     attack: 10,
     defense: 30,
-    manaCost: 0,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Elemental',
@@ -102,7 +136,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'boulder-toss',
     name: 'Boulder Toss',
     cardType: 'Spell',
-    manaCost: 2,
+    manaCost: { Rock: 2 },
     cardElement: 'Rock',
     rarity: 'Common',
     damage: 60,
@@ -113,7 +147,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'mud-hut',
     name: 'Mud Hut',
     cardType: 'Land',
-    manaCost: 0,
     maxHealth: 100,
     cardElement: 'Rock',
     rarity: 'Common',
@@ -128,7 +161,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 50,
     attack: 10,
     defense: 20,
-    manaCost: 0,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -140,13 +172,13 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'mountain-range',
     name: 'Mountain Range',
     cardType: 'Land',
-    manaCost: 0,
+    manaCost: { Rock: 2 },
     maxHealth: 250,
     cardElement: 'Rock',
     rarity: 'Uncommon',
-    buildTime: 2,
-    generateMana: {Rock: 3, Ice: 2, Wind: 2},
-    description: 'Generates 3 Rock, 2 Ice, and 2 Wind mana per turn. Reduces opponent Lightning mana by 2.',
+    buildTime: 0,
+    generateMana: {Rock: 2, Ice: 2, Wind: 2},
+    description: 'Drains 1 Fire, Lightning, and ',
   },
 };
 
@@ -234,10 +266,10 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  // CardIds.rockMonster,
-  // CardIds.mightyGopher,
-  // CardIds.boulderToss,
-  // CardIds.mudHut,
+  CardIds.rockMonster,
+  CardIds.mightyGopher,
+  CardIds.boulderToss,
+  CardIds.mudHut,
   CardIds.mountainRange,
 ];
 

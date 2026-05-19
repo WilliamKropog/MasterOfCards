@@ -2,9 +2,12 @@ import { CdkDrag, CdkDragEnd, type CdkDragMove } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import {
+  canAffordManaCost,
   effectiveLandBuildTime,
+  formatManaCostForDisplay,
   formatManaGenerationMap,
   getCardDefinition,
+  hasManaCost,
   isLandStillBuilding,
   remainingLandBuildTurns,
 } from '../game/card-catalog';
@@ -110,19 +113,15 @@ export class Card {
   });
 
   /**
-   * Spells/cards with `manaCost` > 0 require that much of `cardElement` mana from lands on the
-   * field (mana is not spent when playing; pool is always “available” while lands stay in play).
+   * Cards with `manaCost` require each listed element from lands on the field (mana is not spent
+   * when playing; pool is always “available” while lands stay in play).
    */
   private readonly cannotAffordManaCostInHand = computed(() => {
     if (!this.inPlayerHand()) {
       return false;
     }
     const def = this.def();
-    if (!def) {
-      return true;
-    }
-    const cost = def.manaCost;
-    if (cost === undefined || cost <= 0) {
+    if (!def || !hasManaCost(def.manaCost)) {
       return false;
     }
     const slot = this.ownerPlayerSlot();
@@ -130,8 +129,7 @@ export class Card {
       return true;
     }
     const pool = slot === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
-    const available = pool[def.cardElement] ?? 0;
-    return available < cost;
+    return !canAffordManaCost(pool, def.manaCost);
   });
 
   /** No drag before Start, when collapsed, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
@@ -346,7 +344,7 @@ export class Card {
     return attrs.join(', ');
   });
 
-  protected readonly displayMana = computed(() => this.def()?.manaCost ?? null);
+  protected readonly displayMana = computed(() => formatManaCostForDisplay(this.def()?.manaCost));
 
   /** Catalog max HP (for "current / max" display). */
   protected readonly maxHealth = computed(() => this.def()?.maxHealth ?? null);

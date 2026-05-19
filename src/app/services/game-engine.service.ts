@@ -3,6 +3,7 @@ import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import {
   aggregateManaFromActiveFieldLands,
   buildShuffledDeck,
+  canAffordManaCost,
   getCardDefinition,
   OPENING_HAND_SIZE,
   type ManaGenerationMap,
@@ -361,13 +362,9 @@ export class GameEngineService {
       return false;
     }
 
-    const cost = spellDef.manaCost ?? 0;
-    if (cost > 0) {
-      const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
-      const available = pool[spellDef.cardElement] ?? 0;
-      if (available < cost) {
-        return false;
-      }
+    const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
+    if (!canAffordManaCost(pool, spellDef.manaCost)) {
+      return false;
     }
 
     if (tether.slot === casterSlot) {
@@ -458,13 +455,9 @@ export class GameEngineService {
       return false;
     }
 
-    const cost = spellDef.manaCost ?? 0;
-    if (cost > 0) {
-      const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
-      const available = pool[spellDef.cardElement] ?? 0;
-      if (available < cost) {
-        return false;
-      }
+    const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
+    if (!canAffordManaCost(pool, spellDef.manaCost)) {
+      return false;
     }
 
     if (targetPlayerSlot === casterSlot) {
