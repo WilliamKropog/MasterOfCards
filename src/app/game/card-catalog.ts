@@ -190,6 +190,36 @@ export function isLandStillBuilding(
   return remainingLandBuildTurns(def, placedAtOwnerTurnCounter, ownerTurnCounter) > 0;
 }
 
+/** Land row data needed to sum mana only from activated lands. */
+export interface FieldLandManaEntry {
+  cardId: string;
+  placedAtOwnerTurnCounter: number;
+}
+
+/**
+ * Sums `generateMana` from field lands that have finished building.
+ * Lands still within `buildTime` contribute nothing until activated.
+ */
+export function aggregateManaFromActiveFieldLands(
+  lands: readonly FieldLandManaEntry[],
+  ownerTurnCounter: number,
+): ManaGenerationMap {
+  const out: ManaGenerationMap = {};
+  for (const entry of lands) {
+    const def = getCardDefinition(entry.cardId);
+    if (!def?.generateMana) {
+      continue;
+    }
+    if (isLandStillBuilding(def, entry.placedAtOwnerTurnCounter, ownerTurnCounter)) {
+      continue;
+    }
+    for (const [element, amount] of Object.entries(def.generateMana)) {
+      out[element] = (out[element] ?? 0) + amount;
+    }
+  }
+  return out;
+}
+
 /** Use in templates / routes so ids are not magic strings everywhere. */
 export const CardIds = {
   rockMonster: 'rock-monster',

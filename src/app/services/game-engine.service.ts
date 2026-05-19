@@ -1,7 +1,7 @@
 import { computed, Injectable, signal } from '@angular/core';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import {
-  aggregateManaFromLandCardIds,
+  aggregateManaFromActiveFieldLands,
   buildShuffledDeck,
   getCardDefinition,
   OPENING_HAND_SIZE,
@@ -93,14 +93,14 @@ export class GameEngineService {
   });
 
   /**
-   * Mana from lands on the field (catalog `generateMana`, summed per element).
-   * Land `buildTime` is not yet applied — all placed lands still contribute.
+   * Mana from activated lands on the field (catalog `generateMana`, summed per element).
+   * Lands still building do not contribute until their owner’s build timer completes.
    */
   readonly player1Mana = computed<ManaGenerationMap>(() =>
-    aggregateManaFromLandCardIds(this.player1FieldLand().map((e) => e.cardId)),
+    aggregateManaFromActiveFieldLands(this.player1FieldLand(), this.player1TurnCounter()),
   );
   readonly player2Mana = computed<ManaGenerationMap>(() =>
-    aggregateManaFromLandCardIds(this.player2FieldLand().map((e) => e.cardId)),
+    aggregateManaFromActiveFieldLands(this.player2FieldLand(), this.player2TurnCounter()),
   );
 
   /** Kept in sync with `currentTurn` when a game is active. */
