@@ -177,8 +177,19 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Uncommon',
     buildTime: 0,
-    generateMana: {Rock: 2, Ice: 2, Wind: 2},
-    description: 'Drains 1 Fire, Lightning, and ',
+    generateMana: {Rock: 3, Ice: 3},
+    description: 'Drains 1 Fire and Lightning mana from your opponent while active.',
+  },
+  'temple-of-being': {
+    id: 'temple-of-being',
+    name: 'Temple of Being',
+    cardType: 'Land',
+    maxHealth: 100,
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    buildTime: 1,
+    generateMana: {Rock: 2},
+    description: 'Can only be placed on the opponent\'s field if they have space available.',
   },
 };
 
@@ -259,6 +270,7 @@ export const CardIds = {
   boulderToss: 'boulder-toss',
   mudHut: 'mud-hut',
   mountainRange: 'mountain-range',
+  templeOfBeing: 'temple-of-being',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -271,6 +283,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
+  CardIds.templeOfBeing,
 ];
 
 export const DECK_SIZE = 25;
