@@ -59,6 +59,11 @@ export interface CardDefinition {
    * `0` or omit for lands that work immediately.
    */
   buildTime?: number;
+  /**
+   * Land-only: must be dropped on the opponent's land row (not your own).
+   * The card still belongs to the player who played it (mana, build timer).
+   */
+  placeOnOpponentLandRow?: boolean;
 }
 
 /** Human-readable label for UI (engine can use the raw map). */
@@ -189,9 +194,30 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Uncommon',
     buildTime: 1,
     generateMana: {Rock: 2},
+    placeOnOpponentLandRow: true,
     description: 'Can only be placed on the opponent\'s field if they have space available.',
   },
 };
+
+/** Land must be played on the opponent's land row (e.g. Temple of Being). */
+export function mustPlaceLandOnOpponentRow(def: CardDefinition | undefined): boolean {
+  return def?.placeOnOpponentLandRow === true;
+}
+
+/** Whether a land dragged from `dragOwnerSlot` may enter `rowSlot`. */
+export function isValidLandDropRow(
+  def: CardDefinition | undefined,
+  rowSlot: 'player1' | 'player2',
+  dragOwnerSlot: 'player1' | 'player2',
+): boolean {
+  if (!def || def.cardType !== 'Land') {
+    return false;
+  }
+  if (mustPlaceLandOnOpponentRow(def)) {
+    return rowSlot !== dragOwnerSlot;
+  }
+  return rowSlot === dragOwnerSlot;
+}
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
@@ -278,11 +304,11 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  CardIds.rockMonster,
-  CardIds.mightyGopher,
-  CardIds.boulderToss,
-  CardIds.mudHut,
-  CardIds.mountainRange,
+  // CardIds.rockMonster,
+  // CardIds.mightyGopher,
+  // CardIds.boulderToss,
+  // CardIds.mudHut,
+  // CardIds.mountainRange,
   CardIds.templeOfBeing,
 ];
 

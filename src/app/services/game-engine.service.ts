@@ -24,6 +24,8 @@ export interface FieldCardEntry {
   placedAtTurnCounter: number;
   /** Owning player's turn-start counter when played (land build timer). */
   placedAtOwnerTurnCounter: number;
+  /** Who played / controls the card (mana, build). Defaults to the field row owner when unset. */
+  controllerSlot?: FieldPlayerSlot;
   /** Battle damage; defaults to catalog `maxHealth` when missing. */
   currentHealth?: number;
   /** Monster/land has attacked or been in combat this turn; cleared on Next Turn. */
@@ -98,10 +100,10 @@ export class GameEngineService {
    * Lands still building do not contribute until their owner’s build timer completes.
    */
   readonly player1Mana = computed<ManaGenerationMap>(() =>
-    aggregateManaFromActiveFieldLands(this.player1FieldLand(), this.player1TurnCounter()),
+    this.aggregateManaForController('player1'),
   );
   readonly player2Mana = computed<ManaGenerationMap>(() =>
-    aggregateManaFromActiveFieldLands(this.player2FieldLand(), this.player2TurnCounter()),
+    this.aggregateManaForController('player2'),
   );
 
   /** Kept in sync with `currentTurn` when a game is active. */
@@ -173,7 +175,7 @@ export class GameEngineService {
     this.attackMode.set(null);
   }
 
-  createFieldCardEntry(cardId: string): FieldCardEntry {
+  createFieldCardEntry(cardId: string, controllerSlot: FieldPlayerSlot): FieldCardEntry {
     const turn = this.currentTurn();
     const placedAtOwnerTurnCounter =
       turn === 1
@@ -186,7 +188,27 @@ export class GameEngineService {
       cardId,
       placedAtTurnCounter: this.turnCounter(),
       placedAtOwnerTurnCounter,
+      controllerSlot,
     };
+  }
+
+  /** Mana from lands this player controls, including those on the opponent's land row. */
+  private aggregateManaForController(controller: FieldPlayerSlot): ManaGenerationMap {
+    const ownerTurnCounter = this.ownerTurnCounter(controller);
+    const entries: FieldCardEntry[] = [];
+    for (const entry of this.player1FieldLand()) {
+      const c = entry.controllerSlot ?? 'player1';
+      if (c === controller) {
+        entries.push(entry);
+      }
+    }
+    for (const entry of this.player2FieldLand()) {
+      const c = entry.controllerSlot ?? 'player2';
+      if (c === controller) {
+        entries.push(entry);
+      }
+    }
+    return aggregateManaFromActiveFieldLands(entries, ownerTurnCounter);
   }
 
   /** Turn-start count for the given seat (for land build timers). */

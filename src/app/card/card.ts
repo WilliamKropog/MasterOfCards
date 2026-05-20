@@ -31,8 +31,11 @@ export class Card {
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
 
-  /** Hand / board owner — required for field highlights while dragging. */
+  /** Hand / controller — who owns the card (mana, build timer, hand drag). */
   readonly ownerPlayerSlot = input<PlayerSlot | null>(null);
+
+  /** Which player's field row this card sits in (may differ from owner for Temple of Being). */
+  readonly fieldRowSlot = input<PlayerSlot | null>(null);
 
   /**
    * Battle/runtime override. When unset, creatures/lands use catalog `maxHealth`.
@@ -72,17 +75,17 @@ export class Card {
       return null;
     }
     const idx = this.fieldCardIndex();
-    const slot = this.ownerPlayerSlot();
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const zone = this.fieldZone();
-    if (idx === null || slot === null || zone === null) {
+    if (idx === null || rowSlot === null || zone === null) {
       return null;
     }
     const arr =
       zone === 'land'
-        ? slot === 'player1'
+        ? rowSlot === 'player1'
           ? this.engine.player1FieldLand()
           : this.engine.player2FieldLand()
-        : slot === 'player1'
+        : rowSlot === 'player1'
           ? this.engine.player1FieldMonster()
           : this.engine.player2FieldMonster();
     return arr[idx] ?? null;
@@ -237,16 +240,16 @@ export class Card {
       return false;
     }
     const zone = this.fieldZone();
-    const owner = this.ownerPlayerSlot();
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const idx = this.fieldCardIndex();
-    if (zone === null || owner === null || idx === null) {
+    if (zone === null || rowSlot === null || idx === null) {
       return false;
     }
     const mode = this.engine.attackMode();
     if (!mode) {
       return false;
     }
-    return this.engine.isLegalAttackTargetForAttackMode(owner, zone, idx, mode.attackerSlot);
+    return this.engine.isLegalAttackTargetForAttackMode(rowSlot, zone, idx, mode.attackerSlot);
   });
 
   /**
@@ -271,8 +274,8 @@ export class Card {
     if (turn !== casterId) {
       return false;
     }
-    const owner = this.ownerPlayerSlot();
-    if (owner === null || owner === drag.ownerPlayerSlot) {
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    if (rowSlot === null || rowSlot === drag.ownerPlayerSlot) {
       return false;
     }
     const type = this.def()?.cardType;
@@ -285,13 +288,13 @@ export class Card {
     if (t === null) {
       return false;
     }
-    const slot = this.ownerPlayerSlot();
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const zone = this.fieldZone();
     const idx = this.fieldCardIndex();
-    if (slot === null || zone === null || idx === null) {
+    if (rowSlot === null || zone === null || idx === null) {
       return false;
     }
-    return t.slot === slot && t.zone === zone && t.index === idx;
+    return t.slot === rowSlot && t.zone === zone && t.index === idx;
   });
 
   /** Marks the card that opened attack mode (for click-outside detection on the host). */
@@ -515,12 +518,12 @@ export class Card {
       return;
     }
     event.stopPropagation();
-    const slot = this.ownerPlayerSlot();
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const zone = this.fieldZone();
     const idx = this.fieldCardIndex();
-    if (slot === null || zone === null || idx === null) {
+    if (rowSlot === null || zone === null || idx === null) {
       return;
     }
-    this.engine.resolveAttackOnTarget(slot, zone, idx);
+    this.engine.resolveAttackOnTarget(rowSlot, zone, idx);
   }
 }
