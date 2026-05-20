@@ -1,7 +1,10 @@
 /** Static definition for a card in the catalog (rules + display). Runtime battle state stays separate. */
 
-/** Land-only: elemental keys → amount produced (e.g. `{ Rock: 1, Water: 3 }`). */
+/** Elemental keys → amount (mana produced, mana cost to play, etc.). */
 export type ManaGenerationMap = Record<string, number>;
+
+/** Mana required to play a card from hand (e.g. `{ Rock: 2 }`). */
+export type ManaCostMap = ManaGenerationMap;
 
 /** Which zone a spell is targeting when tethered from hand. */
 export type TargetZone = 'land' | 'monster';
@@ -37,8 +40,8 @@ export interface CardDefinition {
   attack?: number;
   /** Monster-only: counter-damage while defending (and other defense-mode interactions). */
   defense?: number;
-  /** Spells, abilities */
-  manaCost?: number;
+  /** Mana required to play from hand (e.g. `{ Rock: 2 }`). Omit when free. */
+  manaCost?: ManaCostMap;
   /** Monster-only: activated abilities available while the monster is awake/ready. */
   abilities?: ActivatedAbilityDefinition[];
   /** Spell-only: damage dealt when this spell’s effect deals damage (omit for non-damage spells). */
@@ -50,6 +53,12 @@ export interface CardDefinition {
   damageMultiplierAgainstZone?: Partial<Record<TargetZone, number>>;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
+  /**
+   * Land-only: how many of the owning player's turns after play before the land is active.
+   * Activates at the start of the owner's turn when their turn counter reaches `placed + buildTime`.
+   * `0` or omit for lands that work immediately.
+   */
+  buildTime?: number;
 }
 
 /** Human-readable label for UI (engine can use the raw map). */
@@ -57,6 +66,38 @@ export function formatManaGenerationMap(map: ManaGenerationMap): string {
   return Object.entries(map)
     .map(([element, amount]) => `${element}: ${amount}`)
     .join(', ');
+}
+
+/** True when a card has a non-zero mana cost to play. */
+export function hasManaCost(cost: ManaCostMap | undefined): boolean {
+  if (!cost) {
+    return false;
+  }
+  return Object.values(cost).some((amount) => amount > 0);
+}
+
+/** Whether the player's mana pool satisfies every entry in `cost`. */
+export function canAffordManaCost(pool: ManaGenerationMap, cost: ManaCostMap | undefined): boolean {
+  if (!hasManaCost(cost)) {
+    return true;
+  }
+  for (const [element, amount] of Object.entries(cost!)) {
+    if (amount <= 0) {
+      continue;
+    }
+    if ((pool[element] ?? 0) < amount) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** UI label for mana cost, or `null` when the card is free to play. */
+export function formatManaCostForDisplay(cost: ManaCostMap | undefined): string | null {
+  if (!hasManaCost(cost)) {
+    return null;
+  }
+  return formatManaGenerationMap(cost!);
 }
 
 /**
@@ -85,7 +126,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 60,
     attack: 10,
     defense: 30,
-    manaCost: 0,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Elemental',
@@ -96,7 +136,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'boulder-toss',
     name: 'Boulder Toss',
     cardType: 'Spell',
-    manaCost: 2,
+    manaCost: { Rock: 2 },
     cardElement: 'Rock',
     rarity: 'Common',
     damage: 60,
@@ -107,10 +147,10 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'mud-hut',
     name: 'Mud Hut',
     cardType: 'Land',
-    manaCost: 0,
     maxHealth: 100,
     cardElement: 'Rock',
     rarity: 'Common',
+    buildTime: 0,
     generateMana: {Rock: 1},
     description: '',
   },
@@ -121,7 +161,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 50,
     attack: 10,
     defense: 20,
-    manaCost: 0,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -129,10 +168,88 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     abilities: [{ id: 'burrow', name: 'Burrow', manaCost: 1, manaElement: 'Rock' }],
     description: 'Ability: Burrow (requires 1 Rock mana). Enter defense mode and become immune to spells.',
   },
+  'mountain-range': {
+    id: 'mountain-range',
+    name: 'Mountain Range',
+    cardType: 'Land',
+    manaCost: { Rock: 2 },
+    maxHealth: 250,
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    buildTime: 0,
+    generateMana: {Rock: 2, Ice: 2, Wind: 2},
+    description: 'Drains 1 Fire, Lightning, and ',
+  },
 };
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
+}
+
+/** Full turns after play before a land is active; `0` for non-lands or when unset. */
+export function effectiveLandBuildTime(def: CardDefinition | undefined): number {
+  if (!def || def.cardType !== 'Land') {
+    return 0;
+  }
+  return def.buildTime ?? 0;
+}
+
+/**
+ * Owner turns left before a land is active (`0` when ready or no build time).
+ * At play: equals catalog `buildTime`; ticks down at the start of each of the owner’s turns.
+ */
+export function remainingLandBuildTurns(
+  def: CardDefinition | undefined,
+  placedAtOwnerTurnCounter: number,
+  ownerTurnCounter: number,
+): number {
+  const buildTime = effectiveLandBuildTime(def);
+  if (buildTime <= 0) {
+    return 0;
+  }
+  return Math.max(0, placedAtOwnerTurnCounter + buildTime - ownerTurnCounter);
+}
+
+/**
+ * True while a land’s `buildTime` has not elapsed for the owning player.
+ * Activates at the start of the owner’s turn when `ownerTurnCounter >= placedAtOwnerTurn + buildTime`.
+ */
+export function isLandStillBuilding(
+  def: CardDefinition | undefined,
+  placedAtOwnerTurnCounter: number,
+  ownerTurnCounter: number,
+): boolean {
+  return remainingLandBuildTurns(def, placedAtOwnerTurnCounter, ownerTurnCounter) > 0;
+}
+
+/** Land row data needed to sum mana only from activated lands. */
+export interface FieldLandManaEntry {
+  cardId: string;
+  placedAtOwnerTurnCounter: number;
+}
+
+/**
+ * Sums `generateMana` from field lands that have finished building.
+ * Lands still within `buildTime` contribute nothing until activated.
+ */
+export function aggregateManaFromActiveFieldLands(
+  lands: readonly FieldLandManaEntry[],
+  ownerTurnCounter: number,
+): ManaGenerationMap {
+  const out: ManaGenerationMap = {};
+  for (const entry of lands) {
+    const def = getCardDefinition(entry.cardId);
+    if (!def?.generateMana) {
+      continue;
+    }
+    if (isLandStillBuilding(def, entry.placedAtOwnerTurnCounter, ownerTurnCounter)) {
+      continue;
+    }
+    for (const [element, amount] of Object.entries(def.generateMana)) {
+      out[element] = (out[element] ?? 0) + amount;
+    }
+  }
+  return out;
 }
 
 /** Use in templates / routes so ids are not magic strings everywhere. */
@@ -141,6 +258,7 @@ export const CardIds = {
   mightyGopher: 'mighty-gopher',
   boulderToss: 'boulder-toss',
   mudHut: 'mud-hut',
+  mountainRange: 'mountain-range',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -152,6 +270,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.mightyGopher,
   CardIds.boulderToss,
   CardIds.mudHut,
+  CardIds.mountainRange,
 ];
 
 export const DECK_SIZE = 25;

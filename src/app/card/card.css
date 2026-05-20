@@ -369,7 +369,8 @@
   transform: rotate(0deg);
 }
 
-.card.card--field.card--defending {
+.card.card--field.card--defending,
+.card.card--field.card--land-building {
   transform: rotate(-90deg);
 }
 
