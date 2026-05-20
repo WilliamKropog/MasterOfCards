@@ -54,6 +54,9 @@ export class FieldRow {
       if (!isValidLandDropRow(dragDef, this.playerSlot(), drag.ownerPlayerSlot)) {
         return false;
       }
+      if (!this.engine.canPlayLand(drag.ownerPlayerSlot, drag.cardId)) {
+        return false;
+      }
     } else if (drag.cardType === 'Monster') {
       if (drag.ownerPlayerSlot !== this.playerSlot()) {
         return false;
@@ -101,6 +104,9 @@ export class FieldRow {
       if (!isValidLandDropRow(def, this.playerSlot(), data.ownerPlayerSlot)) {
         return false;
       }
+      if (!this.engine.canPlayLand(data.ownerPlayerSlot, data.cardId)) {
+        return false;
+      }
     } else if (def.cardType === 'Monster' && data.ownerPlayerSlot !== this.playerSlot()) {
       return false;
     }
@@ -132,12 +138,16 @@ export class FieldRow {
       const hand = prev as string[];
       const field = next as FieldCardEntry[];
       const cardId = hand[event.previousIndex];
-      hand.splice(event.previousIndex, 1);
       const controllerSlot =
         prev === this.engine.player1Hand() ? 'player1' : 'player2';
+      const def = getCardDefinition(cardId);
+      if (def?.cardType === 'Land' && !this.engine.canPlayLand(controllerSlot, cardId)) {
+        this.engine.touchDropContainers(event);
+        return;
+      }
+      hand.splice(event.previousIndex, 1);
       const entry = this.engine.createFieldCardEntry(cardId, controllerSlot);
       field.splice(event.currentIndex, 0, entry);
-      const def = getCardDefinition(cardId);
       if (def && (def.cardType === 'Land' || def.cardType === 'Monster')) {
         this.engine.notifyPlacedFieldCardFromHand(hand);
       }

@@ -40,10 +40,18 @@
           }
         </span>
       </div>
-      <div class="card-field-stat" aria-label="Attack">
-        <span class="card-field-label">Attack</span>
-        <span class="card-field-value">{{ displayAttack() === null ? '—' : displayAttack() }}</span>
-      </div>
+      @if (fieldZone() !== 'land') {
+        <div class="card-field-stat" aria-label="Attack">
+          <span class="card-field-label">Attack</span>
+          <span class="card-field-value">{{ displayAttack() === null ? '—' : displayAttack() }}</span>
+        </div>
+      }
+      @if (displaySpace() !== null) {
+        <div class="card-field-stat" aria-label="Space">
+          <span class="card-field-label">Space</span>
+          <span class="card-field-value">{{ displaySpace() }}</span>
+        </div>
+      }
       @if (displayLandBuildTime() !== null) {
         <div class="card-field-stat" aria-label="Build time">
           <span class="card-field-label">Build time</span>
@@ -127,6 +135,10 @@
 
     @if (displayGenerateMana() !== null) {
       <div class="card-stat" aria-label="Mana generated">Generates: {{ displayGenerateMana() }}</div>
+    }
+
+    @if (displaySpace() !== null) {
+      <div class="card-stat" aria-label="Space">Space: {{ displaySpace() }}</div>
     }
 
     @if (displayLandBuildTime() !== null) {

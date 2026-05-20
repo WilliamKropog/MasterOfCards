@@ -4,7 +4,10 @@ import {
   aggregateManaFromActiveFieldLands,
   buildShuffledDeck,
   canAffordManaCost,
+  effectiveLandSpace,
   getCardDefinition,
+  landCapacityOwner,
+  landCapacityOwnerForPlay,
   OPENING_HAND_SIZE,
   type ManaGenerationMap,
 } from '../game/card-catalog';
@@ -147,16 +150,14 @@ export class GameEngineService {
   readonly player1LifePoints = signal(STARTING_LIFE_POINTS);
   readonly player2LifePoints = signal(STARTING_LIFE_POINTS);
 
-  /** Land capacity used (starts at 0; max {@link MAX_LAND_CAPACITY}). */
-  readonly player1LandCapacity = signal(0);
-  readonly player2LandCapacity = signal(0);
+  /** Land capacity used by lands this player controls (max {@link MAX_LAND_CAPACITY}). */
+  readonly player1LandCapacity = computed(() => this.landCapacityUsed('player1'));
+  readonly player2LandCapacity = computed(() => this.landCapacityUsed('player2'));
 
   /** Begin the match: turn counter → 1, current turn → Player 1. */
   startGame(): void {
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
-    this.player1LandCapacity.set(0);
-    this.player2LandCapacity.set(0);
     this.nextFieldInstanceId = 1;
     this.gameStarted.set(true);
     this.turnCounter.set(1);
@@ -218,6 +219,48 @@ export class GameEngineService {
       }
     }
     return aggregateManaFromActiveFieldLands(entries, ownerTurnCounter);
+  }
+
+  /** Sum of catalog `space` counting toward this player's land capacity. */
+  landCapacityUsed(player: FieldPlayerSlot): number {
+    let total = 0;
+    for (const entry of this.player1FieldLand()) {
+      const def = getCardDefinition(entry.cardId);
+      const space = effectiveLandSpace(def);
+      if (space <= 0) {
+        continue;
+      }
+      const controller = entry.controllerSlot ?? 'player1';
+      if (landCapacityOwner(def, controller, 'player1') === player) {
+        total += space;
+      }
+    }
+    for (const entry of this.player2FieldLand()) {
+      const def = getCardDefinition(entry.cardId);
+      const space = effectiveLandSpace(def);
+      if (space <= 0) {
+        continue;
+      }
+      const controller = entry.controllerSlot ?? 'player2';
+      if (landCapacityOwner(def, controller, 'player2') === player) {
+        total += space;
+      }
+    }
+    return total;
+  }
+
+  /** True when playing this land would not exceed the relevant player's {@link MAX_LAND_CAPACITY}. */
+  canPlayLand(playerPlayingFromHand: FieldPlayerSlot, cardId: string): boolean {
+    const def = getCardDefinition(cardId);
+    if (!def || def.cardType !== 'Land') {
+      return true;
+    }
+    const space = effectiveLandSpace(def);
+    if (space <= 0) {
+      return true;
+    }
+    const capacityOwner = landCapacityOwnerForPlay(def, playerPlayingFromHand);
+    return this.landCapacityUsed(capacityOwner) + space <= MAX_LAND_CAPACITY;
   }
 
   /** Turn-start count for the given seat (for land build timers). */
@@ -845,8 +888,6 @@ export class GameEngineService {
     this.gameStarted.set(false);
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
-    this.player1LandCapacity.set(0);
-    this.player2LandCapacity.set(0);
     this.turnCounter.set(0);
     this.player1TurnCounter.set(0);
     this.player2TurnCounter.set(0);

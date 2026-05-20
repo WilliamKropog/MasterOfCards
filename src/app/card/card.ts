@@ -4,6 +4,7 @@ import { MatButton } from '@angular/material/button';
 import {
   canAffordManaCost,
   effectiveLandBuildTime,
+  effectiveLandSpace,
   formatManaCostForDisplay,
   formatManaGenerationMap,
   getCardDefinition,
@@ -135,6 +136,22 @@ export class Card {
     return !canAffordManaCost(pool, def.manaCost);
   });
 
+  /** Land in hand that would exceed this player's land capacity cannot be played. */
+  private readonly exceedsLandCapacityInHand = computed(() => {
+    if (!this.inPlayerHand()) {
+      return false;
+    }
+    const def = this.def();
+    if (!def || def.cardType !== 'Land') {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return true;
+    }
+    return !this.engine.canPlayLand(slot, this.cardId());
+  });
+
   /** No drag before Start, when collapsed, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
@@ -142,7 +159,8 @@ export class Card {
       !this.engine.gameStarted() ||
       this.onField() ||
       this.fieldLandOrMonsterLocked() ||
-      this.cannotAffordManaCostInHand(),
+      this.cannotAffordManaCostInHand() ||
+      this.exceedsLandCapacityInHand(),
   );
 
   /** Subtle gold hint on cards that can be dragged this turn (active hand). */
@@ -365,6 +383,12 @@ export class Card {
       return null;
     }
     return formatManaGenerationMap(map);
+  });
+
+  /** Land-only capacity footprint; null when not a land or no space cost. */
+  protected readonly displaySpace = computed(() => {
+    const space = effectiveLandSpace(this.def());
+    return space > 0 ? space : null;
   });
 
   /**
