@@ -441,13 +441,12 @@ export class GameEngineService {
       return false;
     }
 
-    if (tether.slot === casterSlot) {
-      return false;
-    }
-
     const defenderArr = this.getFieldArray(tether.slot, tether.zone);
     const defenderEntry = defenderArr[tether.index];
     if (!defenderEntry) {
+      return false;
+    }
+    if (this.fieldCardController(defenderEntry, tether.slot) === casterSlot) {
       return false;
     }
     if (defenderEntry.spellImmune === true) {
@@ -687,14 +686,24 @@ export class GameEngineService {
    * Attack-mode targeting: enemy monsters that are **defending** must be attacked before any
    * non-defending enemy monsters; then lands when no monsters remain; player hand uses separate checks.
    */
+  /** Who controls a field card for targeting (Temple on your row still belongs to the opponent who played it). */
+  fieldCardController(entry: FieldCardEntry, rowSlot: FieldPlayerSlot): FieldPlayerSlot {
+    return entry.controllerSlot ?? rowSlot;
+  }
+
   isLegalAttackTargetForAttackMode(
-    defenderSlot: FieldPlayerSlot,
+    rowSlot: FieldPlayerSlot,
     defenderZone: FieldZone,
     defenderIndex: number,
     attackerSlot: FieldPlayerSlot,
   ): boolean {
+    const defenderArr = this.getFieldArray(rowSlot, defenderZone);
+    const defenderEntry = defenderArr[defenderIndex];
+    if (!defenderEntry) {
+      return false;
+    }
     const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
-    if (defenderSlot !== enemy) {
+    if (this.fieldCardController(defenderEntry, rowSlot) !== enemy) {
       return false;
     }
     const enemyMonsterArr =
@@ -711,12 +720,11 @@ export class GameEngineService {
       return targetEntry?.defending === true;
     }
 
-    // No defending monsters: any enemy field card is a legal target.
+    // No defending monsters: any enemy-controlled field card is a legal target (any row).
     if (defenderZone === 'monster') {
-      return enemyMonsterArr[defenderIndex] !== undefined;
+      return rowSlot === enemy && enemyMonsterArr[defenderIndex] !== undefined;
     }
-    const enemyLandArr = enemy === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
-    return enemyLandArr[defenderIndex] !== undefined;
+    return defenderZone === 'land';
   }
 
   private getFieldArray(slot: FieldPlayerSlot, zone: FieldZone): FieldCardEntry[] {

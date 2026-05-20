@@ -292,8 +292,8 @@ export class Card {
     if (turn !== casterId) {
       return false;
     }
-    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
-    if (rowSlot === null || rowSlot === drag.ownerPlayerSlot) {
+    const controller = this.ownerPlayerSlot();
+    if (controller === null || controller === drag.ownerPlayerSlot) {
       return false;
     }
     const type = this.def()?.cardType;
