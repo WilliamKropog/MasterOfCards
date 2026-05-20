@@ -15,6 +15,9 @@ export type PlayerId = 1 | 2;
 /** Starting life total per player (win condition: reduce opponent to 0). */
 export const STARTING_LIFE_POINTS = 2000;
 
+/** Maximum land capacity per player (displayed as current / max). */
+export const MAX_LAND_CAPACITY = 9;
+
 /** Field row entry: catalog id + turn counter when played (for summoning / tap rules). */
 export interface FieldCardEntry {
   /** Stable render identity so removing a neighbor does not reuse another card's DOM state. */
@@ -144,10 +147,16 @@ export class GameEngineService {
   readonly player1LifePoints = signal(STARTING_LIFE_POINTS);
   readonly player2LifePoints = signal(STARTING_LIFE_POINTS);
 
+  /** Land capacity used (starts at 0; max {@link MAX_LAND_CAPACITY}). */
+  readonly player1LandCapacity = signal(0);
+  readonly player2LandCapacity = signal(0);
+
   /** Begin the match: turn counter → 1, current turn → Player 1. */
   startGame(): void {
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
+    this.player1LandCapacity.set(0);
+    this.player2LandCapacity.set(0);
     this.nextFieldInstanceId = 1;
     this.gameStarted.set(true);
     this.turnCounter.set(1);
@@ -836,6 +845,8 @@ export class GameEngineService {
     this.gameStarted.set(false);
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
+    this.player1LandCapacity.set(0);
+    this.player2LandCapacity.set(0);
     this.turnCounter.set(0);
     this.player1TurnCounter.set(0);
     this.player2TurnCounter.set(0);

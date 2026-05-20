@@ -13,9 +13,19 @@
     <div class="player-hand-title-cluster">
       <h2 class="player-hand-title">{{ displayLabel() }}</h2>
       @if (engine.gameStarted()) {
-        <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
-          LP {{ lifePoints() }}
-        </span>
+        <div class="player-hand-stats">
+          <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
+            LP {{ lifePoints() }}
+          </span>
+          <span
+            class="player-hand-land-capacity"
+            [attr.aria-label]="
+              'Land capacity ' + landCapacity() + ' out of ' + maxLandCapacity
+            "
+          >
+            Land {{ landCapacity() }} / {{ maxLandCapacity }}
+          </span>
+        </div>
       }
     </div>
     @if (engine.gameStarted()) {
