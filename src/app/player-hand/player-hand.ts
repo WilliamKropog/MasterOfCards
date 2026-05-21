@@ -3,7 +3,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { Card } from '../card/card';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
-import { GameEngineService } from '../services/game-engine.service';
+import { GameEngineService, MAX_LAND_CAPACITY } from '../services/game-engine.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
 
 export type PlayerSlot = 'player1' | 'player2';
@@ -34,6 +34,14 @@ export class PlayerHand {
       ? this.engine.player1LifePoints()
       : this.engine.player2LifePoints(),
   );
+
+  protected readonly landCapacity = computed(() =>
+    this.playerSlot() === 'player1'
+      ? this.engine.player1LandCapacity()
+      : this.engine.player2LandCapacity(),
+  );
+
+  protected readonly maxLandCapacity = MAX_LAND_CAPACITY;
 
   /**
    * Red border glow: this hand is a valid direct target whenever the opponent is dragging a spell

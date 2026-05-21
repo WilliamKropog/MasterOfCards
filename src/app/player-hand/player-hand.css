@@ -190,6 +190,14 @@
   min-width: 0;
 }
 
+.player-hand-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  line-height: 1.25;
+}
+
 .player-hand-title {
   margin: 0;
   font-size: 1.1rem;
@@ -202,6 +210,14 @@
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
   color: rgba(0, 0, 0, 0.78);
+  white-space: nowrap;
+}
+
+.player-hand-land-capacity {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 0.62);
   white-space: nowrap;
 }
 
@@ -238,6 +254,10 @@
 
 .player-hand--collapsed .player-hand-lp {
   font-size: 0.8rem;
+}
+
+.player-hand--collapsed .player-hand-land-capacity {
+  font-size: 0.72rem;
 }
 
 .player-hand--collapsed .player-hand-mana {

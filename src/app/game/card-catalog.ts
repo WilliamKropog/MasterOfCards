@@ -59,6 +59,16 @@ export interface CardDefinition {
    * `0` or omit for lands that work immediately.
    */
   buildTime?: number;
+  /**
+   * Land-only: must be dropped on the opponent's land row (not your own).
+   * The card still belongs to the player who played it (mana, build timer).
+   */
+  placeOnOpponentLandRow?: boolean;
+  /**
+   * Land-only: footprint against the controller's land capacity (max 9 by default).
+   * Omit or `0` when the land uses no capacity.
+   */
+  space?: number;
 }
 
 /** Human-readable label for UI (engine can use the raw map). */
@@ -152,6 +162,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Common',
     buildTime: 0,
     generateMana: {Rock: 1},
+    space: 2,
     description: '',
   },
   'mighty-gopher': {
@@ -177,10 +188,82 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Uncommon',
     buildTime: 0,
-    generateMana: {Rock: 2, Ice: 2, Wind: 2},
-    description: 'Drains 1 Fire, Lightning, and ',
+    space: 4,
+    generateMana: {Rock: 3, Ice: 3},
+    description: 'Drains 1 Fire and Lightning mana from your opponent while active.',
+  },
+  'temple-of-being': {
+    id: 'temple-of-being',
+    name: 'Temple of Being',
+    cardType: 'Land',
+    maxHealth: 100,
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    buildTime: 1,
+    space: 1,
+    generateMana: {Rock: 2},
+    placeOnOpponentLandRow: true,
+    description: 'Can only be placed on the opponent\'s field if they have space available.',
   },
 };
+
+/** Land-only capacity footprint; `0` for non-lands or when unset. */
+export function effectiveLandSpace(def: CardDefinition | undefined): number {
+  if (!def || def.cardType !== 'Land') {
+    return 0;
+  }
+  const space = def.space;
+  if (space === undefined || space < 0) {
+    return 0;
+  }
+  return space;
+}
+
+/** Land must be played on the opponent's land row (e.g. Temple of Being). */
+export function mustPlaceLandOnOpponentRow(def: CardDefinition | undefined): boolean {
+  return def?.placeOnOpponentLandRow === true;
+}
+
+/**
+ * Whose land capacity this land uses on the field.
+ * Normal lands: the controller who played them. Opponent-row lands (Temple): the row owner.
+ */
+export function landCapacityOwner(
+  def: CardDefinition | undefined,
+  controllerSlot: 'player1' | 'player2',
+  rowSlot: 'player1' | 'player2',
+): 'player1' | 'player2' {
+  if (mustPlaceLandOnOpponentRow(def)) {
+    return rowSlot;
+  }
+  return controllerSlot;
+}
+
+/** Whose land capacity to check before playing this land from hand. */
+export function landCapacityOwnerForPlay(
+  def: CardDefinition | undefined,
+  playerPlayingFromHand: 'player1' | 'player2',
+): 'player1' | 'player2' {
+  if (mustPlaceLandOnOpponentRow(def)) {
+    return playerPlayingFromHand === 'player1' ? 'player2' : 'player1';
+  }
+  return playerPlayingFromHand;
+}
+
+/** Whether a land dragged from `dragOwnerSlot` may enter `rowSlot`. */
+export function isValidLandDropRow(
+  def: CardDefinition | undefined,
+  rowSlot: 'player1' | 'player2',
+  dragOwnerSlot: 'player1' | 'player2',
+): boolean {
+  if (!def || def.cardType !== 'Land') {
+    return false;
+  }
+  if (mustPlaceLandOnOpponentRow(def)) {
+    return rowSlot !== dragOwnerSlot;
+  }
+  return rowSlot === dragOwnerSlot;
+}
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
@@ -259,6 +342,7 @@ export const CardIds = {
   boulderToss: 'boulder-toss',
   mudHut: 'mud-hut',
   mountainRange: 'mountain-range',
+  templeOfBeing: 'temple-of-being',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -271,6 +355,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
+  CardIds.templeOfBeing,
 ];
 
 export const DECK_SIZE = 25;

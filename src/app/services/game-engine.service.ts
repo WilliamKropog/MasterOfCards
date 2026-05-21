@@ -4,7 +4,10 @@ import {
   aggregateManaFromActiveFieldLands,
   buildShuffledDeck,
   canAffordManaCost,
+  effectiveLandSpace,
   getCardDefinition,
+  landCapacityOwner,
+  landCapacityOwnerForPlay,
   OPENING_HAND_SIZE,
   type ManaGenerationMap,
 } from '../game/card-catalog';
@@ -15,6 +18,9 @@ export type PlayerId = 1 | 2;
 /** Starting life total per player (win condition: reduce opponent to 0). */
 export const STARTING_LIFE_POINTS = 2000;
 
+/** Maximum land capacity per player (displayed as current / max). */
+export const MAX_LAND_CAPACITY = 9;
+
 /** Field row entry: catalog id + turn counter when played (for summoning / tap rules). */
 export interface FieldCardEntry {
   /** Stable render identity so removing a neighbor does not reuse another card's DOM state. */
@@ -24,6 +30,8 @@ export interface FieldCardEntry {
   placedAtTurnCounter: number;
   /** Owning player's turn-start counter when played (land build timer). */
   placedAtOwnerTurnCounter: number;
+  /** Who played / controls the card (mana, build). Defaults to the field row owner when unset. */
+  controllerSlot?: FieldPlayerSlot;
   /** Battle damage; defaults to catalog `maxHealth` when missing. */
   currentHealth?: number;
   /** Monster/land has attacked or been in combat this turn; cleared on Next Turn. */
@@ -98,10 +106,10 @@ export class GameEngineService {
    * Lands still building do not contribute until their owner’s build timer completes.
    */
   readonly player1Mana = computed<ManaGenerationMap>(() =>
-    aggregateManaFromActiveFieldLands(this.player1FieldLand(), this.player1TurnCounter()),
+    this.aggregateManaForController('player1'),
   );
   readonly player2Mana = computed<ManaGenerationMap>(() =>
-    aggregateManaFromActiveFieldLands(this.player2FieldLand(), this.player2TurnCounter()),
+    this.aggregateManaForController('player2'),
   );
 
   /** Kept in sync with `currentTurn` when a game is active. */
@@ -142,6 +150,10 @@ export class GameEngineService {
   readonly player1LifePoints = signal(STARTING_LIFE_POINTS);
   readonly player2LifePoints = signal(STARTING_LIFE_POINTS);
 
+  /** Land capacity used by lands this player controls (max {@link MAX_LAND_CAPACITY}). */
+  readonly player1LandCapacity = computed(() => this.landCapacityUsed('player1'));
+  readonly player2LandCapacity = computed(() => this.landCapacityUsed('player2'));
+
   /** Begin the match: turn counter → 1, current turn → Player 1. */
   startGame(): void {
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
@@ -173,7 +185,7 @@ export class GameEngineService {
     this.attackMode.set(null);
   }
 
-  createFieldCardEntry(cardId: string): FieldCardEntry {
+  createFieldCardEntry(cardId: string, controllerSlot: FieldPlayerSlot): FieldCardEntry {
     const turn = this.currentTurn();
     const placedAtOwnerTurnCounter =
       turn === 1
@@ -186,7 +198,69 @@ export class GameEngineService {
       cardId,
       placedAtTurnCounter: this.turnCounter(),
       placedAtOwnerTurnCounter,
+      controllerSlot,
     };
+  }
+
+  /** Mana from lands this player controls, including those on the opponent's land row. */
+  private aggregateManaForController(controller: FieldPlayerSlot): ManaGenerationMap {
+    const ownerTurnCounter = this.ownerTurnCounter(controller);
+    const entries: FieldCardEntry[] = [];
+    for (const entry of this.player1FieldLand()) {
+      const c = entry.controllerSlot ?? 'player1';
+      if (c === controller) {
+        entries.push(entry);
+      }
+    }
+    for (const entry of this.player2FieldLand()) {
+      const c = entry.controllerSlot ?? 'player2';
+      if (c === controller) {
+        entries.push(entry);
+      }
+    }
+    return aggregateManaFromActiveFieldLands(entries, ownerTurnCounter);
+  }
+
+  /** Sum of catalog `space` counting toward this player's land capacity. */
+  landCapacityUsed(player: FieldPlayerSlot): number {
+    let total = 0;
+    for (const entry of this.player1FieldLand()) {
+      const def = getCardDefinition(entry.cardId);
+      const space = effectiveLandSpace(def);
+      if (space <= 0) {
+        continue;
+      }
+      const controller = entry.controllerSlot ?? 'player1';
+      if (landCapacityOwner(def, controller, 'player1') === player) {
+        total += space;
+      }
+    }
+    for (const entry of this.player2FieldLand()) {
+      const def = getCardDefinition(entry.cardId);
+      const space = effectiveLandSpace(def);
+      if (space <= 0) {
+        continue;
+      }
+      const controller = entry.controllerSlot ?? 'player2';
+      if (landCapacityOwner(def, controller, 'player2') === player) {
+        total += space;
+      }
+    }
+    return total;
+  }
+
+  /** True when playing this land would not exceed the relevant player's {@link MAX_LAND_CAPACITY}. */
+  canPlayLand(playerPlayingFromHand: FieldPlayerSlot, cardId: string): boolean {
+    const def = getCardDefinition(cardId);
+    if (!def || def.cardType !== 'Land') {
+      return true;
+    }
+    const space = effectiveLandSpace(def);
+    if (space <= 0) {
+      return true;
+    }
+    const capacityOwner = landCapacityOwnerForPlay(def, playerPlayingFromHand);
+    return this.landCapacityUsed(capacityOwner) + space <= MAX_LAND_CAPACITY;
   }
 
   /** Turn-start count for the given seat (for land build timers). */
@@ -367,13 +441,12 @@ export class GameEngineService {
       return false;
     }
 
-    if (tether.slot === casterSlot) {
-      return false;
-    }
-
     const defenderArr = this.getFieldArray(tether.slot, tether.zone);
     const defenderEntry = defenderArr[tether.index];
     if (!defenderEntry) {
+      return false;
+    }
+    if (this.fieldCardController(defenderEntry, tether.slot) === casterSlot) {
       return false;
     }
     if (defenderEntry.spellImmune === true) {
@@ -613,14 +686,24 @@ export class GameEngineService {
    * Attack-mode targeting: enemy monsters that are **defending** must be attacked before any
    * non-defending enemy monsters; then lands when no monsters remain; player hand uses separate checks.
    */
+  /** Who controls a field card for targeting (Temple on your row still belongs to the opponent who played it). */
+  fieldCardController(entry: FieldCardEntry, rowSlot: FieldPlayerSlot): FieldPlayerSlot {
+    return entry.controllerSlot ?? rowSlot;
+  }
+
   isLegalAttackTargetForAttackMode(
-    defenderSlot: FieldPlayerSlot,
+    rowSlot: FieldPlayerSlot,
     defenderZone: FieldZone,
     defenderIndex: number,
     attackerSlot: FieldPlayerSlot,
   ): boolean {
+    const defenderArr = this.getFieldArray(rowSlot, defenderZone);
+    const defenderEntry = defenderArr[defenderIndex];
+    if (!defenderEntry) {
+      return false;
+    }
     const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
-    if (defenderSlot !== enemy) {
+    if (this.fieldCardController(defenderEntry, rowSlot) !== enemy) {
       return false;
     }
     const enemyMonsterArr =
@@ -637,12 +720,11 @@ export class GameEngineService {
       return targetEntry?.defending === true;
     }
 
-    // No defending monsters: any enemy field card is a legal target.
+    // No defending monsters: any enemy-controlled field card is a legal target (any row).
     if (defenderZone === 'monster') {
-      return enemyMonsterArr[defenderIndex] !== undefined;
+      return rowSlot === enemy && enemyMonsterArr[defenderIndex] !== undefined;
     }
-    const enemyLandArr = enemy === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
-    return enemyLandArr[defenderIndex] !== undefined;
+    return defenderZone === 'land';
   }
 
   private getFieldArray(slot: FieldPlayerSlot, zone: FieldZone): FieldCardEntry[] {

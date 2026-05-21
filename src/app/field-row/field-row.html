@@ -24,7 +24,8 @@
         <app-card
           [cardId]="entry.cardId"
           [placedAtTurnCounter]="entry.placedAtTurnCounter"
-          [ownerPlayerSlot]="playerSlot()"
+          [fieldRowSlot]="playerSlot()"
+          [ownerPlayerSlot]="entry.controllerSlot ?? playerSlot()"
           [onField]="true"
           [fieldZone]="zone()"
           [fieldCardIndex]="$index"
