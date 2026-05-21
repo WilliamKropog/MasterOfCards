@@ -157,7 +157,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'mud-hut',
     name: 'Mud Hut',
     cardType: 'Land',
-    maxHealth: 100,
+    maxHealth: 80,
     cardElement: 'Rock',
     rarity: 'Common',
     buildTime: 0,
@@ -204,6 +204,19 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 2},
     placeOnOpponentLandRow: true,
     description: 'Can only be placed on the opponent\'s field if they have space available.',
+  },
+  'armoredillo': {
+    id: 'armoredillo',
+    name: 'Armoredillo',
+    cardType: 'Monster',
+    maxHealth: 20,
+    attack: 20,
+    defense: 30,
+    cardElement: 'Rock',
+    rarity: 'Common',
+    monsterClass: 'Critter',
+    attributes: ['Melee'],
+    description: 'Starts with 1 block when placed.',
   },
 };
 
@@ -343,6 +356,7 @@ export const CardIds = {
   mudHut: 'mud-hut',
   mountainRange: 'mountain-range',
   templeOfBeing: 'temple-of-being',
+  armoredillo: 'armoredillo',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -356,6 +370,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.mudHut,
   CardIds.mountainRange,
   CardIds.templeOfBeing,
+  CardIds.armoredillo,
 ];
 
 export const DECK_SIZE = 25;
