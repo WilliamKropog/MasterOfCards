@@ -341,6 +341,15 @@ export class Card {
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
 
+  /** Field/compact face: appends `(n)` when the monster has blocks (e.g. Armoredillo (1)). */
+  protected readonly displayNameWithBlocks = computed(() => {
+    const blocks = this.displayBlocks();
+    if (blocks === null) {
+      return this.displayName();
+    }
+    return `${this.displayName()} (${blocks})`;
+  });
+
   protected readonly displayType = computed(() => this.def()?.cardType ?? '—');
 
   protected readonly displayCardElement = computed(() => this.def()?.cardElement ?? '—');
@@ -375,6 +384,20 @@ export class Card {
 
   /** Monster-only; null when not applicable. */
   protected readonly displayDefense = computed(() => this.def()?.defense ?? null);
+
+  /** Monster blocks on field (runtime); in hand, catalog `startingBlocks`. */
+  protected readonly displayBlocks = computed(() => {
+    const def = this.def();
+    if (def?.cardType !== 'Monster') {
+      return null;
+    }
+    if (this.onField()) {
+      const blocks = this.fieldEntry()?.blocks;
+      return blocks !== undefined && blocks > 0 ? blocks : null;
+    }
+    const starting = def.startingBlocks ?? 0;
+    return starting > 0 ? starting : null;
+  });
 
   /** Land-only; null when this card does not generate mana from the catalog. */
   protected readonly displayGenerateMana = computed(() => {

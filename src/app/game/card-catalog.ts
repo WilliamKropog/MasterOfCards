@@ -40,6 +40,11 @@ export interface CardDefinition {
   attack?: number;
   /** Monster-only: counter-damage while defending (and other defense-mode interactions). */
   defense?: number;
+  /**
+   * Monster-only: blocks granted when the monster enters the field.
+   * Each block negates one incoming attack or spell (any damage amount).
+   */
+  startingBlocks?: number;
   /** Mana required to play from hand (e.g. `{ Rock: 2 }`). Omit when free. */
   manaCost?: ManaCostMap;
   /** Monster-only: activated abilities available while the monster is awake/ready. */
@@ -216,7 +221,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Common',
     monsterClass: 'Critter',
     attributes: ['Melee'],
-    description: 'Starts with 1 block when placed.',
+    startingBlocks: 1,
+    description: 'Starts with 1 block when placed. Each block blocks one attack or spell.',
   },
 };
 
@@ -364,12 +370,12 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  CardIds.rockMonster,
-  CardIds.mightyGopher,
+  // CardIds.rockMonster,
+  // CardIds.mightyGopher,
   CardIds.boulderToss,
   CardIds.mudHut,
-  CardIds.mountainRange,
-  CardIds.templeOfBeing,
+  // CardIds.mountainRange,
+  // CardIds.templeOfBeing,
   CardIds.armoredillo,
 ];
 

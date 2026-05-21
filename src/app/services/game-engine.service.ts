@@ -43,6 +43,11 @@ export interface FieldCardEntry {
    * Used by abilities like Mighty Gopher's Burrow.
    */
   spellImmune?: boolean;
+  /**
+   * Monster-only: each block negates one incoming attack or spell (any damage).
+   * Initialized from catalog `startingBlocks` when placed.
+   */
+  blocks?: number;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -193,13 +198,21 @@ export class GameEngineService {
         : turn === 2
           ? this.player2TurnCounter()
           : 0;
-    return {
+    const def = getCardDefinition(cardId);
+    const entry: FieldCardEntry = {
       fieldInstanceId: this.nextFieldInstanceId++,
       cardId,
       placedAtTurnCounter: this.turnCounter(),
       placedAtOwnerTurnCounter,
       controllerSlot,
     };
+    if (def?.cardType === 'Monster') {
+      const startingBlocks = def.startingBlocks ?? 0;
+      if (startingBlocks > 0) {
+        entry.blocks = startingBlocks;
+      }
+    }
+    return entry;
   }
 
   /** Mana from lands this player controls, including those on the opponent's land row. */
@@ -472,12 +485,7 @@ export class GameEngineService {
       amount *= zoneMultiplier;
     }
 
-    const defenderHp = defenderEntry.currentHealth ?? defenderDef.maxHealth ?? 0;
-    const newHp = Math.max(0, defenderHp - amount);
-    const defenderResult: FieldCardEntry = {
-      ...defenderEntry,
-      currentHealth: newHp,
-    };
+    const defenderResult = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
 
     const removeAtIndex = (arr: string[]): string[] => {
       const next = [...arr];
@@ -605,20 +613,15 @@ export class GameEngineService {
     // regardless of whether the target is in attack/defense position.
     const defPower = defenderZone === 'monster' ? (defDef.defense ?? 0) : (defDef.attack ?? 0);
 
-    const attackerHp = attackerEntry.currentHealth ?? atkDef.maxHealth ?? 0;
-    const defenderHp = defenderEntry.currentHealth ?? defDef.maxHealth ?? 0;
-
-    const newDefenderHp = defenderHp - atkPower;
-    const newAttackerHp = attackerHp - defPower;
+    const attackerAfterDamage = this.applyIncomingFieldDamage(attackerEntry, defPower, atkDef);
+    const defenderAfterDamage = this.applyIncomingFieldDamage(defenderEntry, atkPower, defDef);
 
     const attackerResult: FieldCardEntry = {
-      ...attackerEntry,
-      currentHealth: Math.max(0, newAttackerHp),
+      ...attackerAfterDamage,
       hasActedThisTurn: true,
     };
     const defenderResult: FieldCardEntry = {
-      ...defenderEntry,
-      currentHealth: Math.max(0, newDefenderHp),
+      ...defenderAfterDamage,
       hasActedThisTurn: true,
     };
 
@@ -725,6 +728,27 @@ export class GameEngineService {
       return rowSlot === enemy && enemyMonsterArr[defenderIndex] !== undefined;
     }
     return defenderZone === 'land';
+  }
+
+  /**
+   * Applies damage from an attack or spell. Monsters with `blocks > 0` consume one block
+   * and take no HP damage for that hit.
+   */
+  private applyIncomingFieldDamage(
+    entry: FieldCardEntry,
+    damage: number,
+    def: ReturnType<typeof getCardDefinition>,
+  ): FieldCardEntry {
+    if (damage <= 0) {
+      return entry;
+    }
+    const blocks = entry.blocks ?? 0;
+    if (blocks > 0 && def?.cardType === 'Monster') {
+      return { ...entry, blocks: blocks - 1 };
+    }
+    const maxHp = def?.maxHealth ?? 0;
+    const hp = entry.currentHealth ?? maxHp;
+    return { ...entry, currentHealth: Math.max(0, hp - damage) };
   }
 
   private getFieldArray(slot: FieldPlayerSlot, zone: FieldZone): FieldCardEntry[] {

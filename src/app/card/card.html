@@ -25,13 +25,13 @@
   (cdkDragEnded)="onDragEnded($event)"
 >
   @if (compact()) {
-    <div class="card-compact-name">{{ displayName() }}</div>
+    <div class="card-compact-name">{{ displayNameWithBlocks() }}</div>
     <div class="card-compact-hp" aria-label="Current health">
       Current health: {{ displayHealth() === null ? '—' : displayHealth() }}
     </div>
   } @else if (onField()) {
     <div class="card-field-main">
-      <header class="card-field-name">{{ displayName() }}</header>
+      <header class="card-field-name">{{ displayNameWithBlocks() }}</header>
       <div class="card-field-stat" aria-label="Current health">
         <span class="card-field-label">Current health</span>
         <span class="card-field-value">
@@ -127,6 +127,10 @@
 
     @if (displayDefense() !== null) {
       <div class="card-stat" aria-label="Defense">Defense: {{ displayDefense() }}</div>
+    }
+
+    @if (displayBlocks() !== null) {
+      <div class="card-stat" aria-label="Blocks">Blocks: {{ displayBlocks() }}</div>
     }
 
     @if (displayHealth() !== null) {
