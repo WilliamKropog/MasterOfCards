@@ -12,7 +12,7 @@ export type TargetZone = 'land' | 'monster';
 export interface ActivatedAbilityDefinition {
   id: string;
   name: string;
-  /** Mana required to use the ability (mana is not currently spent). */
+  /** Mana required to use the ability (spent from the player's turn pool). */
   manaCost: number;
   manaElement: string;
 }
@@ -107,6 +107,45 @@ export function canAffordManaCost(pool: ManaGenerationMap, cost: ManaCostMap | u
   return true;
 }
 
+/**
+ * Deducts `cost` from `pool` when affordable. Returns a new pool, or `null` if any element is short.
+ */
+export function spendManaCost(
+  pool: ManaGenerationMap,
+  cost: ManaCostMap | undefined,
+): ManaGenerationMap | null {
+  if (!canAffordManaCost(pool, cost)) {
+    return null;
+  }
+  if (!hasManaCost(cost)) {
+    return { ...pool };
+  }
+  const next: ManaGenerationMap = { ...pool };
+  for (const [element, amount] of Object.entries(cost!)) {
+    if (amount <= 0) {
+      continue;
+    }
+    const remaining = (next[element] ?? 0) - amount;
+    if (remaining <= 0) {
+      delete next[element];
+    } else {
+      next[element] = remaining;
+    }
+  }
+  return next;
+}
+
+/** Adds `add` element amounts into a copy of `pool`. */
+export function addManaToPool(pool: ManaGenerationMap, add: ManaGenerationMap): ManaGenerationMap {
+  const next: ManaGenerationMap = { ...pool };
+  for (const [element, amount] of Object.entries(add)) {
+    if (amount > 0) {
+      next[element] = (next[element] ?? 0) + amount;
+    }
+  }
+  return next;
+}
+
 /** UI label for mana cost, or `null` when the card is free to play. */
 export function formatManaCostForDisplay(cost: ManaCostMap | undefined): string | null {
   if (!hasManaCost(cost)) {
@@ -165,7 +204,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Common',
     buildTime: 0,
-    generateMana: {Rock: 1},
+    generateMana: {Rock: 2},
     space: 2,
     description: '',
   },

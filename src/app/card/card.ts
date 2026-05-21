@@ -116,10 +116,7 @@ export class Card {
     return type === 'Land' || type === 'Monster';
   });
 
-  /**
-   * Cards with `manaCost` require each listed element from lands on the field (mana is not spent
-   * when playing; pool is always “available” while lands stay in play).
-   */
+  /** Cards with `manaCost` require each listed element from the player's current turn mana pool. */
   private readonly cannotAffordManaCostInHand = computed(() => {
     if (!this.inPlayerHand()) {
       return false;
