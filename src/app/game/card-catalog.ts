@@ -12,7 +12,7 @@ export type TargetZone = 'land' | 'monster';
 export interface ActivatedAbilityDefinition {
   id: string;
   name: string;
-  /** Mana required to use the ability (mana is not currently spent). */
+  /** Mana required to use the ability (spent from the player's turn pool). */
   manaCost: number;
   manaElement: string;
 }
@@ -36,10 +36,15 @@ export interface CardDefinition {
   attributes?: string[];
   /** Creatures, lands, etc. */
   maxHealth?: number;
-  /** Combat power (creatures, weapons, etc.) */
+  /** Combat power (creatures, weapons, etc.) — used for outgoing and counter damage in combat. */
   attack?: number;
-  /** Monster-only: counter-damage while defending (and other defense-mode interactions). */
-  defense?: number;
+  // /** Monster-only: retired — combat uses `attack` for all damage. */
+  // defense?: number;
+  /**
+   * Monster-only: blocks granted when the monster enters the field.
+   * Each block negates one incoming attack or spell (any damage amount).
+   */
+  startingBlocks?: number;
   /** Mana required to play from hand (e.g. `{ Rock: 2 }`). Omit when free. */
   manaCost?: ManaCostMap;
   /** Monster-only: activated abilities available while the monster is awake/ready. */
@@ -102,6 +107,45 @@ export function canAffordManaCost(pool: ManaGenerationMap, cost: ManaCostMap | u
   return true;
 }
 
+/**
+ * Deducts `cost` from `pool` when affordable. Returns a new pool, or `null` if any element is short.
+ */
+export function spendManaCost(
+  pool: ManaGenerationMap,
+  cost: ManaCostMap | undefined,
+): ManaGenerationMap | null {
+  if (!canAffordManaCost(pool, cost)) {
+    return null;
+  }
+  if (!hasManaCost(cost)) {
+    return { ...pool };
+  }
+  const next: ManaGenerationMap = { ...pool };
+  for (const [element, amount] of Object.entries(cost!)) {
+    if (amount <= 0) {
+      continue;
+    }
+    const remaining = (next[element] ?? 0) - amount;
+    if (remaining <= 0) {
+      delete next[element];
+    } else {
+      next[element] = remaining;
+    }
+  }
+  return next;
+}
+
+/** Adds `add` element amounts into a copy of `pool`. */
+export function addManaToPool(pool: ManaGenerationMap, add: ManaGenerationMap): ManaGenerationMap {
+  const next: ManaGenerationMap = { ...pool };
+  for (const [element, amount] of Object.entries(add)) {
+    if (amount > 0) {
+      next[element] = (next[element] ?? 0) + amount;
+    }
+  }
+  return next;
+}
+
 /** UI label for mana cost, or `null` when the card is free to play. */
 export function formatManaCostForDisplay(cost: ManaCostMap | undefined): string | null {
   if (!hasManaCost(cost)) {
@@ -133,9 +177,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'rock-monster',
     name: 'Rock Monster',
     cardType: 'Monster',
-    maxHealth: 60,
+    maxHealth: 80,
     attack: 10,
-    defense: 30,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Elemental',
@@ -157,11 +200,11 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'mud-hut',
     name: 'Mud Hut',
     cardType: 'Land',
-    maxHealth: 100,
+    maxHealth: 80,
     cardElement: 'Rock',
     rarity: 'Common',
     buildTime: 0,
-    generateMana: {Rock: 1},
+    generateMana: {Rock: 2},
     space: 2,
     description: '',
   },
@@ -171,7 +214,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardType: 'Monster',
     maxHealth: 50,
     attack: 10,
-    defense: 20,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -204,6 +246,19 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 2},
     placeOnOpponentLandRow: true,
     description: 'Can only be placed on the opponent\'s field if they have space available.',
+  },
+  'armoredillo': {
+    id: 'armoredillo',
+    name: 'Armoredillo',
+    cardType: 'Monster',
+    maxHealth: 30,
+    attack: 20,
+    cardElement: 'Rock',
+    rarity: 'Common',
+    monsterClass: 'Critter',
+    attributes: ['Melee'],
+    startingBlocks: 1,
+    description: 'Starts with 1 block when placed. Each block blocks one attack or spell.',
   },
 };
 
@@ -343,6 +398,7 @@ export const CardIds = {
   mudHut: 'mud-hut',
   mountainRange: 'mountain-range',
   templeOfBeing: 'temple-of-being',
+  armoredillo: 'armoredillo',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -356,6 +412,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.mudHut,
   CardIds.mountainRange,
   CardIds.templeOfBeing,
+  CardIds.armoredillo,
 ];
 
 export const DECK_SIZE = 25;

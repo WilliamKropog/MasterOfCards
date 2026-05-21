@@ -1,14 +1,17 @@
 import { computed, Injectable, signal } from '@angular/core';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import {
+  addManaToPool,
   aggregateManaFromActiveFieldLands,
   buildShuffledDeck,
-  canAffordManaCost,
+  effectiveLandBuildTime,
   effectiveLandSpace,
   getCardDefinition,
   landCapacityOwner,
   landCapacityOwnerForPlay,
   OPENING_HAND_SIZE,
+  spendManaCost,
+  type ManaCostMap,
   type ManaGenerationMap,
 } from '../game/card-catalog';
 
@@ -43,6 +46,11 @@ export interface FieldCardEntry {
    * Used by abilities like Mighty Gopher's Burrow.
    */
   spellImmune?: boolean;
+  /**
+   * Monster-only: each block negates one incoming attack or spell (any damage).
+   * Initialized from catalog `startingBlocks` when placed.
+   */
+  blocks?: number;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -102,15 +110,14 @@ export class GameEngineService {
   });
 
   /**
-   * Mana from activated lands on the field (catalog `generateMana`, summed per element).
-   * Lands still building do not contribute until their owner’s build timer completes.
+   * Mana available this turn (refilled from lands at turn start; spent on spells, abilities, and plays).
    */
-  readonly player1Mana = computed<ManaGenerationMap>(() =>
-    this.aggregateManaForController('player1'),
-  );
-  readonly player2Mana = computed<ManaGenerationMap>(() =>
-    this.aggregateManaForController('player2'),
-  );
+  readonly player1ManaPool = signal<ManaGenerationMap>({});
+  readonly player2ManaPool = signal<ManaGenerationMap>({});
+
+  /** Current turn mana pool for UI and affordability checks. */
+  readonly player1Mana = computed(() => this.player1ManaPool());
+  readonly player2Mana = computed(() => this.player2ManaPool());
 
   /** Kept in sync with `currentTurn` when a game is active. */
   readonly activePlayer = signal<PlayerId>(1);
@@ -122,15 +129,12 @@ export class GameEngineService {
   readonly attackMode = signal<AttackModeState | null>(null);
 
   /**
-   * True after the active player has placed a Land or Monster on the field this turn
-   * (required before "Next Turn" is enabled). Spells do not set this.
+   * True after the active player has placed a Land or Monster on the field this turn.
+   * Used to limit one field play per turn; does not gate Next Turn.
    */
   readonly placedFieldCardThisTurn = signal(false);
 
-  /**
-   * Next Turn after a field placement this turn, or immediately if the active hand has no
-   * Land or Monster cards (nothing playable on the field from hand).
-   */
+  /** True while a match is active (Next Turn is always available during a game). */
   readonly canAdvanceTurn = computed(() => this.mayAdvanceTurn());
 
   /**
@@ -183,6 +187,9 @@ export class GameEngineService {
     this.player2FieldMonster.set([]);
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
+    this.player1ManaPool.set({});
+    this.player2ManaPool.set({});
+    this.refreshManaPool('player1');
   }
 
   createFieldCardEntry(cardId: string, controllerSlot: FieldPlayerSlot): FieldCardEntry {
@@ -193,17 +200,74 @@ export class GameEngineService {
         : turn === 2
           ? this.player2TurnCounter()
           : 0;
-    return {
+    const def = getCardDefinition(cardId);
+    const entry: FieldCardEntry = {
       fieldInstanceId: this.nextFieldInstanceId++,
       cardId,
       placedAtTurnCounter: this.turnCounter(),
       placedAtOwnerTurnCounter,
       controllerSlot,
     };
+    if (def?.cardType === 'Monster') {
+      const startingBlocks = def.startingBlocks ?? 0;
+      if (startingBlocks > 0) {
+        entry.blocks = startingBlocks;
+      }
+    }
+    return entry;
   }
 
-  /** Mana from lands this player controls, including those on the opponent's land row. */
-  private aggregateManaForController(controller: FieldPlayerSlot): ManaGenerationMap {
+  /** Refills a player's turn mana from active lands (called at the start of their turn). */
+  refreshManaPool(slot: FieldPlayerSlot): void {
+    const capacity = this.manaCapacityFromLands(slot);
+    if (slot === 'player1') {
+      this.player1ManaPool.set({ ...capacity });
+    } else {
+      this.player2ManaPool.set({ ...capacity });
+    }
+  }
+
+  /**
+   * Spends mana from the player's current turn pool when affordable.
+   * Returns false without mutating the pool when they cannot pay.
+   */
+  trySpendMana(slot: FieldPlayerSlot, cost: ManaCostMap | undefined): boolean {
+    const pool = slot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
+    const next = spendManaCost(pool, cost);
+    if (next === null) {
+      return false;
+    }
+    if (slot === 'player1') {
+      this.player1ManaPool.set(next);
+    } else {
+      this.player2ManaPool.set(next);
+    }
+    return true;
+  }
+
+  /**
+   * Lands with no `buildTime` add their `generateMana` to the placer's pool as soon as they hit the field.
+   * Lands still building only contribute on later turn refreshes.
+   */
+  grantImmediateManaFromPlacedLand(controllerSlot: FieldPlayerSlot, cardId: string): void {
+    const def = getCardDefinition(cardId);
+    if (!def || def.cardType !== 'Land' || !def.generateMana) {
+      return;
+    }
+    if (effectiveLandBuildTime(def) > 0) {
+      return;
+    }
+    const pool = controllerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
+    const next = addManaToPool(pool, def.generateMana);
+    if (controllerSlot === 'player1') {
+      this.player1ManaPool.set(next);
+    } else {
+      this.player2ManaPool.set(next);
+    }
+  }
+
+  /** Mana capacity from lands this player controls (not spent until turn pool is refreshed). */
+  private manaCapacityFromLands(controller: FieldPlayerSlot): ManaGenerationMap {
     const ownerTurnCounter = this.ownerTurnCounter(controller);
     const entries: FieldCardEntry[] = [];
     for (const entry of this.player1FieldLand()) {
@@ -346,7 +410,7 @@ export class GameEngineService {
 
   /**
    * Mighty Gopher ability: Burrow.
-   * Requires 1 Rock mana (mana is not currently spent), enters defense mode, and becomes spell-immune.
+   * Requires 1 Rock mana, enters defense mode, and becomes spell-immune.
    * Uses the monster's action for the turn.
    */
   tryUseBurrow(ownerSlot: FieldPlayerSlot, monsterIndex: number): boolean {
@@ -384,8 +448,8 @@ export class GameEngineService {
       return false;
     }
 
-    const pool = ownerSlot === 'player1' ? this.player1Mana() : this.player2Mana();
-    if ((pool['Rock'] ?? 0) < 1) {
+    const burrowCost: ManaCostMap = { Rock: 1 };
+    if (!this.trySpendMana(ownerSlot, burrowCost)) {
       return false;
     }
 
@@ -436,8 +500,7 @@ export class GameEngineService {
       return false;
     }
 
-    const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
-    if (!canAffordManaCost(pool, spellDef.manaCost)) {
+    if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
       return false;
     }
 
@@ -472,12 +535,7 @@ export class GameEngineService {
       amount *= zoneMultiplier;
     }
 
-    const defenderHp = defenderEntry.currentHealth ?? defenderDef.maxHealth ?? 0;
-    const newHp = Math.max(0, defenderHp - amount);
-    const defenderResult: FieldCardEntry = {
-      ...defenderEntry,
-      currentHealth: newHp,
-    };
+    const defenderResult = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
 
     const removeAtIndex = (arr: string[]): string[] => {
       const next = [...arr];
@@ -528,8 +586,7 @@ export class GameEngineService {
       return false;
     }
 
-    const pool = casterSlot === 'player1' ? this.player1Mana() : this.player2Mana();
-    if (!canAffordManaCost(pool, spellDef.manaCost)) {
+    if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
       return false;
     }
 
@@ -601,24 +658,17 @@ export class GameEngineService {
     }
 
     const atkPower = atkDef.attack ?? 0;
-    // Monster-vs-monster: attacker takes counter-damage equal to target monster DEF,
-    // regardless of whether the target is in attack/defense position.
-    const defPower = defenderZone === 'monster' ? (defDef.defense ?? 0) : (defDef.attack ?? 0);
+    const counterPower = defDef.attack ?? 0;
 
-    const attackerHp = attackerEntry.currentHealth ?? atkDef.maxHealth ?? 0;
-    const defenderHp = defenderEntry.currentHealth ?? defDef.maxHealth ?? 0;
-
-    const newDefenderHp = defenderHp - atkPower;
-    const newAttackerHp = attackerHp - defPower;
+    const attackerAfterDamage = this.applyIncomingFieldDamage(attackerEntry, counterPower, atkDef);
+    const defenderAfterDamage = this.applyIncomingFieldDamage(defenderEntry, atkPower, defDef);
 
     const attackerResult: FieldCardEntry = {
-      ...attackerEntry,
-      currentHealth: Math.max(0, newAttackerHp),
+      ...attackerAfterDamage,
       hasActedThisTurn: true,
     };
     const defenderResult: FieldCardEntry = {
-      ...defenderEntry,
-      currentHealth: Math.max(0, newDefenderHp),
+      ...defenderAfterDamage,
       hasActedThisTurn: true,
     };
 
@@ -727,6 +777,27 @@ export class GameEngineService {
     return defenderZone === 'land';
   }
 
+  /**
+   * Applies damage from an attack or spell. Monsters with `blocks > 0` consume one block
+   * and take no HP damage for that hit.
+   */
+  private applyIncomingFieldDamage(
+    entry: FieldCardEntry,
+    damage: number,
+    def: ReturnType<typeof getCardDefinition>,
+  ): FieldCardEntry {
+    if (damage <= 0) {
+      return entry;
+    }
+    const blocks = entry.blocks ?? 0;
+    if (blocks > 0 && def?.cardType === 'Monster') {
+      return { ...entry, blocks: blocks - 1 };
+    }
+    const maxHp = def?.maxHealth ?? 0;
+    const hp = entry.currentHealth ?? maxHp;
+    return { ...entry, currentHealth: Math.max(0, hp - damage) };
+  }
+
   private getFieldArray(slot: FieldPlayerSlot, zone: FieldZone): FieldCardEntry[] {
     if (zone === 'land') {
       return slot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
@@ -832,6 +903,7 @@ export class GameEngineService {
     this.attackMode.set(null);
     this.clearFieldActedFlags();
     this.clearDefendingForPlayerStartingTurn(next);
+    this.refreshManaPool(next === 1 ? 'player1' : 'player2');
     // Both players already received their opening hand at startGame; skip the draw on the first
     // handoff (P1 → P2) while still on round 1. Every later turn-start still draws one.
     const isFirstHandoffToPlayer2 =
@@ -912,6 +984,8 @@ export class GameEngineService {
     this.player2Deck.set([]);
     this.placedFieldCardThisTurn.set(false);
     this.attackMode.set(null);
+    this.player1ManaPool.set({});
+    this.player2ManaPool.set({});
   }
 
   /** Stub — advance turn / pass priority when you add phases. */
@@ -924,29 +998,8 @@ export class GameEngineService {
     this.attackMode.set(null);
   }
 
-  /** True when Next Turn is allowed: field card played this turn, or no Land/Monster left in hand. */
+  /** True when Next Turn is allowed (any time during an active match). */
   private mayAdvanceTurn(): boolean {
-    if (!this.gameStarted()) {
-      return false;
-    }
-    const turn = this.currentTurn();
-    if (turn === null) {
-      return false;
-    }
-    const hand = turn === 1 ? this.player1Hand() : this.player2Hand();
-    if (!this.handHasLandOrMonster(hand)) {
-      return true;
-    }
-    return this.placedFieldCardThisTurn();
-  }
-
-  private handHasLandOrMonster(hand: string[]): boolean {
-    for (const id of hand) {
-      const def = getCardDefinition(id);
-      if (def?.cardType === 'Land' || def?.cardType === 'Monster') {
-        return true;
-      }
-    }
-    return false;
+    return this.gameStarted() && this.currentTurn() !== null;
   }
 }

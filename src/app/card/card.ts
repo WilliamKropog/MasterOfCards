@@ -116,10 +116,7 @@ export class Card {
     return type === 'Land' || type === 'Monster';
   });
 
-  /**
-   * Cards with `manaCost` require each listed element from lands on the field (mana is not spent
-   * when playing; pool is always “available” while lands stay in play).
-   */
+  /** Cards with `manaCost` require each listed element from the player's current turn mana pool. */
   private readonly cannotAffordManaCostInHand = computed(() => {
     if (!this.inPlayerHand()) {
       return false;
@@ -341,6 +338,15 @@ export class Card {
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
 
+  /** Field/compact face: appends `(n)` when the monster has blocks (e.g. Armoredillo (1)). */
+  protected readonly displayNameWithBlocks = computed(() => {
+    const blocks = this.displayBlocks();
+    if (blocks === null) {
+      return this.displayName();
+    }
+    return `${this.displayName()} (${blocks})`;
+  });
+
   protected readonly displayType = computed(() => this.def()?.cardType ?? '—');
 
   protected readonly displayCardElement = computed(() => this.def()?.cardElement ?? '—');
@@ -373,8 +379,22 @@ export class Card {
   /** Catalog attack; null when not applicable. */
   protected readonly displayAttack = computed(() => this.def()?.attack ?? null);
 
-  /** Monster-only; null when not applicable. */
-  protected readonly displayDefense = computed(() => this.def()?.defense ?? null);
+  // /** Retired — combat uses attack only; kept for easy restore. */
+  // protected readonly displayDefense = computed(() => this.def()?.defense ?? null);
+
+  /** Monster blocks on field (runtime); in hand, catalog `startingBlocks`. */
+  protected readonly displayBlocks = computed(() => {
+    const def = this.def();
+    if (def?.cardType !== 'Monster') {
+      return null;
+    }
+    if (this.onField()) {
+      const blocks = this.fieldEntry()?.blocks;
+      return blocks !== undefined && blocks > 0 ? blocks : null;
+    }
+    const starting = def.startingBlocks ?? 0;
+    return starting > 0 ? starting : null;
+  });
 
   /** Land-only; null when this card does not generate mana from the catalog. */
   protected readonly displayGenerateMana = computed(() => {
