@@ -127,15 +127,12 @@ export class GameEngineService {
   readonly attackMode = signal<AttackModeState | null>(null);
 
   /**
-   * True after the active player has placed a Land or Monster on the field this turn
-   * (required before "Next Turn" is enabled). Spells do not set this.
+   * True after the active player has placed a Land or Monster on the field this turn.
+   * Used to limit one field play per turn; does not gate Next Turn.
    */
   readonly placedFieldCardThisTurn = signal(false);
 
-  /**
-   * Next Turn after a field placement this turn, or immediately if the active hand has no
-   * Land or Monster cards (nothing playable on the field from hand).
-   */
+  /** True while a match is active (Next Turn is always available during a game). */
   readonly canAdvanceTurn = computed(() => this.mayAdvanceTurn());
 
   /**
@@ -946,29 +943,8 @@ export class GameEngineService {
     this.attackMode.set(null);
   }
 
-  /** True when Next Turn is allowed: field card played this turn, or no Land/Monster left in hand. */
+  /** True when Next Turn is allowed (any time during an active match). */
   private mayAdvanceTurn(): boolean {
-    if (!this.gameStarted()) {
-      return false;
-    }
-    const turn = this.currentTurn();
-    if (turn === null) {
-      return false;
-    }
-    const hand = turn === 1 ? this.player1Hand() : this.player2Hand();
-    if (!this.handHasLandOrMonster(hand)) {
-      return true;
-    }
-    return this.placedFieldCardThisTurn();
-  }
-
-  private handHasLandOrMonster(hand: string[]): boolean {
-    for (const id of hand) {
-      const def = getCardDefinition(id);
-      if (def?.cardType === 'Land' || def?.cardType === 'Monster') {
-        return true;
-      }
-    }
-    return false;
+    return this.gameStarted() && this.currentTurn() !== null;
   }
 }
