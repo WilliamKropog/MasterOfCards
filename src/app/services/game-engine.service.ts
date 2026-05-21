@@ -609,11 +609,9 @@ export class GameEngineService {
     }
 
     const atkPower = atkDef.attack ?? 0;
-    // Monster-vs-monster: attacker takes counter-damage equal to target monster DEF,
-    // regardless of whether the target is in attack/defense position.
-    const defPower = defenderZone === 'monster' ? (defDef.defense ?? 0) : (defDef.attack ?? 0);
+    const counterPower = defDef.attack ?? 0;
 
-    const attackerAfterDamage = this.applyIncomingFieldDamage(attackerEntry, defPower, atkDef);
+    const attackerAfterDamage = this.applyIncomingFieldDamage(attackerEntry, counterPower, atkDef);
     const defenderAfterDamage = this.applyIncomingFieldDamage(defenderEntry, atkPower, defDef);
 
     const attackerResult: FieldCardEntry = {

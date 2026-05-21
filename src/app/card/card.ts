@@ -382,8 +382,8 @@ export class Card {
   /** Catalog attack; null when not applicable. */
   protected readonly displayAttack = computed(() => this.def()?.attack ?? null);
 
-  /** Monster-only; null when not applicable. */
-  protected readonly displayDefense = computed(() => this.def()?.defense ?? null);
+  // /** Retired — combat uses attack only; kept for easy restore. */
+  // protected readonly displayDefense = computed(() => this.def()?.defense ?? null);
 
   /** Monster blocks on field (runtime); in hand, catalog `startingBlocks`. */
   protected readonly displayBlocks = computed(() => {

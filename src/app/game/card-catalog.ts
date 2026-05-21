@@ -36,10 +36,10 @@ export interface CardDefinition {
   attributes?: string[];
   /** Creatures, lands, etc. */
   maxHealth?: number;
-  /** Combat power (creatures, weapons, etc.) */
+  /** Combat power (creatures, weapons, etc.) — used for outgoing and counter damage in combat. */
   attack?: number;
-  /** Monster-only: counter-damage while defending (and other defense-mode interactions). */
-  defense?: number;
+  // /** Monster-only: retired — combat uses `attack` for all damage. */
+  // defense?: number;
   /**
    * Monster-only: blocks granted when the monster enters the field.
    * Each block negates one incoming attack or spell (any damage amount).
@@ -138,9 +138,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'rock-monster',
     name: 'Rock Monster',
     cardType: 'Monster',
-    maxHealth: 60,
+    maxHealth: 80,
     attack: 10,
-    defense: 30,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Elemental',
@@ -176,7 +175,6 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardType: 'Monster',
     maxHealth: 50,
     attack: 10,
-    defense: 20,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -214,9 +212,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'armoredillo',
     name: 'Armoredillo',
     cardType: 'Monster',
-    maxHealth: 20,
+    maxHealth: 30,
     attack: 20,
-    defense: 30,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -370,12 +367,12 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  // CardIds.rockMonster,
-  // CardIds.mightyGopher,
+  CardIds.rockMonster,
+  CardIds.mightyGopher,
   CardIds.boulderToss,
   CardIds.mudHut,
-  // CardIds.mountainRange,
-  // CardIds.templeOfBeing,
+  CardIds.mountainRange,
+  CardIds.templeOfBeing,
   CardIds.armoredillo,
 ];
 

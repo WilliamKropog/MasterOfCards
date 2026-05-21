@@ -58,12 +58,14 @@
           <span class="card-field-value">{{ displayLandBuildTime() }} turns</span>
         </div>
       }
+      <!-- Defense stat retired; combat uses attack only.
       @if (displayDefense() !== null) {
         <div class="card-field-stat" aria-label="Defense">
           <span class="card-field-label">Defense</span>
           <span class="card-field-value">{{ displayDefense() }}</span>
         </div>
       }
+      -->
     </div>
     @if (fieldZone() === 'monster') {
       <div class="card-field-actions">
@@ -125,9 +127,11 @@
       <div class="card-stat" aria-label="Attack">Attack: {{ displayAttack() }}</div>
     }
 
+    <!-- Defense stat retired; combat uses attack only.
     @if (displayDefense() !== null) {
       <div class="card-stat" aria-label="Defense">Defense: {{ displayDefense() }}</div>
     }
+    -->
 
     @if (displayBlocks() !== null) {
       <div class="card-stat" aria-label="Blocks">Blocks: {{ displayBlocks() }}</div>
