@@ -260,6 +260,18 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     startingBlocks: 1,
     description: 'Starts with 1 block when placed. Each block blocks one attack or spell.',
   },
+  'ruptar': {
+    id: 'ruptar',
+    name: 'Ruptar',
+    cardType: 'Monster',
+    maxHealth: 100,
+    attack: 30,
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    monsterClass: 'Elemental',
+    attributes: ['Melee', 'Haste'],
+    description: 'Deals an additional +30 damage when attacking targets that are Lightning typed.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
