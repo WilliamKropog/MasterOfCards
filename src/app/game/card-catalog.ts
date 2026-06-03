@@ -30,7 +30,8 @@ export interface CardDefinition {
   /** Monster subtype (e.g. Elemental, Beast). Only meaningful for `cardType: 'Monster'`. */
   monsterClass?: string;
   /**
-   * Monster-only: combat/ability tags (e.g. Melee, Taunt, Trample).
+   * Monster-only: combat/ability tags (e.g. Melee, Haste, Taunt).
+   * Haste: the monster is awake and may attack the turn it was played.
    * Omit or use `[]` when the monster has no special attributes.
    */
   attributes?: string[];
@@ -264,11 +265,12 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'ruptar',
     name: 'Ruptar',
     cardType: 'Monster',
+    manaCost: { Rock: 2 },
     maxHealth: 100,
     attack: 30,
     cardElement: 'Rock',
     rarity: 'Uncommon',
-    monsterClass: 'Elemental',
+    monsterClass: 'Dinosaur',
     attributes: ['Melee', 'Haste'],
     description: 'Deals an additional +30 damage when attacking targets that are Lightning typed.',
   },
@@ -334,6 +336,26 @@ export function isValidLandDropRow(
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
+}
+
+/** Monster-only: has the Haste attribute (awake and may attack the turn it was played). */
+export function monsterHasHaste(def: CardDefinition | undefined): boolean {
+  return def?.attributes?.includes('Haste') ?? false;
+}
+
+/**
+ * True when a monster's summoning sickness has cleared for the current global turn.
+ * Haste monsters are awake on the same turn they entered the field.
+ */
+export function monsterSummoningSicknessCleared(
+  def: CardDefinition | undefined,
+  placedAtTurnCounter: number,
+  turnCounter: number,
+): boolean {
+  if (turnCounter > placedAtTurnCounter) {
+    return true;
+  }
+  return turnCounter === placedAtTurnCounter && monsterHasHaste(def);
 }
 
 /** Full turns after play before a land is active; `0` for non-lands or when unset. */
@@ -411,6 +433,7 @@ export const CardIds = {
   mountainRange: 'mountain-range',
   templeOfBeing: 'temple-of-being',
   armoredillo: 'armoredillo',
+  ruptar: 'ruptar',
 } as const;
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -418,13 +441,14 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  CardIds.rockMonster,
-  CardIds.mightyGopher,
-  CardIds.boulderToss,
+  // CardIds.rockMonster,
+  // CardIds.mightyGopher,
+  // CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
-  CardIds.templeOfBeing,
+  // CardIds.templeOfBeing,
   CardIds.armoredillo,
+  CardIds.ruptar,
 ];
 
 export const DECK_SIZE = 25;
