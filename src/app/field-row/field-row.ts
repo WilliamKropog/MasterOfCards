@@ -6,7 +6,7 @@ import {
   transferArrayItem,
 } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
-import { getCardDefinition, isValidLandDropRow } from '../game/card-catalog';
+import { getCardDefinition, hasManaCost, isValidLandDropRow } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import type { FieldCardEntry, FieldZone } from '../services/game-engine.service';
@@ -145,11 +145,18 @@ export class FieldRow {
         this.engine.touchDropContainers(event);
         return;
       }
+      if (def && hasManaCost(def.manaCost) && !this.engine.trySpendMana(controllerSlot, def.manaCost)) {
+        this.engine.touchDropContainers(event);
+        return;
+      }
       hand.splice(event.previousIndex, 1);
       const entry = this.engine.createFieldCardEntry(cardId, controllerSlot);
       field.splice(event.currentIndex, 0, entry);
       if (def && (def.cardType === 'Land' || def.cardType === 'Monster')) {
         this.engine.notifyPlacedFieldCardFromHand(hand);
+      }
+      if (def?.cardType === 'Land') {
+        this.engine.grantImmediateManaFromPlacedLand(controllerSlot, cardId);
       }
       this.engine.touchDropContainers(event);
       return;

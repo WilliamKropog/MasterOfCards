@@ -91,7 +91,7 @@ export class PlayerHand {
     return !hasDefendingEnemy;
   });
 
-  /** Sorted rows for template: mana type + total amount from lands on the field. */
+  /** Sorted rows for template: mana type + amount available this turn. */
   protected readonly manaFromLandsRows = computed(() => {
     const pool =
       this.playerSlot() === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
@@ -104,9 +104,9 @@ export class PlayerHand {
   protected readonly manaFromLandsAriaLabel = computed(() => {
     const rows = this.manaFromLandsRows();
     if (rows.length === 0) {
-      return 'No mana from lands on the field';
+      return 'No mana available this turn';
     }
-    return `Mana from lands: ${rows.map((m) => `${m.amount} ${m.element}`).join(', ')}`;
+    return `Mana available: ${rows.map((m) => `${m.amount} ${m.element}`).join(', ')}`;
   });
 
   /** Inactive hand uses compact cards once the match has started. */
