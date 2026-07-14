@@ -9,6 +9,7 @@ import {
   getCardDefinition,
   landCapacityOwner,
   landCapacityOwnerForPlay,
+  monsterSummoningSicknessCleared,
   OPENING_HAND_SIZE,
   spendManaCost,
   type ManaCostMap,
@@ -332,6 +333,33 @@ export class GameEngineService {
     return slot === 'player1' ? this.player1TurnCounter() : this.player2TurnCounter();
   }
 
+  /** Monster can attack, defend, or use activated abilities on the owner's turn. */
+  private canMonsterAct(ownerSlot: FieldPlayerSlot, entry: FieldCardEntry): boolean {
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const ownerId: PlayerId = ownerSlot === 'player1' ? 1 : 2;
+    if (turn !== ownerId) {
+      return false;
+    }
+    const def = getCardDefinition(entry.cardId);
+    if (!def || def.cardType !== 'Monster') {
+      return false;
+    }
+    if (entry.hasActedThisTurn) {
+      return false;
+    }
+    return monsterSummoningSicknessCleared(
+      def,
+      entry.placedAtTurnCounter,
+      this.turnCounter(),
+    );
+  }
+
   /**
    * Begin choosing an attack target for a monster on the field. If the same monster is already
    * selected, toggles attack mode off. Does nothing when the enemy has no cards to attack.
@@ -349,9 +377,12 @@ export class GameEngineService {
       this.attackMode.set(null);
       return;
     }
-    const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
-    const enemyMonsters =
-      enemy === 'player1' ? this.player1FieldMonster().length : this.player2FieldMonster().length;
+    const attackerArr =
+      attackerSlot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    const entry = attackerArr[attackerMonsterIndex];
+    if (!entry || !this.canMonsterAct(attackerSlot, entry)) {
+      return;
+    }
     this.attackMode.set({ attackerSlot, attackerMonsterIndex });
   }
 
@@ -383,15 +414,7 @@ export class GameEngineService {
       return false;
     }
 
-    const def = getCardDefinition(entry.cardId);
-    if (!def || def.cardType !== 'Monster') {
-      return false;
-    }
-
-    if (this.turnCounter() <= entry.placedAtTurnCounter) {
-      return false;
-    }
-    if (entry.hasActedThisTurn) {
+    if (!this.canMonsterAct(ownerSlot, entry)) {
       return false;
     }
 
@@ -441,10 +464,7 @@ export class GameEngineService {
       return false;
     }
 
-    if (this.turnCounter() <= entry.placedAtTurnCounter) {
-      return false;
-    }
-    if (entry.hasActedThisTurn) {
+    if (!this.canMonsterAct(ownerSlot, entry)) {
       return false;
     }
 
@@ -650,6 +670,9 @@ export class GameEngineService {
     if (!attackerEntry || !defenderEntry) {
       return;
     }
+    if (!this.canMonsterAct(attackerSlot, attackerEntry)) {
+      return;
+    }
 
     const atkDef = getCardDefinition(attackerEntry.cardId);
     const defDef = getCardDefinition(defenderEntry.cardId);
@@ -704,6 +727,9 @@ export class GameEngineService {
       attackerSlot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
     const attackerEntry = attackerArr[attackerIdx];
     if (!attackerEntry) {
+      return;
+    }
+    if (!this.canMonsterAct(attackerSlot, attackerEntry)) {
       return;
     }
 

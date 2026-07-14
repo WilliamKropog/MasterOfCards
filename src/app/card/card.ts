@@ -10,6 +10,7 @@ import {
   getCardDefinition,
   hasManaCost,
   isLandStillBuilding,
+  monsterSummoningSicknessCleared,
   remainingLandBuildTurns,
 } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
@@ -165,7 +166,7 @@ export class Card {
 
   /**
    * Light blue glisten: monsters on field can act (attack/abilities) on the owner's turn once
-   * `turnCounter` has advanced past the turn they were played. Lands are passive and never get this.
+   * summoning sickness clears. Haste monsters are awake the turn they were played.
    */
   protected readonly fieldReadyHighlight = computed(() => {
     if (!this.onField() || !this.engine.gameStarted()) {
@@ -191,7 +192,7 @@ export class Card {
     if (turn === null || turn !== slotId) {
       return false;
     }
-    return this.engine.turnCounter() > placedAt;
+    return monsterSummoningSicknessCleared(this.def(), placedAt, this.engine.turnCounter());
   });
 
   /** Monster on field is in defense position (horizontal). */
