@@ -16,6 +16,9 @@
         <div class="player-hand-stats">
           <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
             LP {{ lifePoints() }}
+            @if (floatingLpDamage(); as dmg) {
+              <span class="player-hand-lp-damage">-{{ dmg }} HP</span>
+            }
           </span>
           <span
             class="player-hand-land-capacity"

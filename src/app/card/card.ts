@@ -1,5 +1,5 @@
 import { CdkDrag, CdkDragEnd, type CdkDragMove } from '@angular/cdk/drag-drop';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import {
   canAffordManaCost,
@@ -11,6 +11,7 @@ import {
   hasManaCost,
   isLandStillBuilding,
   monsterSummoningSicknessCleared,
+  mustPlaceLandOnOpponentRow,
   remainingLandBuildTurns,
 } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
@@ -82,16 +83,39 @@ export class Card {
     if (idx === null || rowSlot === null || zone === null) {
       return null;
     }
-    const arr =
-      zone === 'land'
-        ? rowSlot === 'player1'
-          ? this.engine.player1FieldLand()
-          : this.engine.player2FieldLand()
-        : rowSlot === 'player1'
-          ? this.engine.player1FieldMonster()
-          : this.engine.player2FieldMonster();
-    return arr[idx] ?? null;
+    return this.engine.getFieldEntry(rowSlot, zone, idx) ?? null;
   });
+
+  /** Floating damage text shown on this card (slides up, then cleared). */
+  protected readonly floatingDamage = signal<number | null>(null);
+  private floatingDamageTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastDamageTimestamp = Date.now();
+
+  private readonly damageWatcher = effect(() => {
+    const events = this.engine.damageEvents();
+    if (!this.onField() || events.length === 0) { return; }
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (rowSlot === null || zone === null || idx === null) { return; }
+
+    for (const ev of events) {
+      if (ev.timestamp <= this.lastDamageTimestamp) { continue; }
+      if (ev.playerSlot === rowSlot && ev.zone === zone && ev.identifier === idx) {
+        this.lastDamageTimestamp = ev.timestamp;
+        this.showFloatingDamage(ev.amount);
+      }
+    }
+  });
+
+  private showFloatingDamage(amount: number): void {
+    if (this.floatingDamageTimer) { clearTimeout(this.floatingDamageTimer); }
+    this.floatingDamage.set(amount);
+    this.floatingDamageTimer = setTimeout(() => {
+      this.floatingDamage.set(null);
+      this.floatingDamageTimer = null;
+    }, 1200);
+  }
 
   /**
    * One land or monster per turn: after placing on the field, other lands/monsters in this
@@ -170,6 +194,9 @@ export class Card {
    */
   protected readonly fieldReadyHighlight = computed(() => {
     if (!this.onField() || !this.engine.gameStarted()) {
+      return false;
+    }
+    if (this.cardDrag.activeDrag()) {
       return false;
     }
     const placedAt = this.placedAtTurnCounter();
@@ -324,7 +351,7 @@ export class Card {
     if (slot === null || idx === null) {
       return false;
     }
-    return mode.attackerSlot === slot && mode.attackerMonsterIndex === idx;
+    return mode.attackerSlot === slot && mode.attackerMonsterSlot === idx;
   });
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
@@ -473,7 +500,12 @@ export class Card {
 
   protected onDragEnded(_event: CdkDragEnd): void {
     try {
-      if (this.inPlayerHand() && this.def()?.cardType === 'Spell') {
+      if (!this.inPlayerHand()) {
+        return;
+      }
+      const type = this.def()?.cardType;
+
+      if (type === 'Spell') {
         const tether = this.spellDragLine.tetherTarget();
         const snapHand = this.spellDragLine.spellSnapHandTarget();
         const overEnemyHand = this.spellDragLine.spellDragOverEnemyHand();
@@ -500,6 +532,35 @@ export class Card {
             });
           }
         }
+      } else if (type === 'Land') {
+        const preview = this.cardDrag.landPreviewSpaces();
+        const slot = this.ownerPlayerSlot();
+        const idx = this.handIndex();
+        if (preview.length > 0 && slot !== null && idx !== undefined) {
+          const def = this.def()!;
+          const targetRowSlot: PlayerSlot = mustPlaceLandOnOpponentRow(def)
+            ? (slot === 'player1' ? 'player2' : 'player1')
+            : slot;
+          this.engine.placeLandFromHand({
+            controllerSlot: slot,
+            handIndex: idx,
+            cardId: this.cardId(),
+            targetRowSlot,
+            influencedSpaces: preview,
+          });
+        }
+      } else if (type === 'Monster') {
+        const previewSlot = this.cardDrag.monsterPreviewSlot();
+        const slot = this.ownerPlayerSlot();
+        const idx = this.handIndex();
+        if (previewSlot !== null && slot !== null && idx !== undefined) {
+          this.engine.placeMonsterFromHand({
+            controllerSlot: slot,
+            handIndex: idx,
+            cardId: this.cardId(),
+            fieldSlot: previewSlot,
+          });
+        }
       }
     } finally {
       this.spellDragLine.clear();
@@ -508,10 +569,74 @@ export class Card {
   }
 
   protected onDragMoved(event: CdkDragMove<CardDragPayload | null>): void {
-    if (this.def()?.cardType !== 'Spell' || !this.inPlayerHand()) {
+    if (!this.inPlayerHand()) {
       return;
     }
-    this.spellDragLine.updateFromDragMove(event);
+    const type = this.def()?.cardType;
+    if (type === 'Spell') {
+      this.spellDragLine.updateFromDragMove(event);
+    } else if (type === 'Land') {
+      this.updateLandDragPreview(event.pointerPosition);
+    } else if (type === 'Monster') {
+      this.updateMonsterDragPreview(event.pointerPosition);
+    }
+  }
+
+  private updateMonsterDragPreview(pointer: { x: number; y: number }): void {
+    const slot = this.ownerPlayerSlot();
+    if (!slot) {
+      this.cardDrag.updateMonsterPreview(null);
+      return;
+    }
+    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer);
+    if (monsterSlotNum === null || this.engine.getMonsterBySlot(slot, monsterSlotNum)) {
+      this.cardDrag.updateMonsterPreview(null);
+      return;
+    }
+    this.cardDrag.updateMonsterPreview(monsterSlotNum);
+  }
+
+  private updateLandDragPreview(pointer: { x: number; y: number }): void {
+    const def = this.def();
+    const slot = this.ownerPlayerSlot();
+    if (!def || def.cardType !== 'Land' || !slot) {
+      this.cardDrag.clearLandPreview();
+      return;
+    }
+    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer);
+    if (monsterSlotNum === null) {
+      this.cardDrag.clearLandPreview();
+      return;
+    }
+    const spaceCount = def.space ?? 1;
+    const targetRow: PlayerSlot = mustPlaceLandOnOpponentRow(def)
+      ? (slot === 'player1' ? 'player2' : 'player1')
+      : slot;
+    const preview = this.engine.computeLandInfluencedSpaces(monsterSlotNum, spaceCount, targetRow);
+    if (preview) {
+      this.cardDrag.updateLandPreview(preview);
+    } else {
+      this.cardDrag.clearLandPreview();
+    }
+  }
+
+  private findMonsterSlotAtPoint(point: { x: number; y: number }): number | null {
+    for (const el of document.elementsFromPoint(point.x, point.y)) {
+      if (el instanceof HTMLElement && el.closest('.cdk-drag-preview')) {
+        continue;
+      }
+      const slotEl = el.closest<HTMLElement>('[data-slot-number]');
+      if (slotEl) {
+        const raw = slotEl.getAttribute('data-slot-number');
+        if (raw) {
+          const n = Number(raw);
+          if (Number.isInteger(n) && n >= 1 && n <= 9) {
+            return n;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   protected onAttackClick(event: MouseEvent): void {

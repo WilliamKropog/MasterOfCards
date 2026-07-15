@@ -30,6 +30,9 @@
       Current health: {{ displayHealth() === null ? '—' : displayHealth() }}
     </div>
   } @else if (onField()) {
+    @if (floatingDamage(); as dmg) {
+      <span class="card-floating-damage">-{{ dmg }} HP</span>
+    }
     <div class="card-field-main">
       <header class="card-field-name">{{ displayNameWithBlocks() }}</header>
       <div class="card-field-stat" aria-label="Current health">

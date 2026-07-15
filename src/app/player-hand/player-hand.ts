@@ -1,5 +1,5 @@
 import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Card } from '../card/card';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
@@ -42,6 +42,32 @@ export class PlayerHand {
   );
 
   protected readonly maxLandCapacity = MAX_LAND_CAPACITY;
+
+  protected readonly floatingLpDamage = signal<number | null>(null);
+  private lpDamageTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastLpDamageTimestamp = Date.now();
+
+  private readonly lpDamageWatcher = effect(() => {
+    const events = this.engine.damageEvents();
+    if (events.length === 0) { return; }
+    const slot = this.playerSlot();
+    for (const ev of events) {
+      if (ev.timestamp <= this.lastLpDamageTimestamp) { continue; }
+      if (ev.playerSlot === slot && ev.zone === undefined) {
+        this.lastLpDamageTimestamp = ev.timestamp;
+        this.showLpDamage(ev.amount);
+      }
+    }
+  });
+
+  private showLpDamage(amount: number): void {
+    if (this.lpDamageTimer) { clearTimeout(this.lpDamageTimer); }
+    this.floatingLpDamage.set(amount);
+    this.lpDamageTimer = setTimeout(() => {
+      this.floatingLpDamage.set(null);
+      this.lpDamageTimer = null;
+    }, 1200);
+  }
 
   /**
    * Red border glow: this hand is a valid direct target whenever the opponent is dragging a spell
