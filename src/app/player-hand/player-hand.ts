@@ -135,8 +135,8 @@ export class PlayerHand {
     return `Mana available: ${rows.map((m) => `${m.amount} ${m.element}`).join(', ')}`;
   });
 
-  /** Inactive hand uses compact cards once the match has started. */
-  protected readonly isHandCollapsed = computed(() => {
+  /** True when it is this player's turn. */
+  protected readonly isActiveTurn = computed(() => {
     if (!this.engine.gameStarted()) {
       return false;
     }
@@ -145,7 +145,15 @@ export class PlayerHand {
       return false;
     }
     const mine = this.playerSlot() === 'player1' ? 1 : 2;
-    return turn !== mine;
+    return turn === mine;
+  });
+
+  /** True when it is NOT this player's turn (used to block drops/drags). */
+  private readonly isInactiveTurn = computed(() => {
+    if (!this.engine.gameStarted()) {
+      return false;
+    }
+    return !this.isActiveTurn();
   });
 
   /**
@@ -156,7 +164,7 @@ export class PlayerHand {
     drag: CdkDrag<CardDragPayload | null>,
     _drop: CdkDropList,
   ): boolean => {
-    if (this.isHandCollapsed()) {
+    if (this.isInactiveTurn()) {
       return false;
     }
     const data = drag.data;
@@ -167,7 +175,7 @@ export class PlayerHand {
   };
 
   protected onHandDropped(event: CdkDragDrop<any>): void {
-    if (this.isHandCollapsed()) {
+    if (this.isInactiveTurn()) {
       return;
     }
     if (event.previousContainer !== event.container) {

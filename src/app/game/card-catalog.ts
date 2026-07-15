@@ -441,9 +441,9 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  CardIds.rockMonster,
-  CardIds.mightyGopher,
-  CardIds.boulderToss,
+  // CardIds.rockMonster,
+  // CardIds.mightyGopher,
+  // CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
   CardIds.templeOfBeing,

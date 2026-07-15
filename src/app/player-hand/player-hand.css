@@ -4,31 +4,172 @@
   max-width: 60rem;
 }
 
+/* ── 3-column layout: info | cards | mana ──────────────────────────── */
+
 .player-hand {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  min-height: 5rem;
   border: 1px solid #ccc;
+  border-radius: 4px;
   transition:
-    margin 0.15s ease,
     padding 0.15s ease,
     border-color 0.18s ease,
     box-shadow 0.18s ease,
     background-color 0.18s ease;
-  /**
-   * Hover lift = section inset + title column + cards strip padding-top + (row height − card height) / 2.
-   * Line-height is fixed on .player-hand-title so these calcs stay in sync with the heading.
-   */
-  --hand-hover-lift-section-pad: 0rem;
-  --hand-hover-lift-title-stack: calc(1.1rem * 1.25 + 0.0rem + 0.35rem);
-  --hand-hover-lift-row-center: 0.7rem;
 }
 
-/**
- * Monster attack mode: enemy hand (life points) when the enemy has no defending monsters.
- * Placed before spell-hand rules so spell drag styling wins if both apply.
- */
+/* ── Left column: player info ──────────────────────────────────────── */
+
+.player-hand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 6rem;
+  white-space: nowrap;
+}
+
+.player-hand-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.player-hand-lp {
+  position: relative;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  color: rgba(0, 0, 0, 0.78);
+}
+
+.player-hand-lp-damage {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 0.5rem;
+  color: rgba(220, 38, 38, 1);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: lp-damage-float 1.2s ease-out forwards;
+}
+
+@keyframes lp-damage-float {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-1rem);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-1.5rem);
+  }
+}
+
+.player-hand-land-capacity {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* ── Middle column: cards ──────────────────────────────────────────── */
+
+.player-hand-cards {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0px, calc((6 - var(--hand-size, 1)) * 0.5rem), 0.5rem);
+  padding: 0.25rem 0.25rem;
+  overflow-x: visible;
+  overflow-y: visible;
+  min-height: 4rem;
+  box-sizing: border-box;
+}
+
+.player-hand-cards > .player-hand-card-slot {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: calc(1000 + var(--hand-index, 0));
+  transition: transform 0.5s ease;
+}
+
+.player-hand-cards > .player-hand-card-slot:not(:first-child) {
+  margin-left: calc(
+    -1 * max(0px, min(6.5rem, (var(--hand-size, 1) - 5) * 2.0rem))
+  );
+}
+
+.player-hand-cards > .player-hand-card-slot:hover {
+  z-index: 1500;
+  transform: translateY(-2rem);
+}
+
+.player-hand-cards > .player-hand-card-slot:has(.card.cdk-drag-dragging) {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-hand-cards > .player-hand-card-slot {
+    transition-duration: 0.01ms;
+  }
+}
+
+.player-hand-cards .cdk-drag-placeholder {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+
+/* ── Right column: mana ────────────────────────────────────────────── */
+
+.player-hand-mana {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 0.72);
+  min-width: 5rem;
+}
+
+.player-hand-mana-empty {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.player-hand-mana-pill {
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+/* ── Active turn highlight ─────────────────────────────────────────── */
+
+.player-hand.player-hand--active-turn {
+  border-color: rgba(100, 180, 255, 0.65);
+  box-shadow: 0 0 6px rgba(100, 180, 255, 0.3);
+}
+
+/* ── Attack target highlight ───────────────────────────────────────── */
+
 .player-hand.player-hand--attack-target {
   border-color: rgba(185, 28, 28, 0.65);
   animation: player-hand-attack-target-glow 2.8s ease-in-out infinite;
@@ -68,9 +209,8 @@
   }
 }
 
-/**
- * Eligible enemy hand: opponent is dragging a spell — red border glow (before pointer is over).
- */
+/* ── Spell drag eligible ───────────────────────────────────────────── */
+
 .player-hand.player-hand--spell-drag-eligible:not(.player-hand--spell-drag-target):not(
     .player-hand--spell-tether-snap
   ) {
@@ -104,9 +244,8 @@
   }
 }
 
-/**
- * Snap line locked to this hand (same role as `.card--spell-tether-active` on field cards).
- */
+/* ── Spell tether snap ─────────────────────────────────────────────── */
+
 .player-hand.player-hand--spell-tether-snap:not(.player-hand--spell-drag-target) {
   border-color: rgba(185, 28, 28, 0.85);
   background-color: rgba(252, 165, 165, 0.65);
@@ -138,7 +277,8 @@
   }
 }
 
-/** Pointer over enemy hand — stronger fill + glow on top of eligible border. */
+/* ── Spell drag target (pointer over) ──────────────────────────────── */
+
 .player-hand.player-hand--spell-drag-target {
   border-color: rgba(185, 28, 28, 0.75);
   background-color: rgba(254, 202, 202, 0.35);
@@ -167,227 +307,4 @@
       inset 0 0 0 2px rgba(185, 28, 28, 0.45),
       0 0 18px rgba(239, 68, 68, 0.32);
   }
-}
-
-.player-hand--collapsed {
-  margin-bottom: 0.25rem;
-  padding: 0.25rem 0.35rem;
-}
-
-.player-hand-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 0.75rem;
-  margin: 0 0 0.5rem;
-}
-
-.player-hand-title-cluster {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.45rem 0.65rem;
-  min-width: 0;
-}
-
-.player-hand-stats {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  line-height: 1.25;
-}
-
-.player-hand-title {
-  margin: 0;
-  font-size: 1.1rem;
-  line-height: 1.25;
-}
-
-.player-hand-lp {
-  position: relative;
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.25;
-  color: rgba(0, 0, 0, 0.78);
-  white-space: nowrap;
-}
-
-.player-hand-lp-damage {
-  position: absolute;
-  left: 100%;
-  top: 0;
-  margin-left: 0.5rem;
-  color: rgba(220, 38, 38, 1);
-  font-size: 0.95rem;
-  font-weight: 800;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
-  white-space: nowrap;
-  animation: lp-damage-float 1.2s ease-out forwards;
-}
-
-@keyframes lp-damage-float {
-  0% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  70% {
-    opacity: 1;
-    transform: translateY(-1rem);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-1.5rem);
-  }
-}
-
-.player-hand-land-capacity {
-  font-size: 0.85rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: rgba(0, 0, 0, 0.62);
-  white-space: nowrap;
-}
-
-.player-hand-mana {
-  margin-left: auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  color: rgba(0, 0, 0, 0.72);
-}
-
-.player-hand-mana-empty {
-  color: rgba(0, 0, 0, 0.38);
-}
-
-.player-hand-mana-pill {
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  white-space: nowrap;
-}
-
-.player-hand--collapsed .player-hand-title-row {
-  margin-bottom: 0.25rem;
-}
-
-.player-hand--collapsed .player-hand-title {
-  font-size: 0.85rem;
-}
-
-.player-hand--collapsed .player-hand-lp {
-  font-size: 0.8rem;
-}
-
-.player-hand--collapsed .player-hand-land-capacity {
-  font-size: 0.72rem;
-}
-
-.player-hand--collapsed .player-hand-mana {
-  font-size: 0.8rem;
-}
-
-/**
- * Single horizontal row: CDK’s default list orientation is vertical, which sorts by Y and
- * fights a row layout (placeholder index flickers → “jitter”). `cdkDropListOrientation="horizontal"`
- * matches pointer movement along the row.
- */
-/**
- * --hand-size: card count (set on this element). Up to 5 cards: spacing only, no overlap.
- * Beyond 5: gap goes to 0 and each extra card adds a bit more pull (capped) so the fan tightens.
- */
-.player-hand-cards {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(0px, calc((6 - var(--hand-size, 1)) * 0.5rem), 0.5rem);
-  padding: 0.35rem 0.5rem;
-  /* Let the fan grow wider instead of gaining a horizontal scrollbar (edit overflow-x, not y). */
-  overflow-x: visible;
-  overflow-y: visible;
-  min-height: 4rem;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/**
- * Z-order: --hand-index (0 = leftmost); higher index = further right = on top.
- */
-.player-hand-cards > .player-hand-card-slot {
-  flex: 0 0 auto;
-  position: relative;
-  z-index: calc(1000 + var(--hand-index, 0));
-  transition: transform 0.5s ease;
-}
-
-.player-hand-cards > .player-hand-card-slot:not(:first-child) {
-  margin-left: calc(
-    -1 * max(0px, min(6.5rem, (var(--hand-size, 1) - 5) * 2.0rem))
-  );
-}
-
-.player-hand-cards > .player-hand-card-slot:hover {
-  z-index: 1500;
-  /* Align card top with the top inner edge of .player-hand (below border; includes title + strip). */
-  transform: translateY(
-    calc(
-      -1 *
-        (
-          var(--hand-hover-lift-section-pad) + var(--hand-hover-lift-title-stack) +
-            var(--hand-hover-lift-row-center)
-        )
-    )
-  );
-}
-
-/* Collapsed (inactive) hand: no hover lift or z-index bump — keep the strip static. */
-.player-hand--collapsed .player-hand-cards > .player-hand-card-slot {
-  transition: none;
-}
-
-.player-hand--collapsed .player-hand-cards > .player-hand-card-slot:hover {
-  transform: none;
-  z-index: calc(1000 + var(--hand-index, 0));
-}
-
-/* CDK applies transform on the inner .card while dragging; clear host lift so they don’t stack oddly. */
-.player-hand-cards > .player-hand-card-slot:has(.card.cdk-drag-dragging) {
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .player-hand-cards > .player-hand-card-slot {
-    transition-duration: 0.01ms;
-  }
-}
-
-/**
- * Collapsed (inactive) hand: compact cards are narrower but were bleeding wide because overlap
- * lagged the active hand. Use a stronger pull per card + slightly tighter gap when not overlapping.
- */
-.player-hand--collapsed .player-hand-cards > .player-hand-card-slot:not(:first-child) {
-  margin-left: calc(
-    -1 * max(0px, min(5.75rem, (var(--hand-size, 1) - 5) * 2.45rem))
-  );
-}
-
-.player-hand--collapsed .player-hand-cards {
-  gap: clamp(0px, calc((6 - var(--hand-size, 1)) * 0.35rem), 0.35rem);
-  padding: 0.25rem 0.35rem;
-}
-
-/* Reserve stable inline space so the placeholder doesn’t collapse and nudge siblings. */
-.player-hand-cards .cdk-drag-placeholder {
-  flex: 0 0 auto;
-  box-sizing: border-box;
 }

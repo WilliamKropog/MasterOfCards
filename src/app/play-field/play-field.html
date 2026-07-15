@@ -3,4 +3,14 @@
   <app-field-row playerSlot="player1" zone="monster" />
   <app-field-row playerSlot="player2" zone="monster" />
   <app-field-row playerSlot="player2" zone="land" />
+
+  <div class="influence-overlay-grid" aria-hidden="true">
+    @for (ov of landInfluenceOverlays(); track $index) {
+      <div
+        class="influence-outline"
+        [style.grid-column]="ov.colStart + ' / ' + ov.colEnd"
+        [style.grid-row]="ov.rowStart + ' / ' + ov.rowEnd"
+      ></div>
+    }
+  </div>
 </div>

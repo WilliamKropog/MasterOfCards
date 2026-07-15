@@ -87,7 +87,7 @@ export class Card {
   });
 
   /** Floating damage text shown on this card (slides up, then cleared). */
-  protected readonly floatingDamage = signal<number | null>(null);
+  protected readonly floatingDamage = signal<{ amount: number; blocked: boolean } | null>(null);
   private floatingDamageTimer: ReturnType<typeof setTimeout> | null = null;
   private lastDamageTimestamp = Date.now();
 
@@ -103,14 +103,14 @@ export class Card {
       if (ev.timestamp <= this.lastDamageTimestamp) { continue; }
       if (ev.playerSlot === rowSlot && ev.zone === zone && ev.identifier === idx) {
         this.lastDamageTimestamp = ev.timestamp;
-        this.showFloatingDamage(ev.amount);
+        this.showFloatingDamage(ev.amount, ev.blocked ?? false);
       }
     }
   });
 
-  private showFloatingDamage(amount: number): void {
+  private showFloatingDamage(amount: number, blocked: boolean): void {
     if (this.floatingDamageTimer) { clearTimeout(this.floatingDamageTimer); }
-    this.floatingDamage.set(amount);
+    this.floatingDamage.set({ amount, blocked });
     this.floatingDamageTimer = setTimeout(() => {
       this.floatingDamage.set(null);
       this.floatingDamageTimer = null;
@@ -197,10 +197,18 @@ export class Card {
     return !this.engine.canPlaceLandOnField(targetRow, def.space ?? 1);
   });
 
-  /** No drag before Start, when collapsed, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
+  private readonly isInactiveHandCard = computed(() => {
+    if (!this.inPlayerHand() || !this.engine.gameStarted()) { return false; }
+    const turn = this.engine.currentTurn();
+    if (turn === null) { return false; }
+    const mine = this.ownerPlayerSlot() === 'player1' ? 1 : 2;
+    return turn !== mine;
+  });
+
+  /** No drag on inactive turn, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
-      this.compact() ||
+      this.isInactiveHandCard() ||
       !this.engine.gameStarted() ||
       this.onField() ||
       this.fieldLandOrMonsterLocked() ||

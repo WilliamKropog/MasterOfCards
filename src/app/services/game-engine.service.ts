@@ -90,6 +90,8 @@ export interface DamageEvent {
   zone?: FieldZone;
   identifier?: number;
   amount: number;
+  /** True when the hit was absorbed by a block/shield instead of dealing HP damage. */
+  blocked?: boolean;
   timestamp: number;
 }
 
@@ -595,9 +597,9 @@ export class GameEngineService {
       amount *= zoneMultiplier;
     }
 
-    const defenderResult = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
+    const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
     if (amount > 0) {
-      this.emitDamage({ playerSlot: tether.slot, zone: tether.zone, identifier: tether.index, amount });
+      this.emitDamage({ playerSlot: tether.slot, zone: tether.zone, identifier: tether.index, amount, blocked: defBlocked });
     }
 
     const removeAtIndex = (arr: string[]): string[] => {
@@ -723,14 +725,14 @@ export class GameEngineService {
     const atkPower = atkDef.attack ?? 0;
     const counterPower = defDef.attack ?? 0;
 
-    const attackerAfterDamage = this.applyIncomingFieldDamage(attackerEntry, counterPower, atkDef);
-    const defenderAfterDamage = this.applyIncomingFieldDamage(defenderEntry, atkPower, defDef);
+    const { entry: attackerAfterDamage, blocked: atkBlocked } = this.applyIncomingFieldDamage(attackerEntry, counterPower, atkDef);
+    const { entry: defenderAfterDamage, blocked: defBlocked } = this.applyIncomingFieldDamage(defenderEntry, atkPower, defDef);
 
     if (counterPower > 0) {
-      this.emitDamage({ playerSlot: attackerSlot, zone: 'monster', identifier: attackerMonsterSlot, amount: counterPower });
+      this.emitDamage({ playerSlot: attackerSlot, zone: 'monster', identifier: attackerMonsterSlot, amount: counterPower, blocked: atkBlocked });
     }
     if (atkPower > 0) {
-      this.emitDamage({ playerSlot: defenderSlot, zone: defenderZone, identifier: defenderIndex, amount: atkPower });
+      this.emitDamage({ playerSlot: defenderSlot, zone: defenderZone, identifier: defenderIndex, amount: atkPower, blocked: defBlocked });
     }
 
     const attackerResult: FieldCardEntry = {
@@ -848,22 +850,23 @@ export class GameEngineService {
   /**
    * Applies damage from an attack or spell. Monsters with `blocks > 0` consume one block
    * and take no HP damage for that hit.
+   * Returns the updated entry and whether a block was consumed.
    */
   private applyIncomingFieldDamage(
     entry: FieldCardEntry,
     damage: number,
     def: ReturnType<typeof getCardDefinition>,
-  ): FieldCardEntry {
+  ): { entry: FieldCardEntry; blocked: boolean } {
     if (damage <= 0) {
-      return entry;
+      return { entry, blocked: false };
     }
     const blocks = entry.blocks ?? 0;
     if (blocks > 0 && def?.cardType === 'Monster') {
-      return { ...entry, blocks: blocks - 1 };
+      return { entry: { ...entry, blocks: blocks - 1 }, blocked: true };
     }
     const maxHp = def?.maxHealth ?? 0;
     const hp = entry.currentHealth ?? maxHp;
-    return { ...entry, currentHealth: Math.max(0, hp - damage) };
+    return { entry: { ...entry, currentHealth: Math.max(0, hp - damage) }, blocked: false };
   }
 
   private getFieldArray(slot: FieldPlayerSlot, zone: FieldZone): FieldCardEntry[] {

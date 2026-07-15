@@ -31,7 +31,7 @@
     </div>
   } @else if (onField()) {
     @if (floatingDamage(); as dmg) {
-      <span class="card-floating-damage">-{{ dmg }} HP</span>
+      <span class="card-floating-damage" [class.card-floating-damage--blocked]="dmg.blocked">{{ dmg.blocked ? '-1 Shield' : '-' + dmg.amount + ' HP' }}</span>
     }
     <div class="card-field-main">
       <header class="card-field-name">{{ displayNameWithBlocks() }}</header>

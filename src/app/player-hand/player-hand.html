@@ -2,51 +2,35 @@
   class="player-hand"
   [attr.data-player-slot]="playerSlot()"
   (click)="onEnemyHandAttackClick($event)"
-  [class.player-hand--collapsed]="isHandCollapsed()"
+  [class.player-hand--active-turn]="isActiveTurn()"
   [class.player-hand--spell-drag-eligible]="spellDragEligibleEnemyHand()"
   [class.player-hand--spell-tether-snap]="spellSnapTetherThisHand()"
   [class.player-hand--spell-drag-target]="spellDragTargetingThisHand()"
   [class.player-hand--attack-target]="attackModeEligibleEnemyHand()"
   [attr.aria-label]="displayLabel() + ' hand'"
 >
-  <div class="player-hand-title-row">
-    <div class="player-hand-title-cluster">
-      <h2 class="player-hand-title">{{ displayLabel() }}</h2>
-      @if (engine.gameStarted()) {
-        <div class="player-hand-stats">
-          <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
-            LP {{ lifePoints() }}
-            @if (floatingLpDamage(); as dmg) {
-              <span class="player-hand-lp-damage">-{{ dmg }} HP</span>
-            }
-          </span>
-          <span
-            class="player-hand-land-capacity"
-            [attr.aria-label]="
-              'Land capacity ' + landCapacity() + ' out of ' + maxLandCapacity
-            "
-          >
-            Land {{ landCapacity() }} / {{ maxLandCapacity }}
-          </span>
-        </div>
-      }
-    </div>
+  <!-- Left column: player info -->
+  <div class="player-hand-info">
+    <h2 class="player-hand-title">{{ displayLabel() }}</h2>
     @if (engine.gameStarted()) {
-      <div
-        class="player-hand-mana"
-        role="status"
-        [attr.aria-label]="manaFromLandsAriaLabel()"
-      >
-        @if (manaFromLandsRows().length === 0) {
-          <span class="player-hand-mana-empty">—</span>
-        } @else {
-          @for (m of manaFromLandsRows(); track m.element) {
-            <span class="player-hand-mana-pill">{{ m.amount }} {{ m.element }}</span>
-          }
+      <span class="player-hand-lp" [attr.aria-label]="'Life points ' + lifePoints()">
+        LP {{ lifePoints() }}
+        @if (floatingLpDamage(); as dmg) {
+          <span class="player-hand-lp-damage">-{{ dmg }} HP</span>
         }
-      </div>
+      </span>
+      <span
+        class="player-hand-land-capacity"
+        [attr.aria-label]="
+          'Land capacity ' + landCapacity() + ' out of ' + maxLandCapacity
+        "
+      >
+        Land {{ landCapacity() }} / {{ maxLandCapacity }}
+      </span>
     }
   </div>
+
+  <!-- Middle column: cards -->
   <div
     class="player-hand-cards"
     cdkDropList
@@ -62,10 +46,27 @@
         [style.--hand-index]="i"
         [cardId]="cardId"
         [handIndex]="i"
-        [compact]="isHandCollapsed()"
+        [compact]="false"
         [inPlayerHand]="true"
         [ownerPlayerSlot]="playerSlot()"
       />
+    }
+  </div>
+
+  <!-- Right column: mana -->
+  <div
+    class="player-hand-mana"
+    role="status"
+    [attr.aria-label]="manaFromLandsAriaLabel()"
+  >
+    @if (engine.gameStarted()) {
+      @if (manaFromLandsRows().length === 0) {
+        <span class="player-hand-mana-empty">—</span>
+      } @else {
+        @for (m of manaFromLandsRows(); track m.element) {
+          <span class="player-hand-mana-pill">{{ m.amount }} {{ m.element }}</span>
+        }
+      }
     }
   </div>
 </section>

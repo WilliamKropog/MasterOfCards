@@ -81,24 +81,24 @@
 }
 
 .next-turn-btn.next-turn-btn--suggest {
-  border: 2px solid rgba(34, 197, 94, 0.7);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+  border: 2px solid rgba(218, 165, 32, 0.75);
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
   animation: next-turn-suggest-pulse 2s ease-in-out infinite;
 }
 
 @keyframes next-turn-suggest-pulse {
   0%, 100% {
-    box-shadow: 0 0 6px rgba(34, 197, 94, 0.3);
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.3);
   }
   50% {
-    box-shadow: 0 0 14px rgba(34, 197, 94, 0.6);
+    box-shadow: 0 0 14px rgba(255, 215, 0, 0.6);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .next-turn-btn.next-turn-btn--suggest {
     animation: none;
-    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5);
+    box-shadow: 0 0 0 2px rgba(218, 165, 32, 0.5);
   }
 }
 
@@ -132,7 +132,7 @@
 }
 
 .battle-layout .player-hand-row:first-child {
-  margin-bottom: auto;
+  margin-top: auto;
 }
 
 .battle-layout .player-hand-row:last-child {
