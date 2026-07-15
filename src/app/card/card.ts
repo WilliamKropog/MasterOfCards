@@ -118,15 +118,23 @@ export class Card {
   }
 
   /**
-   * One land or monster per turn: after placing on the field, other lands/monsters in this
-   * player's hand cannot be dragged until next turn (spells may still be played).
+   * Free (no mana cost) land/monster locked after one free card was placed this turn.
+   * Cards that cost mana are never locked by this — they're gated by mana affordability instead.
    */
   private readonly fieldLandOrMonsterLocked = computed(() => {
     if (this.onField() || this.compact()) {
       return false;
     }
+    const def = this.def();
+    const type = def?.cardType;
+    if (type !== 'Land' && type !== 'Monster') {
+      return false;
+    }
+    if (hasManaCost(def!.manaCost)) {
+      return false;
+    }
     const slot = this.ownerPlayerSlot();
-    if (slot === null || !this.engine.gameStarted() || !this.engine.placedFieldCardThisTurn()) {
+    if (slot === null || !this.engine.gameStarted() || !this.engine.placedFreeFieldCardThisTurn()) {
       return false;
     }
     const turn = this.engine.currentTurn();
@@ -134,11 +142,7 @@ export class Card {
       return false;
     }
     const slotId: 1 | 2 = slot === 'player1' ? 1 : 2;
-    if (slotId !== turn) {
-      return false;
-    }
-    const type = this.def()?.cardType;
-    return type === 'Land' || type === 'Monster';
+    return slotId === turn;
   });
 
   /** Cards with `manaCost` require each listed element from the player's current turn mana pool. */
@@ -174,6 +178,25 @@ export class Card {
     return !this.engine.canPlayLand(slot, this.cardId());
   });
 
+  /** Land in hand has no valid contiguous placement on the target field row. */
+  private readonly landHasNoFieldPlacement = computed(() => {
+    if (!this.inPlayerHand()) {
+      return false;
+    }
+    const def = this.def();
+    if (!def || def.cardType !== 'Land') {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (slot === null) {
+      return true;
+    }
+    const targetRow: PlayerSlot = mustPlaceLandOnOpponentRow(def)
+      ? (slot === 'player1' ? 'player2' : 'player1')
+      : slot;
+    return !this.engine.canPlaceLandOnField(targetRow, def.space ?? 1);
+  });
+
   /** No drag before Start, when collapsed, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
@@ -182,7 +205,8 @@ export class Card {
       this.onField() ||
       this.fieldLandOrMonsterLocked() ||
       this.cannotAffordManaCostInHand() ||
-      this.exceedsLandCapacityInHand(),
+      this.exceedsLandCapacityInHand() ||
+      this.landHasNoFieldPlacement(),
   );
 
   /** Subtle gold hint on cards that can be dragged this turn (active hand). */

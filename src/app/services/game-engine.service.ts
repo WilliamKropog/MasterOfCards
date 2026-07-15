@@ -8,9 +8,11 @@ import {
   effectiveLandBuildTime,
   effectiveLandSpace,
   getCardDefinition,
+  hasManaCost,
   landCapacityOwner,
   landCapacityOwnerForPlay,
   monsterSummoningSicknessCleared,
+  mustPlaceLandOnOpponentRow,
   OPENING_HAND_SIZE,
   spendManaCost,
   type ManaCostMap,
@@ -168,10 +170,10 @@ export class GameEngineService {
   readonly pendingPlacement = signal<PendingPlacement | null>(null);
 
   /**
-   * True after the active player has placed a Land or Monster on the field this turn.
-   * Used to limit one field play per turn; does not gate Next Turn.
+   * True after the active player has placed a **free** (no mana cost) Land or Monster this turn.
+   * Cards that cost mana can be played as many times as the player can afford.
    */
-  readonly placedFieldCardThisTurn = signal(false);
+  readonly placedFreeFieldCardThisTurn = signal(false);
 
   /** True while a match is active (Next Turn is always available during a game). */
   readonly canAdvanceTurn = computed(() => this.mayAdvanceTurn());
@@ -230,7 +232,7 @@ export class GameEngineService {
     this.player1FieldMonster.set([]);
     this.player2FieldLand.set([]);
     this.player2FieldMonster.set([]);
-    this.placedFieldCardThisTurn.set(false);
+    this.placedFreeFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.pendingPlacement.set(null);
     this.player1ManaPool.set({});
@@ -960,7 +962,7 @@ export class GameEngineService {
     if (owner === null || owner !== turn) {
       return;
     }
-    this.placedFieldCardThisTurn.set(true);
+    this.placedFreeFieldCardThisTurn.set(true);
   }
 
   /** Advance to the other player after they end their turn (Next Turn). */
@@ -984,7 +986,7 @@ export class GameEngineService {
     } else {
       this.player2TurnCounter.update((n) => n + 1);
     }
-    this.placedFieldCardThisTurn.set(false);
+    this.placedFreeFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.cancelPendingPlacement();
     this.clearFieldActedFlags();
@@ -1068,7 +1070,7 @@ export class GameEngineService {
     this.player2FieldMonster.set([]);
     this.player1Deck.set([]);
     this.player2Deck.set([]);
-    this.placedFieldCardThisTurn.set(false);
+    this.placedFreeFieldCardThisTurn.set(false);
     this.attackMode.set(null);
     this.pendingPlacement.set(null);
     this.player1ManaPool.set({});
@@ -1100,15 +1102,22 @@ export class GameEngineService {
     const slot: FieldPlayerSlot = turn === 1 ? 'player1' : 'player2';
     const hand = slot === 'player1' ? this.player1Hand() : this.player2Hand();
     const pool = slot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
-    const placedThisTurn = this.placedFieldCardThisTurn();
+    const placedFreeThisTurn = this.placedFreeFieldCardThisTurn();
 
     const canPlayAnyHandCard = hand.some((cardId) => {
       const def = getCardDefinition(cardId);
       if (!def) { return false; }
+      const isFree = !hasManaCost(def.manaCost);
+      if (isFree && (def.cardType === 'Land' || def.cardType === 'Monster') && placedFreeThisTurn) { return false; }
       if (!canAffordManaCost(pool, def.manaCost)) { return false; }
-      if ((def.cardType === 'Land' || def.cardType === 'Monster') && placedThisTurn) { return false; }
       if (def.cardType === 'Monster' && !this.canPlaceMonster(slot)) { return false; }
       if (def.cardType === 'Land' && !this.canPlayLand(slot, cardId)) { return false; }
+      if (def.cardType === 'Land') {
+        const targetRow = mustPlaceLandOnOpponentRow(def)
+          ? (slot === 'player1' ? 'player2' : 'player1') as FieldPlayerSlot
+          : slot;
+        if (!this.canPlaceLandOnField(targetRow, def.space ?? 1)) { return false; }
+      }
       return true;
     });
     if (canPlayAnyHandCard) { return false; }
@@ -1179,6 +1188,17 @@ export class GameEngineService {
     return [...set];
   }
 
+  /** True when at least one valid contiguous placement exists for a land with `spaceCount` spaces. */
+  canPlaceLandOnField(targetRowSlot: FieldPlayerSlot, spaceCount: number): boolean {
+    const claimed = new Set(this.influencedSpacesByLands(targetRowSlot));
+    for (let dropSlot = 1; dropSlot <= MONSTER_FIELD_SLOTS; dropSlot++) {
+      if (this.computeLandInfluencedSpaces(dropSlot, spaceCount, targetRowSlot) !== null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // ── Land placement helpers ─────────────────────────────────────────
 
   /**
@@ -1236,10 +1256,13 @@ export class GameEngineService {
     if (turn === null) { return false; }
     const ownerId: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
     if (turn !== ownerId) { return false; }
-    if (this.placedFieldCardThisTurn()) { return false; }
 
     const def = getCardDefinition(cardId);
     if (!def || def.cardType !== 'Land') { return false; }
+
+    const isFree = !hasManaCost(def.manaCost);
+    if (isFree && this.placedFreeFieldCardThisTurn()) { return false; }
+
     if (!this.canPlayLand(controllerSlot, cardId)) { return false; }
 
     const claimed = new Set(this.influencedSpacesByLands(targetRowSlot));
@@ -1262,7 +1285,7 @@ export class GameEngineService {
     fieldSig.update((arr) => [...arr, entry]);
 
     this.grantImmediateManaFromPlacedLand(controllerSlot, cardId);
-    this.placedFieldCardThisTurn.set(true);
+    if (isFree) { this.placedFreeFieldCardThisTurn.set(true); }
     return true;
   }
 
@@ -1282,10 +1305,12 @@ export class GameEngineService {
     if (turn === null) { return false; }
     const ownerId: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
     if (turn !== ownerId) { return false; }
-    if (this.placedFieldCardThisTurn()) { return false; }
 
     const def = getCardDefinition(cardId);
     if (!def || def.cardType !== 'Monster') { return false; }
+
+    const isFree = !hasManaCost(def.manaCost);
+    if (isFree && this.placedFreeFieldCardThisTurn()) { return false; }
 
     if (fieldSlot < 1 || fieldSlot > MONSTER_FIELD_SLOTS) { return false; }
     if (this.getMonsterBySlot(controllerSlot, fieldSlot)) { return false; }
@@ -1305,7 +1330,7 @@ export class GameEngineService {
       controllerSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
     fieldSig.update((arr) => [...arr, entry]);
 
-    this.placedFieldCardThisTurn.set(true);
+    if (isFree) { this.placedFreeFieldCardThisTurn.set(true); }
     return true;
   }
 
@@ -1422,7 +1447,10 @@ export class GameEngineService {
       this.grantImmediateManaFromPlacedLand(pending.controllerSlot, pending.cardId);
     }
 
-    this.placedFieldCardThisTurn.set(true);
+    const def = getCardDefinition(pending.cardId);
+    if (!hasManaCost(def?.manaCost)) {
+      this.placedFreeFieldCardThisTurn.set(true);
+    }
     this.pendingPlacement.set(null);
   }
 }

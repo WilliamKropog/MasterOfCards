@@ -242,7 +242,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 100,
     cardElement: 'Rock',
     rarity: 'Uncommon',
-    buildTime: 1,
+    buildTime: 2,
     space: 1,
     generateMana: {Rock: 2},
     placeOnOpponentLandRow: true,

@@ -105,25 +105,58 @@
 .battle-layout {
   --play-field-height: 32rem;
   --field-row-height: calc(var(--play-field-height) / 4);
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* Static middle field height; tune --play-field-height above to resize it. */
+/* Fixed in the vertical center of the viewport; hands flex around it. */
 .play-field-area {
-  flex: 0 0 var(--play-field-height);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 100%;
   height: var(--play-field-height);
-  min-height: var(--play-field-height);
-  max-height: var(--play-field-height);
+  z-index: 0;
   display: flex;
   flex-direction: column;
-  width: 100%;
   overflow: hidden;
 }
 
-.battle-layout--pre-game .play-field-area {
-  margin-block: auto;
+/* Reserve matching space in the normal flow so hands don't overlap the field. */
+.play-field-area::before {
+  content: none;
+}
+
+.battle-layout .player-hand-row:first-child {
+  margin-bottom: auto;
+}
+
+.battle-layout .player-hand-row:last-child {
+  margin-top: auto;
+}
+
+/* Spacing so the flow-based hands leave room for the fixed field. */
+.battle-layout::after {
+  content: '';
+  display: block;
+  flex: 0 0 var(--play-field-height);
+  order: 1;
+}
+
+.battle-layout .player-hand-row:first-child {
+  order: 0;
+}
+
+.battle-layout .play-field-area {
+  order: 1;
+}
+
+.battle-layout .player-hand-row:last-child {
+  order: 2;
 }
 
 .play-field-area app-play-field {

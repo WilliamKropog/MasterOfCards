@@ -314,7 +314,7 @@
   /* Let the fan grow wider instead of gaining a horizontal scrollbar (edit overflow-x, not y). */
   overflow-x: visible;
   overflow-y: visible;
-  min-height: 0;
+  min-height: 4rem;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
