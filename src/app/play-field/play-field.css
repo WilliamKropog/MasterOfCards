@@ -12,6 +12,7 @@
 }
 
 .play-field {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 0 0 100%;
@@ -19,4 +20,25 @@
   min-height: 0;
   width: 100%;
   overflow: hidden;
+}
+
+/* ── Influence overlay grid ────────────────────────────────────────── */
+
+.influence-overlay-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.25rem;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.influence-outline {
+  border: 2px solid rgba(218, 165, 32, 0.55);
+  border-radius: 4px;
+  pointer-events: none;
 }

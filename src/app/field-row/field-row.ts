@@ -3,16 +3,20 @@ import {
   CdkDragDrop,
   CdkDropList,
   moveItemInArray,
-  transferArrayItem,
 } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input } from '@angular/core';
-import { getCardDefinition, hasManaCost, isValidLandDropRow } from '../game/card-catalog';
+import { getCardDefinition, mustPlaceLandOnOpponentRow } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import type { FieldCardEntry, FieldZone } from '../services/game-engine.service';
-import { GameEngineService } from '../services/game-engine.service';
+import { GameEngineService, MONSTER_FIELD_SLOTS } from '../services/game-engine.service';
 import { Card } from '../card/card';
 import type { PlayerSlot } from '../player-hand/player-hand';
+
+export interface MonsterSlotView {
+  slotNumber: number;
+  entry: FieldCardEntry | null;
+}
 
 @Component({
   selector: 'app-field-row',
@@ -27,7 +31,6 @@ export class FieldRow {
   readonly playerSlot = input.required<PlayerSlot>();
   readonly zone = input.required<FieldZone>();
 
-  /** e.g. "Player 1's land row" */
   protected readonly rowLabel = computed(() => {
     const player = this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2';
     const zone = this.zone() === 'land' ? 'land' : 'monster';
@@ -43,81 +46,93 @@ export class FieldRow {
     return zone === 'land' ? this.engine.player2FieldLand() : this.engine.player2FieldMonster();
   });
 
-  /** Pulsing green when dragging a Monster or Land onto a legal matching row. */
-  protected readonly showDropHighlight = computed(() => {
-    const drag = this.cardDrag.activeDrag();
-    if (!drag) {
-      return false;
+  /** 9-element view for monster rows: slot 1–9 mapped to entries or null. */
+  protected readonly monsterSlots = computed((): MonsterSlotView[] => {
+    if (this.zone() !== 'monster') {
+      return [];
     }
-    const dragDef = getCardDefinition(drag.cardId);
-    if (drag.cardType === 'Land') {
-      if (!isValidLandDropRow(dragDef, this.playerSlot(), drag.ownerPlayerSlot)) {
-        return false;
-      }
-      if (!this.engine.canPlayLand(drag.ownerPlayerSlot, drag.cardId)) {
-        return false;
-      }
-    } else if (drag.cardType === 'Monster') {
-      if (drag.ownerPlayerSlot !== this.playerSlot()) {
-        return false;
-      }
-    } else {
-      return false;
+    const entries = this.fieldCards();
+    const slots: MonsterSlotView[] = [];
+    for (let i = 1; i <= MONSTER_FIELD_SLOTS; i++) {
+      const entry = entries.find((e) => e.fieldSlot === i) ?? null;
+      slots.push({ slotNumber: i, entry });
     }
-    if (drag.cardType === 'Land' || drag.cardType === 'Monster') {
-      const ownerId: 1 | 2 = drag.ownerPlayerSlot === 'player1' ? 1 : 2;
-      const turn = this.engine.currentTurn();
-      if (this.engine.placedFieldCardThisTurn() && turn === ownerId) {
-        return false;
-      }
-    }
-    const zone = this.zone();
-    const type = drag.cardType;
-    if (zone === 'monster' && type === 'Monster') {
-      return true;
-    }
-    if (zone === 'land' && type === 'Land') {
-      return true;
-    }
-    return false;
+    return slots;
   });
 
+  /** For land rows: each land entry with computed grid position based on influenced spaces. */
+  protected readonly landCardsPositioned = computed(() => {
+    if (this.zone() !== 'land') {
+      return [];
+    }
+    return this.fieldCards().map((entry, arrIndex) => {
+      const spaces = entry.influencedSpaces ?? [];
+      const colStart = spaces.length > 0 ? Math.min(...spaces) : 1;
+      const colEnd = spaces.length > 0 ? Math.max(...spaces) + 1 : 2;
+      return { entry, arrIndex, colStart, colEnd };
+    });
+  });
+
+  /** Unoccupied monster-row slots shown while a monster card is being dragged. */
+  protected readonly monsterAvailableSlots = computed((): Set<number> => {
+    if (this.zone() !== 'monster') { return new Set(); }
+    const drag = this.cardDrag.activeDrag();
+    if (!drag || drag.cardType !== 'Monster') { return new Set(); }
+    if (drag.ownerPlayerSlot !== this.playerSlot()) { return new Set(); }
+    const occupied = new Set(this.engine.occupiedMonsterSlots(drag.ownerPlayerSlot));
+    const available = new Set<number>();
+    for (let i = 1; i <= MONSTER_FIELD_SLOTS; i++) {
+      if (!occupied.has(i)) { available.add(i); }
+    }
+    return available;
+  });
+
+  /** The target row player for the currently dragged land card (opponent for Temple of Being). */
+  private readonly landDragTargetRow = computed((): PlayerSlot | null => {
+    const drag = this.cardDrag.activeDrag();
+    if (!drag || drag.cardType !== 'Land') { return null; }
+    const def = getCardDefinition(drag.cardId);
+    if (mustPlaceLandOnOpponentRow(def)) {
+      return drag.ownerPlayerSlot === 'player1' ? 'player2' : 'player1';
+    }
+    return drag.ownerPlayerSlot;
+  });
+
+  /** Slots highlighted while a land card is dragged over the monster row (live preview). */
+  protected readonly landDragPreviewSlots = computed((): Set<number> => {
+    if (this.zone() !== 'monster') { return new Set(); }
+    if (this.landDragTargetRow() !== this.playerSlot()) { return new Set(); }
+    return new Set(this.cardDrag.landPreviewSpaces());
+  });
+
+  /** Uninfluenced monster-row slots shown while a land card is being dragged. */
+  protected readonly landAvailableSlots = computed((): Set<number> => {
+    if (this.zone() !== 'monster') { return new Set(); }
+    const targetRow = this.landDragTargetRow();
+    if (targetRow !== this.playerSlot()) { return new Set(); }
+    const influenced = new Set(this.engine.influencedSpacesByLands(targetRow));
+    const available = new Set<number>();
+    for (let i = 1; i <= MONSTER_FIELD_SLOTS; i++) {
+      if (!influenced.has(i)) { available.add(i); }
+    }
+    return available;
+  });
+
+  /** Slot highlighted while a monster card is dragged over the monster row. */
+  protected readonly monsterDragPreviewSlot = computed((): number | null => {
+    if (this.zone() !== 'monster') { return null; }
+    const drag = this.cardDrag.activeDrag();
+    if (!drag || drag.cardType !== 'Monster') { return null; }
+    if (drag.ownerPlayerSlot !== this.playerSlot()) { return null; }
+    return this.cardDrag.monsterPreviewSlot();
+  });
+
+
   protected readonly canEnterRow = (
-    drag: CdkDrag<CardDragPayload | null>,
+    _drag: CdkDrag<CardDragPayload | null>,
     _drop: CdkDropList<string[] | FieldCardEntry[]>,
   ): boolean => {
-    const data = drag.data;
-    if (!data?.ownerPlayerSlot) {
-      return false;
-    }
-    const def = getCardDefinition(data.cardId);
-    if (!def) {
-      return false;
-    }
-    if (this.zone() === 'land' && def.cardType !== 'Land') {
-      return false;
-    }
-    if (this.zone() === 'monster' && def.cardType !== 'Monster') {
-      return false;
-    }
-    if (def.cardType === 'Land') {
-      if (!isValidLandDropRow(def, this.playerSlot(), data.ownerPlayerSlot)) {
-        return false;
-      }
-      if (!this.engine.canPlayLand(data.ownerPlayerSlot, data.cardId)) {
-        return false;
-      }
-    } else if (def.cardType === 'Monster' && data.ownerPlayerSlot !== this.playerSlot()) {
-      return false;
-    }
-    if (def.cardType === 'Land' || def.cardType === 'Monster') {
-      const ownerId: 1 | 2 = data.ownerPlayerSlot === 'player1' ? 1 : 2;
-      const turn = this.engine.currentTurn();
-      if (this.engine.placedFieldCardThisTurn() && turn === ownerId) {
-        return false;
-      }
-    }
-    return true;
+    return false;
   };
 
   protected onDropped(event: CdkDragDrop<any>): void {
@@ -130,55 +145,7 @@ export class FieldRow {
       } else {
         moveItemInArray(prev as string[], event.previousIndex, event.currentIndex);
       }
-      this.engine.touchDropContainers(event);
-      return;
     }
-
-    if (this.isHandContainer(prev) && this.isFieldContainer(next)) {
-      const hand = prev as string[];
-      const field = next as FieldCardEntry[];
-      const cardId = hand[event.previousIndex];
-      const controllerSlot =
-        prev === this.engine.player1Hand() ? 'player1' : 'player2';
-      const def = getCardDefinition(cardId);
-      if (def?.cardType === 'Land' && !this.engine.canPlayLand(controllerSlot, cardId)) {
-        this.engine.touchDropContainers(event);
-        return;
-      }
-      if (def && hasManaCost(def.manaCost) && !this.engine.trySpendMana(controllerSlot, def.manaCost)) {
-        this.engine.touchDropContainers(event);
-        return;
-      }
-      hand.splice(event.previousIndex, 1);
-      const entry = this.engine.createFieldCardEntry(cardId, controllerSlot);
-      field.splice(event.currentIndex, 0, entry);
-      if (def && (def.cardType === 'Land' || def.cardType === 'Monster')) {
-        this.engine.notifyPlacedFieldCardFromHand(hand);
-      }
-      if (def?.cardType === 'Land') {
-        this.engine.grantImmediateManaFromPlacedLand(controllerSlot, cardId);
-      }
-      this.engine.touchDropContainers(event);
-      return;
-    }
-
-    if (this.isFieldContainer(prev) && this.isFieldContainer(next)) {
-      transferArrayItem(
-        prev as FieldCardEntry[],
-        next as FieldCardEntry[],
-        event.previousIndex,
-        event.currentIndex,
-      );
-      this.engine.touchDropContainers(event);
-      return;
-    }
-
-    transferArrayItem(
-      prev as string[],
-      next as string[],
-      event.previousIndex,
-      event.currentIndex,
-    );
     this.engine.touchDropContainers(event);
   }
 

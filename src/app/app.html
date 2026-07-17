@@ -25,6 +25,8 @@
       <button
         matButton="filled"
         type="button"
+        class="next-turn-btn"
+        [class.next-turn-btn--suggest]="engine.canAdvanceTurn() && engine.noMovesRemaining()"
         [disabled]="!engine.canAdvanceTurn()"
         aria-label="End turn and pass to the other player"
         (click)="onNextTurnClick()"

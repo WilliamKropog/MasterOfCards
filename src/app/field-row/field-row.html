@@ -1,36 +1,71 @@
 <section
   class="field-row"
-  [class.field-row--drop-target]="showDropHighlight()"
   [attr.aria-label]="rowLabel()"
 >
-  <!--
-    cdkDropList lives on the horizontal row so CDK inserts the placeholder into the same
-    flex container as the cards (justify-content: center). If it stays on the outer section,
-    the placeholder becomes a direct child of a column flex host and pins to the left.
-  -->
-  <div
-    class="field-row-cards"
-    cdkDropList
-    cdkDropListOrientation="horizontal"
-    [cdkDropListData]="fieldCards()"
-    [cdkDropListEnterPredicate]="canEnterRow"
-    (cdkDropListDropped)="onDropped($event)"
-  >
-    @if (fieldCards().length === 0) {
-      <span class="field-row-placeholder">{{ rowLabel() }}</span>
-    }
-    @for (entry of fieldCards(); track entry.fieldInstanceId) {
-      <div class="field-row-card-slot">
-        <app-card
-          [cardId]="entry.cardId"
-          [placedAtTurnCounter]="entry.placedAtTurnCounter"
-          [fieldRowSlot]="playerSlot()"
-          [ownerPlayerSlot]="entry.controllerSlot ?? playerSlot()"
-          [onField]="true"
-          [fieldZone]="zone()"
-          [fieldCardIndex]="$index"
-        />
-      </div>
-    }
-  </div>
+  @if (zone() === 'monster') {
+    <!-- Monster row: fixed 9-slot grid -->
+    <div
+      class="monster-slots-grid"
+      cdkDropList
+      cdkDropListOrientation="horizontal"
+      [cdkDropListData]="fieldCards()"
+      [cdkDropListEnterPredicate]="canEnterRow"
+      (cdkDropListDropped)="onDropped($event)"
+    >
+      @for (slot of monsterSlots(); track slot.slotNumber) {
+        <div
+          class="monster-slot"
+          [class.monster-slot--occupied]="slot.entry !== null"
+          [class.monster-slot--monster-available]="monsterAvailableSlots().has(slot.slotNumber)"
+          [class.monster-slot--land-available]="landAvailableSlots().has(slot.slotNumber)"
+          [class.monster-slot--land-preview]="landDragPreviewSlots().has(slot.slotNumber)"
+          [class.monster-slot--monster-preview]="monsterDragPreviewSlot() === slot.slotNumber"
+          [attr.data-slot-number]="slot.slotNumber"
+        >
+          <span class="monster-slot-number">{{ slot.slotNumber }}</span>
+          @if (slot.entry; as entry) {
+            <app-card
+              [cardId]="entry.cardId"
+              [placedAtTurnCounter]="entry.placedAtTurnCounter"
+              [fieldRowSlot]="playerSlot()"
+              [ownerPlayerSlot]="entry.controllerSlot ?? playerSlot()"
+              [onField]="true"
+              [fieldZone]="'monster'"
+              [fieldCardIndex]="slot.slotNumber"
+            />
+          }
+        </div>
+      }
+    </div>
+  } @else {
+    <!-- Land row: cards positioned by influenced spaces -->
+    <div
+      class="land-slots-grid"
+      cdkDropList
+      cdkDropListOrientation="horizontal"
+      [cdkDropListData]="fieldCards()"
+      [cdkDropListEnterPredicate]="canEnterRow"
+      (cdkDropListDropped)="onDropped($event)"
+    >
+      @if (landCardsPositioned().length === 0) {
+        <span class="field-row-placeholder">{{ rowLabel() }}</span>
+      }
+      @for (lc of landCardsPositioned(); track lc.entry.fieldInstanceId) {
+        <div
+          class="land-card-positioned"
+          [style.grid-column]="lc.colStart + ' / ' + lc.colEnd"
+        >
+          <app-card
+            [cardId]="lc.entry.cardId"
+            [placedAtTurnCounter]="lc.entry.placedAtTurnCounter"
+            [fieldRowSlot]="playerSlot()"
+            [ownerPlayerSlot]="lc.entry.controllerSlot ?? playerSlot()"
+            [onField]="true"
+            [fieldZone]="'land'"
+            [fieldCardIndex]="lc.arrIndex"
+          />
+        </div>
+      }
+    </div>
+  }
 </section>
