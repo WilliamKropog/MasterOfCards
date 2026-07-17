@@ -50,6 +50,8 @@ export interface CardDefinition {
   manaCost?: ManaCostMap;
   /** Monster-only: activated abilities available while the monster is awake/ready. */
   abilities?: ActivatedAbilityDefinition[];
+  /** Land-only: activated abilities (e.g. Elder Gopher Statue Praise). */
+  landAbilities?: ActivatedAbilityDefinition[];
   /** Spell-only: damage dealt when this spell’s effect deals damage (omit for non-damage spells). */
   damage?: number;
   /**
@@ -284,7 +286,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     buildTime: 1,
     space: 1,
     generateMana: {Rock: 1},
-    description: 'Elder Gopher Statue is powered by the Praises of the Mighty Gophers. Every time a Mighty Gopher Praises the Elder Gopher Statue, it generates an additional 1 Rock mana permanently.',
+    landAbilities: [{ id: 'praise', name: 'Praise', manaCost: 0, manaElement: 'Rock' }],
+    description: 'Elder Gopher Statue is powered by the Praises of the Mighty Gophers. Every time a Mighty Gopher Praises the Elder Gopher Statue, it generates an additional 1 Rock mana permanently. Consumes the turn of the Mighty Gopher.',
   },
 };
 
@@ -410,6 +413,8 @@ export function isLandStillBuilding(
 export interface FieldLandManaEntry {
   cardId: string;
   placedAtOwnerTurnCounter: number;
+  /** Permanent Rock mana bonus from Praise activations. */
+  praiseBonusRock?: number;
 }
 
 /**
@@ -432,6 +437,10 @@ export function aggregateManaFromActiveFieldLands(
     for (const [element, amount] of Object.entries(def.generateMana)) {
       out[element] = (out[element] ?? 0) + amount;
     }
+    const praiseRock = entry.praiseBonusRock ?? 0;
+    if (praiseRock > 0) {
+      out['Rock'] = (out['Rock'] ?? 0) + praiseRock;
+    }
   }
   return out;
 }
@@ -446,7 +455,12 @@ export const CardIds = {
   templeOfBeing: 'temple-of-being',
   armoredillo: 'armoredillo',
   ruptar: 'ruptar',
+  elderGopherStatue: 'elder-gopher-statue',
 } as const;
+
+export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
+  return def?.id === CardIds.elderGopherStatue;
+}
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
 export const OPENING_HAND_SIZE = 5;
@@ -461,6 +475,8 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.templeOfBeing,
   CardIds.armoredillo,
   CardIds.ruptar,
+  CardIds.mightyGopher,
+  CardIds.elderGopherStatue,
 ];
 
 export const DECK_SIZE = 25;

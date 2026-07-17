@@ -474,6 +474,38 @@
   pointer-events: auto;
 }
 
+.card.card--field.card--land-praise-hoverable .card-field-actions {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  box-sizing: border-box;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.card.card--field.card--land-praise-hoverable:hover,
+.card.card--field.card--land-praise-hoverable:focus-within {
+  z-index: 40;
+}
+
+.card.card--field.card--land-praise-hoverable:hover .card-field-actions,
+.card.card--field.card--land-praise-hoverable:focus-within .card-field-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .card-field-action-btn {
   flex: 1 1 0;
   min-width: 0;
@@ -521,6 +553,35 @@
 .card-floating-damage--blocked {
   color: rgba(120, 120, 120, 1);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.card-floating-action {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  font-size: 1rem;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: damage-float 1.2s ease-out forwards;
+}
+
+.card-floating-action--praising {
+  color: rgba(147, 51, 234, 1);
+}
+
+.card-floating-action--praise-bonus {
+  color: rgba(139, 90, 43, 1);
+}
+
+.card.card--defending .card-floating-action,
+.card.card--land-building .card-floating-action {
+  transform: rotate(90deg) translateX(-50%);
+  transform-origin: center center;
+  animation: damage-float-rotated 1.2s ease-out forwards;
 }
 
 @keyframes damage-float {
