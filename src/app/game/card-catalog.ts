@@ -274,6 +274,18 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     attributes: ['Melee', 'Haste'],
     description: 'Deals an additional +30 damage when attacking targets that are Lightning typed.',
   },
+  'elder-gopher-statue': {
+    id: 'elder-gopher-statue',
+    name: 'Elder Gopher Statue',
+    cardType: 'Land',
+    maxHealth: 200,
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    buildTime: 1,
+    space: 1,
+    generateMana: {Rock: 1},
+    description: 'Elder Gopher Statue is powered by the Praises of the Mighty Gophers. Every time a Mighty Gopher Praises the Elder Gopher Statue, it generates an additional 1 Rock mana permanently.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
