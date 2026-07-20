@@ -380,9 +380,36 @@ export class Card {
     return (pool['Rock'] ?? 0) < 1;
   });
 
+  /** Rockterrior: show Tail Smash while ready (stays visible but disabled after one use). */
+  protected readonly showTailSmashAbility = computed(() => {
+    if (!this.onField() || this.fieldZone() !== 'monster') {
+      return false;
+    }
+    if (this.cardId() !== 'rockterrior') {
+      return false;
+    }
+    return this.fieldReadyHighlight();
+  });
+
+  /** Tail Smash requires 3 Rock mana and is one-time use. */
+  protected readonly tailSmashDisabled = computed(() => {
+    if (!this.showTailSmashAbility()) {
+      return true;
+    }
+    if ((this.fieldEntry()?.usedAbilities ?? []).includes('tail-smash')) {
+      return true;
+    }
+    const slot = this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (slot === null || idx === null) {
+      return true;
+    }
+    return !this.engine.canBeginTailSmash(slot, idx);
+  });
+
   /**
-   * Red shimmer: this card is a legal target while the owner’s monster is in attack mode.
-   * Mirrors {@link GameEngineService.isLegalAttackTargetForAttackMode} (defending monsters first).
+   * Red shimmer: this card is a legal target while the owner’s monster is in attack mode
+   * or ability targeting mode (e.g. Tail Smash).
    */
   protected readonly attackTargetHighlight = computed(() => {
     if (!this.onField() || !this.engine.gameStarted()) {
@@ -397,11 +424,25 @@ export class Card {
     if (zone === null || rowSlot === null || idx === null) {
       return false;
     }
-    const mode = this.engine.attackMode();
-    if (!mode) {
-      return false;
+    const attackMode = this.engine.attackMode();
+    if (attackMode) {
+      return this.engine.isLegalAttackTargetForAttackMode(
+        rowSlot,
+        zone,
+        idx,
+        attackMode.attackerSlot,
+      );
     }
-    return this.engine.isLegalAttackTargetForAttackMode(rowSlot, zone, idx, mode.attackerSlot);
+    const abilityMode = this.engine.abilityTargetMode();
+    if (abilityMode) {
+      return this.engine.isLegalAbilityTarget(
+        rowSlot,
+        zone,
+        idx,
+        abilityMode.casterSlot,
+      );
+    }
+    return false;
   });
 
   /**
@@ -449,10 +490,9 @@ export class Card {
     return t.slot === rowSlot && t.zone === zone && t.index === idx;
   });
 
-  /** Marks the card that opened attack mode (for click-outside detection on the host). */
+  /** Marks the card that opened attack or ability targeting mode. */
   protected readonly isAttackSource = computed(() => {
-    const mode = this.engine.attackMode();
-    if (!mode || !this.onField()) {
+    if (!this.onField()) {
       return false;
     }
     const slot = this.ownerPlayerSlot();
@@ -460,7 +500,15 @@ export class Card {
     if (slot === null || idx === null) {
       return false;
     }
-    return mode.attackerSlot === slot && mode.attackerMonsterSlot === idx;
+    const attackMode = this.engine.attackMode();
+    if (attackMode) {
+      return attackMode.attackerSlot === slot && attackMode.attackerMonsterSlot === idx;
+    }
+    const abilityMode = this.engine.abilityTargetMode();
+    if (abilityMode) {
+      return abilityMode.casterSlot === slot && abilityMode.casterMonsterSlot === idx;
+    }
+    return false;
   });
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
@@ -794,6 +842,20 @@ export class Card {
     this.engine.tryUseBurrow(slot, idx);
   }
 
+  protected onTailSmashClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (!this.showTailSmashAbility() || this.tailSmashDisabled()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (slot === null || zone !== 'monster' || idx === null) {
+      return;
+    }
+    this.engine.beginTailSmash(slot, idx);
+  }
+
   protected onPraiseClick(event: MouseEvent): void {
     event.stopPropagation();
     if (this.praiseDisabled()) {
@@ -819,6 +881,10 @@ export class Card {
     const zone = this.fieldZone();
     const idx = this.fieldCardIndex();
     if (rowSlot === null || zone === null || idx === null) {
+      return;
+    }
+    if (this.engine.abilityTargetMode()?.abilityId === 'tail-smash') {
+      this.engine.resolveTailSmashOnTarget(rowSlot, zone, idx);
       return;
     }
     this.engine.resolveAttackOnTarget(rowSlot, zone, idx);

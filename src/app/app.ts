@@ -36,17 +36,17 @@ export class App {
   @HostListener('document:keydown', ['$event'])
   protected onDocumentKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
-      this.engine.cancelAttackMode();
+      this.engine.cancelAllTargetModes();
     }
   }
 
   /**
-   * Clicking outside the attacking card dismisses attack mode (red targets). Clicks on the
-   * attacker or on a valid target stay inside the flow (composedPath covers shadow DOM buttons).
+   * Clicking outside the attacking / ability-casting card dismisses targeting mode.
+   * Clicks on the source or on a valid target stay inside the flow.
    */
   @HostListener('document:click', ['$event'])
   protected onDocumentClick(event: MouseEvent): void {
-    if (!this.engine.attackMode()) {
+    if (!this.engine.attackMode() && !this.engine.abilityTargetMode()) {
       return;
     }
     let insideAttackSource = false;
@@ -68,6 +68,6 @@ export class App {
     if (insideAttackSource || insideAttackTarget) {
       return;
     }
-    this.engine.cancelAttackMode();
+    this.engine.cancelAllTargetModes();
   }
 }

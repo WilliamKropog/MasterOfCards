@@ -109,6 +109,17 @@
             Burrow
           </button>
         }
+        @if (showTailSmashAbility()) {
+          <button
+            matButton="filled"
+            type="button"
+            class="card-field-action-btn"
+            [disabled]="tailSmashDisabled()"
+            (click)="onTailSmashClick($event)"
+          >
+            Tail Smash
+          </button>
+        }
       </div>
     }
     @if (fieldZone() === 'land' && showLandPraiseOverlay()) {
