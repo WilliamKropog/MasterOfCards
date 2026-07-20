@@ -7,7 +7,8 @@
   [class.card--field]="onField()"
   [class.card--drag-disabled]="dragDisabled()"
   [class.card--playable]="playableHighlight()"
-  [class.card--field-ready]="fieldReadyHighlight()"
+  [class.card--field-ready]="fieldReadyHighlight() || landPraiseReadyHighlight()"
+  [class.card--land-praise-hoverable]="showLandPraiseOverlay()"
   [class.card--attack-target]="attackTargetHighlight()"
   [class.card--spell-target]="spellTargetHighlight()"
   [class.card--spell-tether-active]="spellTetherHighlight()"
@@ -32,6 +33,13 @@
   } @else if (onField()) {
     @if (floatingDamage(); as dmg) {
       <span class="card-floating-damage" [class.card-floating-damage--blocked]="dmg.blocked">{{ dmg.blocked ? '-1 Shield' : '-' + dmg.amount + ' HP' }}</span>
+    }
+    @if (floatingActionFeedback(); as fb) {
+      <span
+        class="card-floating-action"
+        [class.card-floating-action--praising]="fb.kind === 'praising'"
+        [class.card-floating-action--praise-bonus]="fb.kind === 'praise-bonus-rock'"
+      >{{ fb.text }}</span>
     }
     <div class="card-field-main">
       <header class="card-field-name">{{ displayNameWithBlocks() }}</header>
@@ -101,6 +109,19 @@
             Burrow
           </button>
         }
+      </div>
+    }
+    @if (fieldZone() === 'land' && showLandPraiseOverlay()) {
+      <div class="card-field-actions">
+        <button
+          matButton="filled"
+          type="button"
+          class="card-field-action-btn"
+          [disabled]="praiseDisabled()"
+          (click)="onPraiseClick($event)"
+        >
+          Praise
+        </button>
       </div>
     }
   } @else {

@@ -17,7 +17,7 @@ import {
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
-import { GameEngineService, type FieldZone } from '../services/game-engine.service';
+import { GameEngineService, type ActionFeedbackKind, type FieldZone } from '../services/game-engine.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
 @Component({
@@ -114,6 +114,41 @@ export class Card {
     this.floatingDamageTimer = setTimeout(() => {
       this.floatingDamage.set(null);
       this.floatingDamageTimer = null;
+    }, 1200);
+  }
+
+  /** Floating action feedback (Praise, etc.). */
+  protected readonly floatingActionFeedback = signal<{
+    kind: ActionFeedbackKind;
+    text: string;
+  } | null>(null);
+  private floatingActionFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastActionFeedbackTimestamp = Date.now();
+
+  private readonly actionFeedbackWatcher = effect(() => {
+    const events = this.engine.actionFeedbackEvents();
+    if (!this.onField() || events.length === 0) { return; }
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    const zone = this.fieldZone();
+    const idx = this.fieldCardIndex();
+    if (rowSlot === null || zone === null || idx === null) { return; }
+
+    for (const ev of events) {
+      if (ev.timestamp <= this.lastActionFeedbackTimestamp) { continue; }
+      if (ev.playerSlot === rowSlot && ev.zone === zone && ev.identifier === idx) {
+        this.lastActionFeedbackTimestamp = ev.timestamp;
+        const text = ev.kind === 'praising' ? 'Praising' : '+1 Rock Mana';
+        this.showFloatingActionFeedback(ev.kind, text);
+      }
+    }
+  });
+
+  private showFloatingActionFeedback(kind: ActionFeedbackKind, text: string): void {
+    if (this.floatingActionFeedbackTimer) { clearTimeout(this.floatingActionFeedbackTimer); }
+    this.floatingActionFeedback.set({ kind, text });
+    this.floatingActionFeedbackTimer = setTimeout(() => {
+      this.floatingActionFeedback.set(null);
+      this.floatingActionFeedbackTimer = null;
     }, 1200);
   }
 
@@ -252,6 +287,48 @@ export class Card {
       return false;
     }
     return monsterSummoningSicknessCleared(this.def(), placedAt, this.engine.turnCounter());
+  });
+
+  /** Elder Gopher Statue: blue glow when Praise can be activated. */
+  protected readonly landPraiseReadyHighlight = computed(() => {
+    if (!this.onField() || this.fieldZone() !== 'land' || !this.engine.gameStarted()) {
+      return false;
+    }
+    if (this.cardDrag.activeDrag()) {
+      return false;
+    }
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (rowSlot === null || idx === null) {
+      return false;
+    }
+    return this.engine.getLandPraiseState(rowSlot, idx).canActivate;
+  });
+
+  /** Show Praise overlay on hover when the land is active on the controller's turn. */
+  protected readonly showLandPraiseOverlay = computed(() => {
+    if (!this.onField() || this.fieldZone() !== 'land' || !this.engine.gameStarted()) {
+      return false;
+    }
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (rowSlot === null || idx === null) {
+      return false;
+    }
+    const state = this.engine.getLandPraiseState(rowSlot, idx);
+    return state.isElderGopher && state.landActive && state.isControllerTurn;
+  });
+
+  protected readonly praiseDisabled = computed(() => {
+    if (!this.showLandPraiseOverlay()) {
+      return true;
+    }
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (rowSlot === null || idx === null) {
+      return true;
+    }
+    return !this.engine.getLandPraiseState(rowSlot, idx).canActivate;
   });
 
   /** Monster on field is in defense position (horizontal). */
@@ -461,6 +538,11 @@ export class Card {
     const map = this.def()?.generateMana;
     if (!map || Object.keys(map).length === 0) {
       return null;
+    }
+    const praiseRock = this.onField() ? (this.fieldEntry()?.praiseBonusRock ?? 0) : 0;
+    if (praiseRock > 0) {
+      const combined = { ...map, Rock: (map['Rock'] ?? 0) + praiseRock };
+      return formatManaGenerationMap(combined);
     }
     return formatManaGenerationMap(map);
   });
@@ -710,6 +792,19 @@ export class Card {
       return;
     }
     this.engine.tryUseBurrow(slot, idx);
+  }
+
+  protected onPraiseClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.praiseDisabled()) {
+      return;
+    }
+    const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
+    const idx = this.fieldCardIndex();
+    if (rowSlot === null || idx === null) {
+      return;
+    }
+    this.engine.tryUsePraise(rowSlot, idx);
   }
 
   protected onFieldCardClick(event: MouseEvent): void {

@@ -5,10 +5,13 @@ import {
   aggregateManaFromActiveFieldLands,
   buildShuffledDeck,
   canAffordManaCost,
+  CardIds,
   effectiveLandBuildTime,
   effectiveLandSpace,
   getCardDefinition,
   hasManaCost,
+  isElderGopherStatue,
+  isLandStillBuilding,
   landCapacityOwner,
   landCapacityOwnerForPlay,
   monsterSummoningSicknessCleared,
@@ -62,6 +65,8 @@ export interface FieldCardEntry {
   fieldSlot?: number;
   /** Land-only: which monster-row spaces (1–9) this land card influences. */
   influencedSpaces?: number[];
+  /** Land-only: permanent bonus Rock mana from Praise activations. */
+  praiseBonusRock?: number;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -93,6 +98,27 @@ export interface DamageEvent {
   /** True when the hit was absorbed by a block/shield instead of dealing HP damage. */
   blocked?: boolean;
   timestamp: number;
+}
+
+export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock';
+
+/** Floating action feedback (e.g. Praise indicators on field cards). */
+export interface ActionFeedbackEvent {
+  playerSlot: FieldPlayerSlot;
+  zone: FieldZone;
+  identifier: number;
+  kind: ActionFeedbackKind;
+  timestamp: number;
+}
+
+export interface LandPraiseState {
+  isElderGopher: boolean;
+  landActive: boolean;
+  isControllerTurn: boolean;
+  hasMightyGopher: boolean;
+  mightyGopherCanAct: boolean;
+  canActivate: boolean;
+  mightyGopherSlot: number | null;
 }
 
 /**
@@ -182,6 +208,8 @@ export class GameEngineService {
 
   /** Emitted when damage is dealt to a field card or player LP. Consumers watch for changes. */
   readonly damageEvents = signal<DamageEvent[]>([]);
+
+  readonly actionFeedbackEvents = signal<ActionFeedbackEvent[]>([]);
 
   /** True when the active player has exhausted all available moves this turn. */
   readonly noMovesRemaining = computed(() => this.computeNoMovesRemaining());
@@ -527,6 +555,125 @@ export class GameEngineService {
       hasActedThisTurn: true,
     };
     this.applyFieldEntry(ownerSlot, 'monster', monsterSlot, updated);
+    return true;
+  }
+
+  /** Praise state for Elder Gopher Statue at `landIndex` on `rowSlot`. */
+  getLandPraiseState(rowSlot: FieldPlayerSlot, landIndex: number): LandPraiseState {
+    const inactive: LandPraiseState = {
+      isElderGopher: false,
+      landActive: false,
+      isControllerTurn: false,
+      hasMightyGopher: false,
+      mightyGopherCanAct: false,
+      canActivate: false,
+      mightyGopherSlot: null,
+    };
+
+    const landEntry = this.getFieldEntry(rowSlot, 'land', landIndex);
+    if (!landEntry) {
+      return inactive;
+    }
+
+    const def = getCardDefinition(landEntry.cardId);
+    if (!isElderGopherStatue(def)) {
+      return inactive;
+    }
+
+    const controller = landEntry.controllerSlot ?? rowSlot;
+    const ownerTurn = this.ownerTurnCounter(controller);
+    const landActive = !isLandStillBuilding(
+      def,
+      landEntry.placedAtOwnerTurnCounter,
+      ownerTurn,
+    );
+
+    const turn = this.currentTurn();
+    const controllerId: PlayerId = controller === 'player1' ? 1 : 2;
+    const isControllerTurn = turn === controllerId;
+
+    let hasMightyGopher = false;
+    let mightyGopherCanAct = false;
+    let mightyGopherSlot: number | null = null;
+
+    for (const space of landEntry.influencedSpaces ?? []) {
+      const monster = this.getMonsterBySlot(rowSlot, space);
+      if (!monster) {
+        continue;
+      }
+      if (monster.cardId === CardIds.mightyGopher) {
+        const monsterOwner = monster.controllerSlot ?? rowSlot;
+        hasMightyGopher = true;
+        mightyGopherSlot = space;
+        mightyGopherCanAct = this.canMonsterAct(monsterOwner, monster);
+      } else {
+        hasMightyGopher = false;
+        mightyGopherCanAct = false;
+        mightyGopherSlot = null;
+      }
+      break;
+    }
+
+    const canActivate =
+      landActive && isControllerTurn && hasMightyGopher && mightyGopherCanAct;
+
+    return {
+      isElderGopher: true,
+      landActive,
+      isControllerTurn,
+      hasMightyGopher,
+      mightyGopherCanAct,
+      canActivate,
+      mightyGopherSlot,
+    };
+  }
+
+  /**
+   * Elder Gopher Statue: Praise.
+   * Requires a ready Mighty Gopher on an influenced monster space; consumes its turn
+   * and permanently increases this land's Rock mana generation by 1.
+   */
+  tryUsePraise(rowSlot: FieldPlayerSlot, landIndex: number): boolean {
+    const state = this.getLandPraiseState(rowSlot, landIndex);
+    if (!state.canActivate || state.mightyGopherSlot === null) {
+      return false;
+    }
+
+    const landEntry = this.getFieldEntry(rowSlot, 'land', landIndex);
+    const mightyEntry = this.getMonsterBySlot(rowSlot, state.mightyGopherSlot);
+    if (!landEntry || !mightyEntry) {
+      return false;
+    }
+
+    const updatedLand: FieldCardEntry = {
+      ...landEntry,
+      praiseBonusRock: (landEntry.praiseBonusRock ?? 0) + 1,
+    };
+    const updatedMighty: FieldCardEntry = {
+      ...mightyEntry,
+      hasActedThisTurn: true,
+    };
+
+    if (this.attackMode()) {
+      this.attackMode.set(null);
+    }
+
+    this.applyFieldEntry(rowSlot, 'land', landIndex, updatedLand);
+    this.applyFieldEntry(rowSlot, 'monster', state.mightyGopherSlot, updatedMighty);
+
+    this.emitActionFeedback({
+      playerSlot: rowSlot,
+      zone: 'monster',
+      identifier: state.mightyGopherSlot,
+      kind: 'praising',
+    });
+    this.emitActionFeedback({
+      playerSlot: rowSlot,
+      zone: 'land',
+      identifier: landIndex,
+      kind: 'praise-bonus-rock',
+    });
+
     return true;
   }
 
@@ -929,6 +1076,14 @@ export class GameEngineService {
     }, 2000);
   }
 
+  private emitActionFeedback(event: Omit<ActionFeedbackEvent, 'timestamp'>): void {
+    const ts = Date.now();
+    this.actionFeedbackEvents.update((prev) => [...prev, { ...event, timestamp: ts }]);
+    setTimeout(() => {
+      this.actionFeedbackEvents.update((arr) => arr.filter((e) => e.timestamp !== ts));
+    }, 2000);
+  }
+
   private clearFieldActedFlags(): void {
     const clear = (a: FieldCardEntry[]): FieldCardEntry[] =>
       a.map((e) => ({ ...e, hasActedThisTurn: false }));
@@ -1079,6 +1234,7 @@ export class GameEngineService {
     this.player1ManaPool.set({});
     this.player2ManaPool.set({});
     this.damageEvents.set([]);
+    this.actionFeedbackEvents.set([]);
   }
 
   /** Stub — advance turn / pass priority when you add phases. */
@@ -1128,6 +1284,10 @@ export class GameEngineService {
     const monsters = slot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
     const hasActableMonster = monsters.some((entry) => this.canMonsterAct(slot, entry));
     if (hasActableMonster) { return false; }
+
+    const lands = slot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+    const hasPraiseMove = lands.some((_, i) => this.getLandPraiseState(slot, i).canActivate);
+    if (hasPraiseMove) { return false; }
 
     return true;
   }
