@@ -59,6 +59,17 @@ export interface CardDefinition {
    * Example: `{ land: 2 }` doubles damage when the spell hits a land card.
    */
   damageMultiplierAgainstZone?: Partial<Record<TargetZone, number>>;
+  /**
+   * Spell-only: when true, multiply `damage` by the target land's `space`
+   * (e.g. Rock Slide: 80 × 3 spaces = 240). Only applies when targeting a land.
+   */
+  scaleDamageByTargetLandSpace?: boolean;
+  /**
+   * Spell-only: restrict legal field targets to these zones.
+   * Omit to allow both land and monster (and player LP via hand targeting).
+   * Example: `['land']` for Rock Slide.
+   */
+  allowedTargetZones?: TargetZone[];
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
   /**
@@ -310,9 +321,10 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     manaCost: { Rock: 4 },
     cardElement: 'Rock',
     rarity: 'Uncommon',
-    damage: 80,
-    damageMultiplierAgainstZone: { land: 2 },
-    description: 'Deal 80 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
+    damage: 100,
+    allowedTargetZones: ['land'],
+    scaleDamageByTargetLandSpace: true,
+    description: 'Deal 100 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
   },
 };
 
@@ -376,6 +388,30 @@ export function isValidLandDropRow(
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
+}
+
+/** Whether a spell may target the given field zone (defaults to both when unrestricted). */
+export function spellAllowsTargetZone(
+  def: CardDefinition | undefined,
+  zone: TargetZone,
+): boolean {
+  if (!def || def.cardType !== 'Spell') {
+    return false;
+  }
+  const allowed = def.allowedTargetZones;
+  if (!allowed || allowed.length === 0) {
+    return true;
+  }
+  return allowed.includes(zone);
+}
+
+/** Whether a spell may be cast at player life points (hand). Restricted spells cannot. */
+export function spellAllowsPlayerLifeTarget(def: CardDefinition | undefined): boolean {
+  if (!def || def.cardType !== 'Spell') {
+    return false;
+  }
+  const allowed = def.allowedTargetZones;
+  return !allowed || allowed.length === 0;
 }
 
 /** Monster-only: has the Haste attribute (awake and may attack the turn it was played). */

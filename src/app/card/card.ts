@@ -13,6 +13,7 @@ import {
   monsterSummoningSicknessCleared,
   mustPlaceLandOnOpponentRow,
   remainingLandBuildTurns,
+  spellAllowsTargetZone,
 } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
@@ -471,8 +472,12 @@ export class Card {
     if (controller === null || controller === drag.ownerPlayerSlot) {
       return false;
     }
-    const type = this.def()?.cardType;
-    return type === 'Land' || type === 'Monster';
+    const zone = this.fieldZone();
+    if (zone !== 'land' && zone !== 'monster') {
+      return false;
+    }
+    const spellDef = getCardDefinition(drag.cardId);
+    return spellAllowsTargetZone(spellDef, zone);
   });
 
   /** Full-card red tether highlight: this field card is the spell snap-line target. */

@@ -17,6 +17,8 @@ import {
   monsterSummoningSicknessCleared,
   mustPlaceLandOnOpponentRow,
   OPENING_HAND_SIZE,
+  spellAllowsPlayerLifeTarget,
+  spellAllowsTargetZone,
   spendManaCost,
   type ManaCostMap,
   type ManaGenerationMap,
@@ -877,6 +879,9 @@ export class GameEngineService {
     if (!spellDef || spellDef.cardType !== 'Spell') {
       return false;
     }
+    if (!spellAllowsTargetZone(spellDef, tether.zone)) {
+      return false;
+    }
 
     if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
       return false;
@@ -910,6 +915,10 @@ export class GameEngineService {
     const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
     if (zoneMultiplier !== undefined) {
       amount *= zoneMultiplier;
+    }
+    if (spellDef.scaleDamageByTargetLandSpace && tether.zone === 'land') {
+      const spaces = Math.max(1, effectiveLandSpace(defenderDef));
+      amount *= spaces;
     }
 
     const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
@@ -963,6 +972,9 @@ export class GameEngineService {
 
     const spellDef = getCardDefinition(spellCardId);
     if (!spellDef || spellDef.cardType !== 'Spell') {
+      return false;
+    }
+    if (!spellAllowsPlayerLifeTarget(spellDef)) {
       return false;
     }
 
