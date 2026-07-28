@@ -303,6 +303,17 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 3, manaElement: 'Rock' }],
     description: 'Tail Smash: Choose a target and deal 80 damage to it. If the target is an Ice type, deal 160 damage instead. Costs 3 Rock mana and is a one time use only.',
   },
+  'rock-slide': {
+    id: 'rock-slide',
+    name: 'Rock Slide',
+    cardType: 'Spell',
+    manaCost: { Rock: 4 },
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    damage: 80,
+    damageMultiplierAgainstZone: { land: 2 },
+    description: 'Deal 80 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
@@ -471,6 +482,7 @@ export const CardIds = {
   ruptar: 'ruptar',
   elderGopherStatue: 'elder-gopher-statue',
   rockterrior: 'rockterrior',
+  rockSlide: 'rock-slide',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -482,9 +494,9 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  // CardIds.rockMonster,
-  // CardIds.mightyGopher,
-  // CardIds.boulderToss,
+  CardIds.rockMonster,
+  CardIds.mightyGopher,
+  CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
   CardIds.templeOfBeing,
@@ -493,6 +505,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.mightyGopher,
   CardIds.elderGopherStatue,
   CardIds.rockterrior,
+  CardIds.rockSlide,
 ];
 
 export const DECK_SIZE = 25;
