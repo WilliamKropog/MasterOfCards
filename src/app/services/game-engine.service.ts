@@ -67,6 +67,8 @@ export interface FieldCardEntry {
   influencedSpaces?: number[];
   /** Land-only: permanent bonus Rock mana from Praise activations. */
   praiseBonusRock?: number;
+  /** Ability ids already used this match (e.g. one-time Tail Smash). */
+  usedAbilities?: string[];
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -86,6 +88,14 @@ export interface AttackModeState {
   attackerSlot: FieldPlayerSlot;
   /** The monster's fieldSlot (1–9) on the monster row, not an array index. */
   attackerMonsterSlot: number;
+}
+
+/** Monster ability targeting (e.g. Tail Smash): choose an enemy field card. */
+export interface AbilityTargetModeState {
+  abilityId: string;
+  casterSlot: FieldPlayerSlot;
+  /** The caster monster's fieldSlot (1–9). */
+  casterMonsterSlot: number;
 }
 
 /** A damage event emitted for floating damage text. */
@@ -192,6 +202,12 @@ export class GameEngineService {
   readonly attackMode = signal<AttackModeState | null>(null);
 
   /**
+   * While set, enemy field cards that are legal ability targets shimmer red
+   * (e.g. Rockterrior Tail Smash).
+   */
+  readonly abilityTargetMode = signal<AbilityTargetModeState | null>(null);
+
+  /**
    * Card removed from hand awaiting space selection before being placed on the field.
    * While non-null, the player must click numbered slots on the monster row to finalize.
    */
@@ -264,6 +280,7 @@ export class GameEngineService {
     this.player2FieldMonster.set([]);
     this.placedFreeFieldCardThisTurn.set(false);
     this.attackMode.set(null);
+    this.abilityTargetMode.set(null);
     this.pendingPlacement.set(null);
     this.player1ManaPool.set({});
     this.player2ManaPool.set({});
@@ -459,10 +476,21 @@ export class GameEngineService {
       return;
     }
     this.attackMode.set({ attackerSlot, attackerMonsterSlot: monsterSlot });
+    this.abilityTargetMode.set(null);
   }
 
   cancelAttackMode(): void {
     this.attackMode.set(null);
+  }
+
+  cancelAbilityTargetMode(): void {
+    this.abilityTargetMode.set(null);
+  }
+
+  /** Clears both attack and ability targeting modes. */
+  cancelAllTargetModes(): void {
+    this.attackMode.set(null);
+    this.abilityTargetMode.set(null);
   }
 
   /**
@@ -555,6 +583,146 @@ export class GameEngineService {
       hasActedThisTurn: true,
     };
     this.applyFieldEntry(ownerSlot, 'monster', monsterSlot, updated);
+    return true;
+  }
+
+  /** True when Rockterrior still has Tail Smash available and can pay / act. */
+  canBeginTailSmash(ownerSlot: FieldPlayerSlot, monsterSlot: number): boolean {
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const entry = this.getMonsterBySlot(ownerSlot, monsterSlot);
+    if (!entry || entry.cardId !== CardIds.rockterrior) {
+      return false;
+    }
+    if ((entry.usedAbilities ?? []).includes('tail-smash')) {
+      return false;
+    }
+    if (!this.canMonsterAct(ownerSlot, entry)) {
+      return false;
+    }
+    const pool = ownerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
+    return canAffordManaCost(pool, { Rock: 3 });
+  }
+
+  /**
+   * Begin Tail Smash targeting for Rockterrior. Toggles off if already selecting for the same monster.
+   * Mana is spent when the target is chosen, not when targeting begins.
+   */
+  beginTailSmash(ownerSlot: FieldPlayerSlot, monsterSlot: number): void {
+    if (!this.canBeginTailSmash(ownerSlot, monsterSlot)) {
+      return;
+    }
+    const current = this.abilityTargetMode();
+    if (
+      current &&
+      current.abilityId === 'tail-smash' &&
+      current.casterSlot === ownerSlot &&
+      current.casterMonsterSlot === monsterSlot
+    ) {
+      this.abilityTargetMode.set(null);
+      return;
+    }
+    this.attackMode.set(null);
+    this.abilityTargetMode.set({
+      abilityId: 'tail-smash',
+      casterSlot: ownerSlot,
+      casterMonsterSlot: monsterSlot,
+    });
+  }
+
+  /** Enemy field lands/monsters are legal Tail Smash targets (not spell-immune). */
+  isLegalAbilityTarget(
+    rowSlot: FieldPlayerSlot,
+    zone: FieldZone,
+    identifier: number,
+    casterSlot: FieldPlayerSlot,
+  ): boolean {
+    const entry = this.getFieldEntry(rowSlot, zone, identifier);
+    if (!entry) {
+      return false;
+    }
+    if (entry.spellImmune === true) {
+      return false;
+    }
+    const enemy: FieldPlayerSlot = casterSlot === 'player1' ? 'player2' : 'player1';
+    if (this.fieldCardController(entry, rowSlot) !== enemy) {
+      return false;
+    }
+    return zone === 'land' || zone === 'monster';
+  }
+
+  /**
+   * Resolve Tail Smash onto a chosen enemy field card.
+   * Deals 80 damage (160 to Ice). Spends 3 Rock, consumes the monster's turn, one-time use.
+   */
+  resolveTailSmashOnTarget(
+    defenderSlot: FieldPlayerSlot,
+    defenderZone: FieldZone,
+    defenderIndex: number,
+  ): boolean {
+    const mode = this.abilityTargetMode();
+    if (!mode || mode.abilityId !== 'tail-smash' || !this.gameStarted()) {
+      return false;
+    }
+    if (!this.isLegalAbilityTarget(defenderSlot, defenderZone, defenderIndex, mode.casterSlot)) {
+      return false;
+    }
+
+    const casterSlot = mode.casterSlot;
+    const casterMonsterSlot = mode.casterMonsterSlot;
+    const casterEntry = this.getMonsterBySlot(casterSlot, casterMonsterSlot);
+    const defenderEntry = this.getFieldEntry(defenderSlot, defenderZone, defenderIndex);
+    if (!casterEntry || !defenderEntry) {
+      return false;
+    }
+    if (casterEntry.cardId !== CardIds.rockterrior) {
+      return false;
+    }
+    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
+      return false;
+    }
+    if (!this.canMonsterAct(casterSlot, casterEntry)) {
+      return false;
+    }
+
+    const tailSmashCost: ManaCostMap = { Rock: 3 };
+    if (!this.trySpendMana(casterSlot, tailSmashCost)) {
+      return false;
+    }
+
+    const defenderDef = getCardDefinition(defenderEntry.cardId);
+    if (!defenderDef) {
+      return false;
+    }
+
+    const amount = defenderDef.cardElement === 'Ice' ? 160 : 80;
+    const { entry: defenderResult, blocked } = this.applyIncomingFieldDamage(
+      defenderEntry,
+      amount,
+      defenderDef,
+    );
+    if (amount > 0) {
+      this.emitDamage({
+        playerSlot: defenderSlot,
+        zone: defenderZone,
+        identifier: defenderIndex,
+        amount,
+        blocked,
+      });
+    }
+
+    const used = [...(casterEntry.usedAbilities ?? []), 'tail-smash'];
+    const casterResult: FieldCardEntry = {
+      ...casterEntry,
+      hasActedThisTurn: true,
+      usedAbilities: used,
+    };
+
+    this.abilityTargetMode.set(null);
+    this.attackMode.set(null);
+    this.applyFieldEntry(casterSlot, 'monster', casterMonsterSlot, casterResult);
+    this.applyFieldEntry(defenderSlot, defenderZone, defenderIndex, defenderResult);
     return true;
   }
 
@@ -1146,6 +1314,7 @@ export class GameEngineService {
     }
     this.placedFreeFieldCardThisTurn.set(false);
     this.attackMode.set(null);
+    this.abilityTargetMode.set(null);
     this.cancelPendingPlacement();
     this.clearFieldActedFlags();
     this.clearDefendingForPlayerStartingTurn(next);
@@ -1230,6 +1399,7 @@ export class GameEngineService {
     this.player2Deck.set([]);
     this.placedFreeFieldCardThisTurn.set(false);
     this.attackMode.set(null);
+    this.abilityTargetMode.set(null);
     this.pendingPlacement.set(null);
     this.player1ManaPool.set({});
     this.player2ManaPool.set({});

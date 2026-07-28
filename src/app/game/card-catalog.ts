@@ -289,6 +289,20 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     landAbilities: [{ id: 'praise', name: 'Praise', manaCost: 0, manaElement: 'Rock' }],
     description: 'Elder Gopher Statue is powered by the Praises of the Mighty Gophers. Every time a Mighty Gopher Praises the Elder Gopher Statue, it generates an additional 1 Rock mana permanently. Consumes the turn of the Mighty Gopher.',
   },
+  'rockterrior': {
+    id: 'rockterrior',
+    name: 'Rockterrior',
+    cardType: 'Monster',
+    manaCost: { Rock: 5 },
+    maxHealth: 180,
+    attack: 30,
+    cardElement: 'Rock',
+    rarity: 'Rare',
+    monsterClass: 'Dinosaur',
+    attributes: ['Melee'],
+    abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 3, manaElement: 'Rock' }],
+    description: 'Tail Smash: Choose a target and deal 80 damage to it. If the target is an Ice type, deal 160 damage instead. Costs 3 Rock mana and is a one time use only.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
@@ -456,6 +470,7 @@ export const CardIds = {
   armoredillo: 'armoredillo',
   ruptar: 'ruptar',
   elderGopherStatue: 'elder-gopher-statue',
+  rockterrior: 'rockterrior',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -477,6 +492,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.ruptar,
   CardIds.mightyGopher,
   CardIds.elderGopherStatue,
+  CardIds.rockterrior,
 ];
 
 export const DECK_SIZE = 25;
