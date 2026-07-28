@@ -118,10 +118,11 @@ export class Card {
     }, 1200);
   }
 
-  /** Floating action feedback (Praise, etc.). */
+  /** Floating action feedback (Praise, mana generation, etc.). */
   protected readonly floatingActionFeedback = signal<{
     kind: ActionFeedbackKind;
     text: string;
+    manaParts?: { element: string; amount: number }[];
   } | null>(null);
   private floatingActionFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   private lastActionFeedbackTimestamp = Date.now();
@@ -145,18 +146,22 @@ export class Card {
             : ev.kind === 'praise-bonus-rock'
               ? '+1 Rock Mana per Turn'
               : '+1 mana');
-        this.showFloatingActionFeedback(ev.kind, text);
+        this.showFloatingActionFeedback(ev.kind, text, ev.manaParts);
       }
     }
   });
 
-  private showFloatingActionFeedback(kind: ActionFeedbackKind, text: string): void {
+  private showFloatingActionFeedback(
+    kind: ActionFeedbackKind,
+    text: string,
+    manaParts?: { element: string; amount: number }[],
+  ): void {
     if (this.floatingActionFeedbackTimer) { clearTimeout(this.floatingActionFeedbackTimer); }
-    this.floatingActionFeedback.set({ kind, text });
+    this.floatingActionFeedback.set({ kind, text, manaParts });
     this.floatingActionFeedbackTimer = setTimeout(() => {
       this.floatingActionFeedback.set(null);
       this.floatingActionFeedbackTimer = null;
-    }, 1200);
+    }, 1400);
   }
 
   /**

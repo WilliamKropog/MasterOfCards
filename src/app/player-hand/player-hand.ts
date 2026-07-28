@@ -128,7 +128,7 @@ export class PlayerHand {
     return Object.entries(pool)
       .filter(([, amount]) => amount > 0)
       .map(([element, amount]) => ({ element, amount }))
-      .sort((a, b) => a.element.localeCompare(b.element));
+      .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
   });
 
   protected readonly manaFromLandsAriaLabel = computed(() => {

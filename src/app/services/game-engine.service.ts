@@ -114,6 +114,11 @@ export interface DamageEvent {
 
 export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock' | 'mana-generated';
 
+export interface ManaFeedbackPart {
+  element: string;
+  amount: number;
+}
+
 /** Floating action feedback (e.g. Praise indicators on field cards). */
 export interface ActionFeedbackEvent {
   playerSlot: FieldPlayerSlot;
@@ -122,6 +127,8 @@ export interface ActionFeedbackEvent {
   kind: ActionFeedbackKind;
   /** Display text; when set, UI uses this instead of a kind default. */
   text?: string;
+  /** Per-element mana lines for turn-start land generation feedback. */
+  manaParts?: ManaFeedbackPart[];
   timestamp: number;
 }
 
@@ -356,10 +363,11 @@ export class GameEngineService {
           totals['Rock'] = (totals['Rock'] ?? 0) + praiseRock;
         }
 
-        const parts = Object.entries(totals)
+        const manaParts = Object.entries(totals)
           .filter(([, amount]) => amount > 0)
-          .map(([element, amount]) => `+${amount} ${element} mana`);
-        if (parts.length === 0) {
+          .map(([element, amount]) => ({ element, amount }))
+          .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
+        if (manaParts.length === 0) {
           return;
         }
 
@@ -368,7 +376,7 @@ export class GameEngineService {
           zone: 'land',
           identifier: index,
           kind: 'mana-generated',
-          text: parts.join(', '),
+          manaParts,
         });
       });
     };
