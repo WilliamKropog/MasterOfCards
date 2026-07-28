@@ -39,6 +39,7 @@
         class="card-floating-action"
         [class.card-floating-action--praising]="fb.kind === 'praising'"
         [class.card-floating-action--praise-bonus]="fb.kind === 'praise-bonus-rock'"
+        [class.card-floating-action--mana-generated]="fb.kind === 'mana-generated'"
       >{{ fb.text }}</span>
     }
     <div class="card-field-main">

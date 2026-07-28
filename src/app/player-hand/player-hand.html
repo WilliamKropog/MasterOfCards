@@ -64,7 +64,10 @@
         <span class="player-hand-mana-empty">—</span>
       } @else {
         @for (m of manaFromLandsRows(); track m.element) {
-          <span class="player-hand-mana-pill">{{ m.amount }} {{ m.element }}</span>
+          <span
+            class="player-hand-mana-pill"
+            [attr.data-mana-element]="m.element"
+          >{{ m.amount }} {{ m.element }}</span>
         }
       }
     }

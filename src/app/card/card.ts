@@ -138,7 +138,13 @@ export class Card {
       if (ev.timestamp <= this.lastActionFeedbackTimestamp) { continue; }
       if (ev.playerSlot === rowSlot && ev.zone === zone && ev.identifier === idx) {
         this.lastActionFeedbackTimestamp = ev.timestamp;
-        const text = ev.kind === 'praising' ? 'Praising' : '+1 Rock Mana';
+        const text =
+          ev.text ??
+          (ev.kind === 'praising'
+            ? 'Praising'
+            : ev.kind === 'praise-bonus-rock'
+              ? '+1 Rock Mana per Turn'
+              : '+1 mana');
         this.showFloatingActionFeedback(ev.kind, text);
       }
     }

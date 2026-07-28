@@ -577,6 +577,15 @@
   color: rgba(139, 90, 43, 1);
 }
 
+.card-floating-action--mana-generated {
+  color: rgba(139, 90, 43, 1);
+  font-size: 0.85rem;
+  max-width: 90%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+}
+
 .card.card--defending .card-floating-action,
 .card.card--land-building .card-floating-action {
   transform: rotate(90deg) translateX(-50%);

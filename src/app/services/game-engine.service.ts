@@ -112,7 +112,7 @@ export interface DamageEvent {
   timestamp: number;
 }
 
-export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock';
+export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock' | 'mana-generated';
 
 /** Floating action feedback (e.g. Praise indicators on field cards). */
 export interface ActionFeedbackEvent {
@@ -120,6 +120,8 @@ export interface ActionFeedbackEvent {
   zone: FieldZone;
   identifier: number;
   kind: ActionFeedbackKind;
+  /** Display text; when set, UI uses this instead of a kind default. */
+  text?: string;
   timestamp: number;
 }
 
@@ -322,6 +324,57 @@ export class GameEngineService {
     } else {
       this.player2ManaPool.set({ ...capacity });
     }
+    this.emitLandManaGenerationFeedback(slot);
+  }
+
+  /**
+   * Floating "+N Element mana" above each active land that contributes to `controller`'s pool.
+   */
+  private emitLandManaGenerationFeedback(controller: FieldPlayerSlot): void {
+    const ownerTurn = this.ownerTurnCounter(controller);
+    const emitForRow = (rowSlot: FieldPlayerSlot, lands: FieldCardEntry[]) => {
+      lands.forEach((entry, index) => {
+        if ((entry.controllerSlot ?? rowSlot) !== controller) {
+          return;
+        }
+        const def = getCardDefinition(entry.cardId);
+        if (!def?.generateMana) {
+          return;
+        }
+        if (isLandStillBuilding(def, entry.placedAtOwnerTurnCounter, ownerTurn)) {
+          return;
+        }
+
+        const totals: ManaGenerationMap = {};
+        for (const [element, amount] of Object.entries(def.generateMana)) {
+          if (amount > 0) {
+            totals[element] = (totals[element] ?? 0) + amount;
+          }
+        }
+        const praiseRock = entry.praiseBonusRock ?? 0;
+        if (praiseRock > 0) {
+          totals['Rock'] = (totals['Rock'] ?? 0) + praiseRock;
+        }
+
+        const parts = Object.entries(totals)
+          .filter(([, amount]) => amount > 0)
+          .map(([element, amount]) => `+${amount} ${element} mana`);
+        if (parts.length === 0) {
+          return;
+        }
+
+        this.emitActionFeedback({
+          playerSlot: rowSlot,
+          zone: 'land',
+          identifier: index,
+          kind: 'mana-generated',
+          text: parts.join(', '),
+        });
+      });
+    };
+
+    emitForRow('player1', this.player1FieldLand());
+    emitForRow('player2', this.player2FieldLand());
   }
 
   /**
@@ -842,6 +895,7 @@ export class GameEngineService {
       zone: 'land',
       identifier: landIndex,
       kind: 'praise-bonus-rock',
+      text: '+1 Rock Mana per Turn',
     });
 
     return true;
