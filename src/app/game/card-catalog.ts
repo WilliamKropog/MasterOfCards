@@ -326,6 +326,18 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     scaleDamageByTargetLandSpace: true,
     description: 'Deal 100 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
   },
+  'excavation-site': {
+    id: 'excavation-site',
+    name: 'Excavation Site',
+    cardType: 'Land',
+    maxHealth: 160,
+    cardElement: 'Rock',
+    rarity: 'Rare',
+    buildTime: 2,
+    space: 1,
+    generateMana: {Rock: 2, Sand: 2},
+    description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
