@@ -577,6 +577,15 @@
   color: rgba(139, 90, 43, 1);
 }
 
+.card-floating-action--excavated {
+  color: rgba(180, 140, 60, 1);
+  font-size: 0.85rem;
+  max-width: 95%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+}
+
 .card-floating-action-stack {
   position: absolute;
   top: 12%;
@@ -628,6 +637,10 @@
 
 .card-floating-action--mana-generated[data-mana-element='Lightning'] {
   color: rgba(202, 138, 4, 1);
+}
+
+.card-floating-action--mana-generated[data-mana-element='Sand'] {
+  color: rgba(161, 120, 54, 1);
 }
 
 .card.card--defending .card-floating-action-stack,
