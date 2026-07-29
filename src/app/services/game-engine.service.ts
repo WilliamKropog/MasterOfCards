@@ -17,6 +17,8 @@ import {
   monsterSummoningSicknessCleared,
   mustPlaceLandOnOpponentRow,
   OPENING_HAND_SIZE,
+  spellAllowsPlayerLifeTarget,
+  spellAllowsTargetZone,
   spendManaCost,
   type ManaCostMap,
   type ManaGenerationMap,
@@ -110,7 +112,12 @@ export interface DamageEvent {
   timestamp: number;
 }
 
-export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock';
+export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock' | 'mana-generated';
+
+export interface ManaFeedbackPart {
+  element: string;
+  amount: number;
+}
 
 /** Floating action feedback (e.g. Praise indicators on field cards). */
 export interface ActionFeedbackEvent {
@@ -118,6 +125,10 @@ export interface ActionFeedbackEvent {
   zone: FieldZone;
   identifier: number;
   kind: ActionFeedbackKind;
+  /** Display text; when set, UI uses this instead of a kind default. */
+  text?: string;
+  /** Per-element mana lines for turn-start land generation feedback. */
+  manaParts?: ManaFeedbackPart[];
   timestamp: number;
 }
 
@@ -320,6 +331,58 @@ export class GameEngineService {
     } else {
       this.player2ManaPool.set({ ...capacity });
     }
+    this.emitLandManaGenerationFeedback(slot);
+  }
+
+  /**
+   * Floating "+N Element mana" above each active land that contributes to `controller`'s pool.
+   */
+  private emitLandManaGenerationFeedback(controller: FieldPlayerSlot): void {
+    const ownerTurn = this.ownerTurnCounter(controller);
+    const emitForRow = (rowSlot: FieldPlayerSlot, lands: FieldCardEntry[]) => {
+      lands.forEach((entry, index) => {
+        if ((entry.controllerSlot ?? rowSlot) !== controller) {
+          return;
+        }
+        const def = getCardDefinition(entry.cardId);
+        if (!def?.generateMana) {
+          return;
+        }
+        if (isLandStillBuilding(def, entry.placedAtOwnerTurnCounter, ownerTurn)) {
+          return;
+        }
+
+        const totals: ManaGenerationMap = {};
+        for (const [element, amount] of Object.entries(def.generateMana)) {
+          if (amount > 0) {
+            totals[element] = (totals[element] ?? 0) + amount;
+          }
+        }
+        const praiseRock = entry.praiseBonusRock ?? 0;
+        if (praiseRock > 0) {
+          totals['Rock'] = (totals['Rock'] ?? 0) + praiseRock;
+        }
+
+        const manaParts = Object.entries(totals)
+          .filter(([, amount]) => amount > 0)
+          .map(([element, amount]) => ({ element, amount }))
+          .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
+        if (manaParts.length === 0) {
+          return;
+        }
+
+        this.emitActionFeedback({
+          playerSlot: rowSlot,
+          zone: 'land',
+          identifier: index,
+          kind: 'mana-generated',
+          manaParts,
+        });
+      });
+    };
+
+    emitForRow('player1', this.player1FieldLand());
+    emitForRow('player2', this.player2FieldLand());
   }
 
   /**
@@ -840,6 +903,7 @@ export class GameEngineService {
       zone: 'land',
       identifier: landIndex,
       kind: 'praise-bonus-rock',
+      text: '+1 Rock Mana per Turn',
     });
 
     return true;
@@ -877,6 +941,9 @@ export class GameEngineService {
     if (!spellDef || spellDef.cardType !== 'Spell') {
       return false;
     }
+    if (!spellAllowsTargetZone(spellDef, tether.zone)) {
+      return false;
+    }
 
     if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
       return false;
@@ -910,6 +977,10 @@ export class GameEngineService {
     const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
     if (zoneMultiplier !== undefined) {
       amount *= zoneMultiplier;
+    }
+    if (spellDef.scaleDamageByTargetLandSpace && tether.zone === 'land') {
+      const spaces = Math.max(1, effectiveLandSpace(defenderDef));
+      amount *= spaces;
     }
 
     const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
@@ -963,6 +1034,9 @@ export class GameEngineService {
 
     const spellDef = getCardDefinition(spellCardId);
     if (!spellDef || spellDef.cardType !== 'Spell') {
+      return false;
+    }
+    if (!spellAllowsPlayerLifeTarget(spellDef)) {
       return false;
     }
 

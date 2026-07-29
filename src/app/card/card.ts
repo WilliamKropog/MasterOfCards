@@ -13,6 +13,7 @@ import {
   monsterSummoningSicknessCleared,
   mustPlaceLandOnOpponentRow,
   remainingLandBuildTurns,
+  spellAllowsTargetZone,
 } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
@@ -117,10 +118,11 @@ export class Card {
     }, 1200);
   }
 
-  /** Floating action feedback (Praise, etc.). */
+  /** Floating action feedback (Praise, mana generation, etc.). */
   protected readonly floatingActionFeedback = signal<{
     kind: ActionFeedbackKind;
     text: string;
+    manaParts?: { element: string; amount: number }[];
   } | null>(null);
   private floatingActionFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   private lastActionFeedbackTimestamp = Date.now();
@@ -137,19 +139,29 @@ export class Card {
       if (ev.timestamp <= this.lastActionFeedbackTimestamp) { continue; }
       if (ev.playerSlot === rowSlot && ev.zone === zone && ev.identifier === idx) {
         this.lastActionFeedbackTimestamp = ev.timestamp;
-        const text = ev.kind === 'praising' ? 'Praising' : '+1 Rock Mana';
-        this.showFloatingActionFeedback(ev.kind, text);
+        const text =
+          ev.text ??
+          (ev.kind === 'praising'
+            ? 'Praising'
+            : ev.kind === 'praise-bonus-rock'
+              ? '+1 Rock Mana per Turn'
+              : '+1 mana');
+        this.showFloatingActionFeedback(ev.kind, text, ev.manaParts);
       }
     }
   });
 
-  private showFloatingActionFeedback(kind: ActionFeedbackKind, text: string): void {
+  private showFloatingActionFeedback(
+    kind: ActionFeedbackKind,
+    text: string,
+    manaParts?: { element: string; amount: number }[],
+  ): void {
     if (this.floatingActionFeedbackTimer) { clearTimeout(this.floatingActionFeedbackTimer); }
-    this.floatingActionFeedback.set({ kind, text });
+    this.floatingActionFeedback.set({ kind, text, manaParts });
     this.floatingActionFeedbackTimer = setTimeout(() => {
       this.floatingActionFeedback.set(null);
       this.floatingActionFeedbackTimer = null;
-    }, 1200);
+    }, 1400);
   }
 
   /**
@@ -471,8 +483,12 @@ export class Card {
     if (controller === null || controller === drag.ownerPlayerSlot) {
       return false;
     }
-    const type = this.def()?.cardType;
-    return type === 'Land' || type === 'Monster';
+    const zone = this.fieldZone();
+    if (zone !== 'land' && zone !== 'monster') {
+      return false;
+    }
+    const spellDef = getCardDefinition(drag.cardId);
+    return spellAllowsTargetZone(spellDef, zone);
   });
 
   /** Full-card red tether highlight: this field card is the spell snap-line target. */

@@ -59,6 +59,17 @@ export interface CardDefinition {
    * Example: `{ land: 2 }` doubles damage when the spell hits a land card.
    */
   damageMultiplierAgainstZone?: Partial<Record<TargetZone, number>>;
+  /**
+   * Spell-only: when true, multiply `damage` by the target land's `space`
+   * (e.g. Rock Slide: 80 × 3 spaces = 240). Only applies when targeting a land.
+   */
+  scaleDamageByTargetLandSpace?: boolean;
+  /**
+   * Spell-only: restrict legal field targets to these zones.
+   * Omit to allow both land and monster (and player LP via hand targeting).
+   * Example: `['land']` for Rock Slide.
+   */
+  allowedTargetZones?: TargetZone[];
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
   /**
@@ -303,6 +314,18 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 3, manaElement: 'Rock' }],
     description: 'Tail Smash: Choose a target and deal 80 damage to it. If the target is an Ice type, deal 160 damage instead. Costs 3 Rock mana and is a one time use only.',
   },
+  'rock-slide': {
+    id: 'rock-slide',
+    name: 'Rock Slide',
+    cardType: 'Spell',
+    manaCost: { Rock: 4 },
+    cardElement: 'Rock',
+    rarity: 'Uncommon',
+    damage: 100,
+    allowedTargetZones: ['land'],
+    scaleDamageByTargetLandSpace: true,
+    description: 'Deal 100 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
@@ -365,6 +388,30 @@ export function isValidLandDropRow(
 
 export function getCardDefinition(id: string): CardDefinition | undefined {
   return CARD_CATALOG[id];
+}
+
+/** Whether a spell may target the given field zone (defaults to both when unrestricted). */
+export function spellAllowsTargetZone(
+  def: CardDefinition | undefined,
+  zone: TargetZone,
+): boolean {
+  if (!def || def.cardType !== 'Spell') {
+    return false;
+  }
+  const allowed = def.allowedTargetZones;
+  if (!allowed || allowed.length === 0) {
+    return true;
+  }
+  return allowed.includes(zone);
+}
+
+/** Whether a spell may be cast at player life points (hand). Restricted spells cannot. */
+export function spellAllowsPlayerLifeTarget(def: CardDefinition | undefined): boolean {
+  if (!def || def.cardType !== 'Spell') {
+    return false;
+  }
+  const allowed = def.allowedTargetZones;
+  return !allowed || allowed.length === 0;
 }
 
 /** Monster-only: has the Haste attribute (awake and may attack the turn it was played). */
@@ -471,6 +518,7 @@ export const CardIds = {
   ruptar: 'ruptar',
   elderGopherStatue: 'elder-gopher-statue',
   rockterrior: 'rockterrior',
+  rockSlide: 'rock-slide',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -482,9 +530,9 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  // CardIds.rockMonster,
-  // CardIds.mightyGopher,
-  // CardIds.boulderToss,
+  CardIds.rockMonster,
+  CardIds.mightyGopher,
+  CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
   CardIds.templeOfBeing,
@@ -493,6 +541,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.mightyGopher,
   CardIds.elderGopherStatue,
   CardIds.rockterrior,
+  CardIds.rockSlide,
 ];
 
 export const DECK_SIZE = 25;

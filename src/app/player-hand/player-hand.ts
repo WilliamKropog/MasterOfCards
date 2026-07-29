@@ -1,6 +1,7 @@
 import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Card } from '../card/card';
+import { getCardDefinition, spellAllowsPlayerLifeTarget } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService, MAX_LAND_CAPACITY } from '../services/game-engine.service';
@@ -81,7 +82,10 @@ export class PlayerHand {
     if (!drag || drag.cardType !== 'Spell') {
       return false;
     }
-    return drag.ownerPlayerSlot !== this.playerSlot();
+    if (drag.ownerPlayerSlot === this.playerSlot()) {
+      return false;
+    }
+    return spellAllowsPlayerLifeTarget(getCardDefinition(drag.cardId));
   });
 
   /** Stronger highlight: pointer is over this enemy hand while dragging that spell. */
@@ -124,7 +128,7 @@ export class PlayerHand {
     return Object.entries(pool)
       .filter(([, amount]) => amount > 0)
       .map(([element, amount]) => ({ element, amount }))
-      .sort((a, b) => a.element.localeCompare(b.element));
+      .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
   });
 
   protected readonly manaFromLandsAriaLabel = computed(() => {

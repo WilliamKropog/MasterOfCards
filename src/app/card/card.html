@@ -35,11 +35,22 @@
       <span class="card-floating-damage" [class.card-floating-damage--blocked]="dmg.blocked">{{ dmg.blocked ? '-1 Shield' : '-' + dmg.amount + ' HP' }}</span>
     }
     @if (floatingActionFeedback(); as fb) {
-      <span
-        class="card-floating-action"
-        [class.card-floating-action--praising]="fb.kind === 'praising'"
-        [class.card-floating-action--praise-bonus]="fb.kind === 'praise-bonus-rock'"
-      >{{ fb.text }}</span>
+      @if (fb.manaParts?.length) {
+        <div class="card-floating-action-stack" aria-hidden="true">
+          @for (part of fb.manaParts; track part.element) {
+            <span
+              class="card-floating-action card-floating-action--mana-generated"
+              [attr.data-mana-element]="part.element"
+            >+{{ part.amount }} {{ part.element }} mana</span>
+          }
+        </div>
+      } @else {
+        <span
+          class="card-floating-action"
+          [class.card-floating-action--praising]="fb.kind === 'praising'"
+          [class.card-floating-action--praise-bonus]="fb.kind === 'praise-bonus-rock'"
+        >{{ fb.text }}</span>
+      }
     }
     <div class="card-field-main">
       <header class="card-field-name">{{ displayNameWithBlocks() }}</header>
