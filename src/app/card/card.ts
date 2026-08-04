@@ -196,7 +196,7 @@ export class Card {
     return slotId === turn;
   });
 
-  /** Cards with `manaCost` require each listed element from the player's current turn mana pool. */
+  /** Cards with `manaCost` require each listed element from the player's mana pool. */
   private readonly cannotAffordManaCostInHand = computed(() => {
     if (!this.inPlayerHand()) {
       return false;

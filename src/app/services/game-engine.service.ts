@@ -2,10 +2,13 @@ import { computed, Injectable, signal } from '@angular/core';
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import {
   addManaToPool,
+  addManaToPoolCapped,
   aggregateManaFromActiveFieldLands,
+  aggregateMaxManaFromActiveFieldLands,
   buildShuffledDeck,
   canAffordManaCost,
   CardIds,
+  clampManaPoolToMax,
   effectiveLandBuildTime,
   effectiveLandSpace,
   getCardDefinition,
@@ -212,7 +215,7 @@ export class GameEngineService {
   readonly player1ManaPool = signal<ManaGenerationMap>({});
   readonly player2ManaPool = signal<ManaGenerationMap>({});
 
-  /** Current turn mana pool for UI and affordability checks. */
+  /** Accumulated mana pool for UI and affordability checks. */
   readonly player1Mana = computed(() => this.player1ManaPool());
   readonly player2Mana = computed(() => this.player2ManaPool());
 
@@ -336,13 +339,14 @@ export class GameEngineService {
     return entry;
   }
 
-  /** Refills a player's turn mana from active lands (called at the start of their turn). */
+  /** Adds this turn's mana from active lands onto the player's existing pool (accumulates, capped by maxMana). */
   refreshManaPool(slot: FieldPlayerSlot): void {
-    const capacity = this.manaCapacityFromLands(slot);
+    const generated = this.manaCapacityFromLands(slot);
+    const maxMana = this.manaMaxFromLands(slot);
     if (slot === 'player1') {
-      this.player1ManaPool.set({ ...capacity });
+      this.player1ManaPool.update((pool) => addManaToPoolCapped(pool, generated, maxMana));
     } else {
-      this.player2ManaPool.set({ ...capacity });
+      this.player2ManaPool.update((pool) => addManaToPoolCapped(pool, generated, maxMana));
     }
     this.emitLandManaGenerationFeedback(slot);
   }
@@ -418,7 +422,7 @@ export class GameEngineService {
 
   /**
    * Lands with no `buildTime` add their `generateMana` to the placer's pool as soon as they hit the field.
-   * Lands still building only contribute on later turn refreshes.
+   * Lands still building only contribute on later turn refreshes. Amounts are capped by active maxMana.
    */
   grantImmediateManaFromPlacedLand(controllerSlot: FieldPlayerSlot, cardId: string): void {
     const def = getCardDefinition(cardId);
@@ -429,7 +433,7 @@ export class GameEngineService {
       return;
     }
     const pool = controllerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
-    const next = addManaToPool(pool, def.generateMana);
+    const next = addManaToPoolCapped(pool, def.generateMana, this.manaMaxFromLands(controllerSlot));
     if (controllerSlot === 'player1') {
       this.player1ManaPool.set(next);
     } else {
@@ -437,23 +441,45 @@ export class GameEngineService {
     }
   }
 
-  /** Mana capacity from lands this player controls (not spent until turn pool is refreshed). */
+  /** Mana generated per turn from lands this player controls. */
   private manaCapacityFromLands(controller: FieldPlayerSlot): ManaGenerationMap {
-    const ownerTurnCounter = this.ownerTurnCounter(controller);
+    return aggregateManaFromActiveFieldLands(
+      this.controlledLandManaEntries(controller),
+      this.ownerTurnCounter(controller),
+    );
+  }
+
+  /** Storage caps from active lands this player controls (sum of catalog `maxMana`). */
+  manaMaxFromLands(controller: FieldPlayerSlot): ManaGenerationMap {
+    return aggregateMaxManaFromActiveFieldLands(
+      this.controlledLandManaEntries(controller),
+      this.ownerTurnCounter(controller),
+    );
+  }
+
+  private controlledLandManaEntries(controller: FieldPlayerSlot): FieldCardEntry[] {
     const entries: FieldCardEntry[] = [];
     for (const entry of this.player1FieldLand()) {
-      const c = entry.controllerSlot ?? 'player1';
-      if (c === controller) {
+      if ((entry.controllerSlot ?? 'player1') === controller) {
         entries.push(entry);
       }
     }
     for (const entry of this.player2FieldLand()) {
-      const c = entry.controllerSlot ?? 'player2';
-      if (c === controller) {
+      if ((entry.controllerSlot ?? 'player2') === controller) {
         entries.push(entry);
       }
     }
-    return aggregateManaFromActiveFieldLands(entries, ownerTurnCounter);
+    return entries;
+  }
+
+  /** Drop excess mana when lands (and thus caps) are lost. */
+  private clampManaPoolForController(controller: FieldPlayerSlot): void {
+    const maxMana = this.manaMaxFromLands(controller);
+    if (controller === 'player1') {
+      this.player1ManaPool.update((pool) => clampManaPoolToMax(pool, maxMana));
+    } else {
+      this.player2ManaPool.update((pool) => clampManaPoolToMax(pool, maxMana));
+    }
   }
 
   /** Sum of catalog `space` counting toward this player's land capacity. */
@@ -1348,6 +1374,10 @@ export class GameEngineService {
       this.player2FieldLand.update(apply);
     } else {
       this.player2FieldMonster.update(apply);
+    }
+
+    if (hp <= 0 && zone === 'land') {
+      this.clampManaPoolForController(entry.controllerSlot ?? slot);
     }
 
     if (excavationRevive) {
