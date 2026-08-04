@@ -39,6 +39,11 @@ export interface CardDefinition {
   maxHealth?: number;
   /** Combat power (creatures, weapons, etc.) — used for outgoing and counter damage in combat. */
   attack?: number;
+  /**
+   * Monster-only: how many times this monster may attack per turn (`2` = two attacks).
+   * Omit or `1` for a single attack (default).
+   */
+  multiAttack?: number;
   // /** Monster-only: retired — combat uses `attack` for all damage. */
   // defense?: number;
   /**
@@ -77,6 +82,11 @@ export interface CardDefinition {
   destroysTarget?: boolean;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
+  /**
+   * Land-only: maximum mana of each element this land contributes to the player's storage cap.
+   * Caps stack across active lands (two lands with `Rock: 5` → hold up to 10 Rock).
+   */
+  maxMana?: ManaGenerationMap;
   /**
    * Land-only: how many of the owning player's turns after play before the land is active.
    * Activates at the start of the owner's turn when their turn counter reaches `placed + buildTime`.
@@ -165,6 +175,37 @@ export function addManaToPool(pool: ManaGenerationMap, add: ManaGenerationMap): 
   return next;
 }
 
+/**
+ * Clamps each element in `pool` to the matching cap in `maxMana`.
+ * Elements with no positive cap are removed (cannot be stored).
+ */
+export function clampManaPoolToMax(
+  pool: ManaGenerationMap,
+  maxMana: ManaGenerationMap,
+): ManaGenerationMap {
+  const next: ManaGenerationMap = {};
+  for (const [element, amount] of Object.entries(pool)) {
+    if (amount <= 0) {
+      continue;
+    }
+    const cap = maxMana[element] ?? 0;
+    if (cap <= 0) {
+      continue;
+    }
+    next[element] = Math.min(amount, cap);
+  }
+  return next;
+}
+
+/** Adds mana then clamps to `maxMana` caps. */
+export function addManaToPoolCapped(
+  pool: ManaGenerationMap,
+  add: ManaGenerationMap,
+  maxMana: ManaGenerationMap,
+): ManaGenerationMap {
+  return clampManaPoolToMax(addManaToPool(pool, add), maxMana);
+}
+
 /** UI label for mana cost, or `null` when the card is free to play. */
 export function formatManaCostForDisplay(cost: ManaCostMap | undefined): string | null {
   if (!hasManaCost(cost)) {
@@ -208,7 +249,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'boulder-toss',
     name: 'Boulder Toss',
     cardType: 'Spell',
-    manaCost: { Rock: 2 },
+    manaCost: { Rock: 4 },
     cardElement: 'Rock',
     rarity: 'Common',
     damage: 60,
@@ -224,6 +265,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Common',
     buildTime: 0,
     generateMana: {Rock: 1},
+    maxMana: {Rock: 5},
     space: 1,
     description: 'A building that gets built and generates Rock mana instantly.',
   },
@@ -244,13 +286,14 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'mountain-range',
     name: 'Mountain Range',
     cardType: 'Land',
-    manaCost: { Rock: 2 },
+    manaCost: { Rock: 4 },
     maxHealth: 400,
     cardElement: 'Rock',
     rarity: 'Uncommon',
     buildTime: 3,
     space: 3,
     generateMana: {Rock: 4, Ice: 3, Wind: 3, Mystic: 2, Grass: 2, Lightning: 2},
+    maxMana: {Rock: 15, Ice: 10, Wind: 10, Mystic: 5, Grass: 5, Lightning: 5},
     description: 'A mountainous region that generates lots of mana.',
   },
   'temple-of-being': {
@@ -263,6 +306,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     buildTime: 2,
     space: 1,
     generateMana: {Rock: 2},
+    maxMana: {Rock: 6},
     placeOnOpponentLandRow: true,
     description: 'Can only be placed on the opponent\'s field if they have space available.',
   },
@@ -283,14 +327,15 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'ruptar',
     name: 'Ruptar',
     cardType: 'Monster',
-    manaCost: { Rock: 2 },
-    maxHealth: 100,
+    manaCost: { Rock: 4 },
+    maxHealth: 120,
     attack: 30,
+    multiAttack: 2,
     cardElement: 'Rock',
     rarity: 'Uncommon',
     monsterClass: 'Dinosaur',
     attributes: ['Melee', 'Haste'],
-    description: 'Deals an additional +30 damage when attacking targets that are Lightning typed.',
+    description: 'If attacking a target that is Lightning typed, gain an additional attack for that turn.',
   },
   'elder-gopher-statue': {
     id: 'elder-gopher-statue',
@@ -302,6 +347,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     buildTime: 1,
     space: 1,
     generateMana: {Rock: 1},
+    maxMana: {Rock: 10},
     landAbilities: [{ id: 'praise', name: 'Praise', manaCost: 0, manaElement: 'Rock' }],
     description: 'Elder Gopher Statue is powered by the Praises of the Mighty Gophers. Every time a Mighty Gopher Praises the Elder Gopher Statue, it generates an additional 1 Rock mana permanently. Consumes the turn of the Mighty Gopher.',
   },
@@ -309,21 +355,21 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'rockterrior',
     name: 'Rockterrior',
     cardType: 'Monster',
-    manaCost: { Rock: 5 },
+    manaCost: { Rock: 8 },
     maxHealth: 180,
     attack: 30,
     cardElement: 'Rock',
     rarity: 'Rare',
     monsterClass: 'Dinosaur',
     attributes: ['Melee'],
-    abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 3, manaElement: 'Rock' }],
+    abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 5, manaElement: 'Rock' }],
     description: 'Tail Smash: Choose a target and deal 80 damage to it. If the target is an Ice type, deal 160 damage instead. Costs 3 Rock mana and is a one time use only.',
   },
   'rock-slide': {
     id: 'rock-slide',
     name: 'Rock Slide',
     cardType: 'Spell',
-    manaCost: { Rock: 4 },
+    manaCost: { Rock: 7 },
     cardElement: 'Rock',
     rarity: 'Uncommon',
     damage: 100,
@@ -341,13 +387,14 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     buildTime: 2,
     space: 1,
     generateMana: {Rock: 2, Sand: 2},
+    maxMana: {Rock: 7, Sand: 7},
     description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard. One time use only.',
   },
   'earth-shatter': {
     id: 'earth-shatter',
     name: 'Earth Shatter',
     cardType: 'Spell',
-    manaCost: { Rock: 8 },
+    manaCost: { Rock: 12 },
     cardElement: 'Rock',
     rarity: 'Epic',
     allowedTargetZones: ['land'],
@@ -358,15 +405,30 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: '1000-mile-wall',
     name: '1000 Mile Wall',
     cardType: 'Land',
-    manaCost: { Rock: 3 },
+    manaCost: { Rock: 7 },
     maxHealth: 500,
     cardElement: 'Rock',
     rarity: 'Epic',
-    buildTime: 5,
-    space: 6,
+    buildTime: 4,
+    space: 5,
     generateMana: {Rock: 9},
+    maxMana: {Rock: 20},
     description:
       'After this land finishes building: whenever a Monster is placed on it, that Monster gains 1 block for each Monster on this land (including itself), and each other Monster already on this land gains 1 block. Monsters already on these spaces when this land finishes building each gain 1 block per Monster on this land.',
+  },
+  'king-colossus': {
+    id: 'king-colossus',
+    name: 'King Colossus',
+    cardType: 'Monster',
+    manaCost: { Rock: 15 },
+    maxHealth: 200,
+    attack: 50,
+    cardElement: 'Rock',
+    rarity: 'Legendary',
+    monsterClass: 'Elemental',
+    attributes: ['Melee'],
+    description:
+      'When placed, starts with an additional +10 Health for every Rock mana you currently have.',
   },
 };
 
@@ -548,6 +610,32 @@ export function aggregateManaFromActiveFieldLands(
   return out;
 }
 
+/**
+ * Sums `maxMana` from field lands that have finished building.
+ * Same activation rules as {@link aggregateManaFromActiveFieldLands}.
+ */
+export function aggregateMaxManaFromActiveFieldLands(
+  lands: readonly FieldLandManaEntry[],
+  ownerTurnCounter: number,
+): ManaGenerationMap {
+  const out: ManaGenerationMap = {};
+  for (const entry of lands) {
+    const def = getCardDefinition(entry.cardId);
+    if (!def?.maxMana) {
+      continue;
+    }
+    if (isLandStillBuilding(def, entry.placedAtOwnerTurnCounter, ownerTurnCounter)) {
+      continue;
+    }
+    for (const [element, amount] of Object.entries(def.maxMana)) {
+      if (amount > 0) {
+        out[element] = (out[element] ?? 0) + amount;
+      }
+    }
+  }
+  return out;
+}
+
 /** Use in templates / routes so ids are not magic strings everywhere. */
 export const CardIds = {
   rockMonster: 'rock-monster',
@@ -564,6 +652,7 @@ export const CardIds = {
   excavationSite: 'excavation-site',
   earthShatter: 'earth-shatter',
   thousandMileWall: '1000-mile-wall',
+  kingColossus: 'king-colossus',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -578,26 +667,31 @@ export function isThousandMileWall(def: CardDefinition | undefined): boolean {
   return def?.id === CardIds.thousandMileWall;
 }
 
+export function isKingColossus(def: CardDefinition | undefined): boolean {
+  return def?.id === CardIds.kingColossus;
+}
+
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
 export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
   CardIds.rockMonster,
-  // CardIds.mightyGopher,
-  // CardIds.boulderToss,
+  CardIds.mightyGopher,
+  CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
-  // CardIds.templeOfBeing,
-  // CardIds.armoredillo,
-  // CardIds.ruptar,
-  // CardIds.mightyGopher,
-  // CardIds.elderGopherStatue,
-  // CardIds.rockterrior,
-  // CardIds.rockSlide,
-  // CardIds.excavationSite,
+  CardIds.templeOfBeing,
+  CardIds.armoredillo,
+  CardIds.ruptar,
+  CardIds.mightyGopher,
+  CardIds.elderGopherStatue,
+  CardIds.rockterrior,
+  CardIds.rockSlide,
+  CardIds.excavationSite,
   CardIds.earthShatter,
   CardIds.thousandMileWall,
+  CardIds.kingColossus,
 ];
 
 export const DECK_SIZE = 25;
