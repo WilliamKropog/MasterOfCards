@@ -338,6 +338,17 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 2, Sand: 2},
     description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard. One time use only.',
   },
+  'earth-shatter': {
+    id: 'earth-shatter',
+    name: 'Earth Shatter',
+    cardType: 'Spell',
+    manaCost: { Rock: 8 },
+    cardElement: 'Rock',
+    rarity: 'Epic',
+    allowedTargetZones: ['land'],
+    scaleDamageByTargetLandSpace: true,
+    description: 'Select any one land card on your opponent\'s field and destroy it.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
