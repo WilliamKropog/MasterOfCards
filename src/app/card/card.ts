@@ -147,7 +147,9 @@ export class Card {
               ? '+1 Rock Mana per Turn'
               : ev.kind === 'excavated'
                 ? 'Excavated — returned to deck'
-                : '+1 mana');
+                : ev.kind === 'wall-shielding'
+                  ? '+1 shielding'
+                  : '+1 mana');
         this.showFloatingActionFeedback(ev.kind, text, ev.manaParts);
       }
     }

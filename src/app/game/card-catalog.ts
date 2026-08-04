@@ -358,14 +358,15 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: '1000-mile-wall',
     name: '1000 Mile Wall',
     cardType: 'Land',
-    manaCost: { Rock: 7 },
+    manaCost: { Rock: 3 },
     maxHealth: 500,
     cardElement: 'Rock',
     rarity: 'Epic',
     buildTime: 5,
     space: 6,
     generateMana: {Rock: 9},
-    description: 'Every creature placed on this land card, or was already in play before being put on this land card, is granted 1 block and +10 attack for every creature this card.',
+    description:
+      'After this land finishes building: whenever a Monster is placed on it, that Monster gains 1 block for each Monster on this land (including itself), and each other Monster already on this land gains 1 block. Monsters already on these spaces when this land finishes building each gain 1 block per Monster on this land.',
   },
 };
 
@@ -562,6 +563,7 @@ export const CardIds = {
   rockSlide: 'rock-slide',
   excavationSite: 'excavation-site',
   earthShatter: 'earth-shatter',
+  thousandMileWall: '1000-mile-wall',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -572,12 +574,16 @@ export function isExcavationSite(def: CardDefinition | undefined): boolean {
   return def?.id === CardIds.excavationSite;
 }
 
+export function isThousandMileWall(def: CardDefinition | undefined): boolean {
+  return def?.id === CardIds.thousandMileWall;
+}
+
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
 export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  // CardIds.rockMonster,
+  CardIds.rockMonster,
   // CardIds.mightyGopher,
   // CardIds.boulderToss,
   CardIds.mudHut,
@@ -591,6 +597,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   // CardIds.rockSlide,
   // CardIds.excavationSite,
   CardIds.earthShatter,
+  CardIds.thousandMileWall,
 ];
 
 export const DECK_SIZE = 25;

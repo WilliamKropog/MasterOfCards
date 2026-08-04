@@ -586,6 +586,12 @@
   line-height: 1.2;
 }
 
+.card-floating-action--wall-shielding {
+  color: rgba(148, 163, 184, 1);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .card-floating-action-stack {
   position: absolute;
   top: 12%;
