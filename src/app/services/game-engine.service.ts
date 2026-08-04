@@ -11,6 +11,7 @@ import {
   getCardDefinition,
   hasManaCost,
   isElderGopherStatue,
+  isExcavationSite,
   isLandStillBuilding,
   landCapacityOwner,
   landCapacityOwnerForPlay,
@@ -112,7 +113,7 @@ export interface DamageEvent {
   timestamp: number;
 }
 
-export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock' | 'mana-generated';
+export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock' | 'mana-generated' | 'excavated';
 
 export interface ManaFeedbackPart {
   element: string;
@@ -1269,6 +1270,7 @@ export class GameEngineService {
    * Updates or removes a field entry.
    * For monsters, `identifier` is the fieldSlot (1–9).
    * For lands, `identifier` is the array index.
+   * When a monster dies at 0 HP, Excavation Site may return a Dinosaur to the bottom of the deck (one-time).
    */
   private applyFieldEntry(
     slot: FieldPlayerSlot,
@@ -1279,6 +1281,11 @@ export class GameEngineService {
     const def = getCardDefinition(entry.cardId);
     const maxHp = def?.maxHealth ?? 0;
     const hp = entry.currentHealth ?? maxHp;
+
+    const excavationRevive =
+      hp <= 0 && zone === 'monster'
+        ? this.findExcavationSiteRevive(slot, entry)
+        : null;
 
     const apply = (arr: FieldCardEntry[]): FieldCardEntry[] => {
       const next = [...arr];
@@ -1307,6 +1314,103 @@ export class GameEngineService {
       this.player2FieldLand.update(apply);
     } else {
       this.player2FieldMonster.update(apply);
+    }
+
+    if (excavationRevive) {
+      this.putCardAtBottomOfDeck(excavationRevive.deckOwner, excavationRevive.cardId);
+      this.markExcavationSiteUsed(slot, excavationRevive.landIndex);
+      this.emitActionFeedback({
+        playerSlot: slot,
+        zone: 'land',
+        identifier: excavationRevive.landIndex,
+        kind: 'excavated',
+        text: 'Excavated — returned to deck',
+      });
+    }
+  }
+
+  /**
+   * If an unused, active Excavation Site influences this dead Dinosaur's space, return its land index.
+   */
+  private findExcavationSiteRevive(
+    rowSlot: FieldPlayerSlot,
+    deadMonster: FieldCardEntry,
+  ): { landIndex: number; cardId: string; deckOwner: FieldPlayerSlot } | null {
+    const monsterDef = getCardDefinition(deadMonster.cardId);
+    if (!monsterDef || monsterDef.monsterClass !== 'Dinosaur') {
+      return null;
+    }
+    const fieldSlot = deadMonster.fieldSlot;
+    if (fieldSlot === undefined) {
+      return null;
+    }
+
+    const lands = rowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+    for (let i = 0; i < lands.length; i++) {
+      const land = lands[i]!;
+      if (!isExcavationSite(getCardDefinition(land.cardId))) {
+        continue;
+      }
+      if ((land.usedAbilities ?? []).includes('excavate')) {
+        continue;
+      }
+      if (!(land.influencedSpaces ?? []).includes(fieldSlot)) {
+        continue;
+      }
+      const landController = land.controllerSlot ?? rowSlot;
+      if (
+        isLandStillBuilding(
+          getCardDefinition(land.cardId),
+          land.placedAtOwnerTurnCounter,
+          this.ownerTurnCounter(landController),
+        )
+      ) {
+        continue;
+      }
+      return {
+        landIndex: i,
+        cardId: deadMonster.cardId,
+        deckOwner: deadMonster.controllerSlot ?? rowSlot,
+      };
+    }
+    return null;
+  }
+
+  private putCardAtBottomOfDeck(slot: FieldPlayerSlot, cardId: string): void {
+    if (slot === 'player1') {
+      this.player1Deck.update((deck) => [...deck, cardId]);
+    } else {
+      this.player2Deck.update((deck) => [...deck, cardId]);
+    }
+  }
+
+  private markExcavationSiteUsed(rowSlot: FieldPlayerSlot, landIndex: number): void {
+    const lands = rowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+    const land = lands[landIndex];
+    if (!land) {
+      return;
+    }
+    const used = [...(land.usedAbilities ?? [])];
+    if (!used.includes('excavate')) {
+      used.push('excavate');
+    }
+    const updated: FieldCardEntry = { ...land, usedAbilities: used };
+    if (rowSlot === 'player1') {
+      this.player1FieldLand.update((arr) => {
+        const next = [...arr];
+        if (landIndex >= 0 && landIndex < next.length) {
+          next[landIndex] = updated;
+        }
+        return next;
+      });
+    } else {
+      this.player2FieldLand.update((arr) => {
+        const next = [...arr];
+        if (landIndex >= 0 && landIndex < next.length) {
+          next[landIndex] = updated;
+        }
+        return next;
+      });
     }
   }
 

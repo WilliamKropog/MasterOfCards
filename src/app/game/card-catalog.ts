@@ -326,6 +326,18 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     scaleDamageByTargetLandSpace: true,
     description: 'Deal 100 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
   },
+  'excavation-site': {
+    id: 'excavation-site',
+    name: 'Excavation Site',
+    cardType: 'Land',
+    maxHealth: 160,
+    cardElement: 'Rock',
+    rarity: 'Rare',
+    buildTime: 2,
+    space: 1,
+    generateMana: {Rock: 2, Sand: 2},
+    description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard. One time use only.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
@@ -519,10 +531,15 @@ export const CardIds = {
   elderGopherStatue: 'elder-gopher-statue',
   rockterrior: 'rockterrior',
   rockSlide: 'rock-slide',
+  excavationSite: 'excavation-site',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
   return def?.id === CardIds.elderGopherStatue;
+}
+
+export function isExcavationSite(def: CardDefinition | undefined): boolean {
+  return def?.id === CardIds.excavationSite;
 }
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -542,6 +559,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   CardIds.elderGopherStatue,
   CardIds.rockterrior,
   CardIds.rockSlide,
+  CardIds.excavationSite,
 ];
 
 export const DECK_SIZE = 25;

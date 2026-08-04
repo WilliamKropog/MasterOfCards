@@ -145,7 +145,9 @@ export class Card {
             ? 'Praising'
             : ev.kind === 'praise-bonus-rock'
               ? '+1 Rock Mana per Turn'
-              : '+1 mana');
+              : ev.kind === 'excavated'
+                ? 'Excavated — returned to deck'
+                : '+1 mana');
         this.showFloatingActionFeedback(ev.kind, text, ev.manaParts);
       }
     }
