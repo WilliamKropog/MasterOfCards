@@ -70,6 +70,11 @@ export interface CardDefinition {
    * Example: `['land']` for Rock Slide.
    */
   allowedTargetZones?: TargetZone[];
+  /**
+   * Spell-only: when true, destroy the tethered field card (set HP to 0 / remove)
+   * instead of dealing catalog `damage`.
+   */
+  destroysTarget?: boolean;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
   /**
@@ -346,7 +351,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Epic',
     allowedTargetZones: ['land'],
-    scaleDamageByTargetLandSpace: true,
+    destroysTarget: true,
     description: 'Select any one land card on your opponent\'s field and destroy it.',
   },
 };
@@ -543,6 +548,7 @@ export const CardIds = {
   rockterrior: 'rockterrior',
   rockSlide: 'rock-slide',
   excavationSite: 'excavation-site',
+  earthShatter: 'earth-shatter',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -558,19 +564,20 @@ export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
-  CardIds.rockMonster,
-  CardIds.mightyGopher,
-  CardIds.boulderToss,
+  // CardIds.rockMonster,
+  // CardIds.mightyGopher,
+  // CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
-  CardIds.templeOfBeing,
-  CardIds.armoredillo,
-  CardIds.ruptar,
-  CardIds.mightyGopher,
-  CardIds.elderGopherStatue,
-  CardIds.rockterrior,
-  CardIds.rockSlide,
-  CardIds.excavationSite,
+  // CardIds.templeOfBeing,
+  // CardIds.armoredillo,
+  // CardIds.ruptar,
+  // CardIds.mightyGopher,
+  // CardIds.elderGopherStatue,
+  // CardIds.rockterrior,
+  // CardIds.rockSlide,
+  // CardIds.excavationSite,
+  CardIds.earthShatter,
 ];
 
 export const DECK_SIZE = 25;

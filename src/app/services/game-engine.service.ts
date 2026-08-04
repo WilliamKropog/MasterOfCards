@@ -946,10 +946,6 @@ export class GameEngineService {
       return false;
     }
 
-    if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
-      return false;
-    }
-
     const defenderEntry = this.getFieldEntry(tether.slot, tether.zone, tether.index);
     if (!defenderEntry) {
       return false;
@@ -961,32 +957,34 @@ export class GameEngineService {
       return false;
     }
 
-    const baseDamage = spellDef.damage;
-    if (baseDamage === undefined || baseDamage <= 0) {
-      return false;
-    }
-
     const defenderDef = getCardDefinition(defenderEntry.cardId);
     if (!defenderDef) {
       return false;
     }
 
-    let amount = baseDamage;
-    if (defenderDef.attributes?.includes('Flying')) {
-      amount *= 2;
-    }
-    const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
-    if (zoneMultiplier !== undefined) {
-      amount *= zoneMultiplier;
-    }
-    if (spellDef.scaleDamageByTargetLandSpace && tether.zone === 'land') {
-      const spaces = Math.max(1, effectiveLandSpace(defenderDef));
-      amount *= spaces;
+    const destroys = spellDef.destroysTarget === true;
+    let amount = 0;
+    if (!destroys) {
+      const baseDamage = spellDef.damage;
+      if (baseDamage === undefined || baseDamage <= 0) {
+        return false;
+      }
+      amount = baseDamage;
+      if (defenderDef.attributes?.includes('Flying')) {
+        amount *= 2;
+      }
+      const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
+      if (zoneMultiplier !== undefined) {
+        amount *= zoneMultiplier;
+      }
+      if (spellDef.scaleDamageByTargetLandSpace && tether.zone === 'land') {
+        const spaces = Math.max(1, effectiveLandSpace(defenderDef));
+        amount *= spaces;
+      }
     }
 
-    const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
-    if (amount > 0) {
-      this.emitDamage({ playerSlot: tether.slot, zone: tether.zone, identifier: tether.index, amount, blocked: defBlocked });
+    if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
+      return false;
     }
 
     const removeAtIndex = (arr: string[]): string[] => {
@@ -998,6 +996,30 @@ export class GameEngineService {
       this.player1Hand.update(removeAtIndex);
     } else {
       this.player2Hand.update(removeAtIndex);
+    }
+
+    if (destroys) {
+      this.applyFieldEntry(tether.slot, tether.zone, tether.index, {
+        ...defenderEntry,
+        currentHealth: 0,
+      });
+      this.attackMode.set(null);
+      return true;
+    }
+
+    const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(
+      defenderEntry,
+      amount,
+      defenderDef,
+    );
+    if (amount > 0) {
+      this.emitDamage({
+        playerSlot: tether.slot,
+        zone: tether.zone,
+        identifier: tether.index,
+        amount,
+        blocked: defBlocked,
+      });
     }
 
     this.applyFieldEntry(tether.slot, tether.zone, tether.index, defenderResult);
