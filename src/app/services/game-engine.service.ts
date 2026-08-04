@@ -13,6 +13,7 @@ import {
   isElderGopherStatue,
   isExcavationSite,
   isLandStillBuilding,
+  isThousandMileWall,
   landCapacityOwner,
   landCapacityOwnerForPlay,
   monsterSummoningSicknessCleared,
@@ -113,7 +114,12 @@ export interface DamageEvent {
   timestamp: number;
 }
 
-export type ActionFeedbackKind = 'praising' | 'praise-bonus-rock' | 'mana-generated' | 'excavated';
+export type ActionFeedbackKind =
+  | 'praising'
+  | 'praise-bonus-rock'
+  | 'mana-generated'
+  | 'excavated'
+  | 'wall-shielding';
 
 export interface ManaFeedbackPart {
   element: string;
@@ -946,10 +952,6 @@ export class GameEngineService {
       return false;
     }
 
-    if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
-      return false;
-    }
-
     const defenderEntry = this.getFieldEntry(tether.slot, tether.zone, tether.index);
     if (!defenderEntry) {
       return false;
@@ -961,32 +963,34 @@ export class GameEngineService {
       return false;
     }
 
-    const baseDamage = spellDef.damage;
-    if (baseDamage === undefined || baseDamage <= 0) {
-      return false;
-    }
-
     const defenderDef = getCardDefinition(defenderEntry.cardId);
     if (!defenderDef) {
       return false;
     }
 
-    let amount = baseDamage;
-    if (defenderDef.attributes?.includes('Flying')) {
-      amount *= 2;
-    }
-    const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
-    if (zoneMultiplier !== undefined) {
-      amount *= zoneMultiplier;
-    }
-    if (spellDef.scaleDamageByTargetLandSpace && tether.zone === 'land') {
-      const spaces = Math.max(1, effectiveLandSpace(defenderDef));
-      amount *= spaces;
+    const destroys = spellDef.destroysTarget === true;
+    let amount = 0;
+    if (!destroys) {
+      const baseDamage = spellDef.damage;
+      if (baseDamage === undefined || baseDamage <= 0) {
+        return false;
+      }
+      amount = baseDamage;
+      if (defenderDef.attributes?.includes('Flying')) {
+        amount *= 2;
+      }
+      const zoneMultiplier = spellDef.damageMultiplierAgainstZone?.[tether.zone];
+      if (zoneMultiplier !== undefined) {
+        amount *= zoneMultiplier;
+      }
+      if (spellDef.scaleDamageByTargetLandSpace && tether.zone === 'land') {
+        const spaces = Math.max(1, effectiveLandSpace(defenderDef));
+        amount *= spaces;
+      }
     }
 
-    const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(defenderEntry, amount, defenderDef);
-    if (amount > 0) {
-      this.emitDamage({ playerSlot: tether.slot, zone: tether.zone, identifier: tether.index, amount, blocked: defBlocked });
+    if (!this.trySpendMana(casterSlot, spellDef.manaCost)) {
+      return false;
     }
 
     const removeAtIndex = (arr: string[]): string[] => {
@@ -998,6 +1002,30 @@ export class GameEngineService {
       this.player1Hand.update(removeAtIndex);
     } else {
       this.player2Hand.update(removeAtIndex);
+    }
+
+    if (destroys) {
+      this.applyFieldEntry(tether.slot, tether.zone, tether.index, {
+        ...defenderEntry,
+        currentHealth: 0,
+      });
+      this.attackMode.set(null);
+      return true;
+    }
+
+    const { entry: defenderResult, blocked: defBlocked } = this.applyIncomingFieldDamage(
+      defenderEntry,
+      amount,
+      defenderDef,
+    );
+    if (amount > 0) {
+      this.emitDamage({
+        playerSlot: tether.slot,
+        zone: tether.zone,
+        identifier: tether.index,
+        amount,
+        blocked: defBlocked,
+      });
     }
 
     this.applyFieldEntry(tether.slot, tether.zone, tether.index, defenderResult);
@@ -1414,6 +1442,187 @@ export class GameEngineService {
     }
   }
 
+  /** True when a 1000 Mile Wall has finished its buildTime and can grant blocks. */
+  private isThousandMileWallActive(rowSlot: FieldPlayerSlot, land: FieldCardEntry): boolean {
+    const def = getCardDefinition(land.cardId);
+    if (!isThousandMileWall(def)) {
+      return false;
+    }
+    const landController = land.controllerSlot ?? rowSlot;
+    return !isLandStillBuilding(
+      def,
+      land.placedAtOwnerTurnCounter,
+      this.ownerTurnCounter(landController),
+    );
+  }
+
+  /** Find a finished 1000 Mile Wall on this row that covers the given monster space. */
+  private findThousandMileWallCovering(
+    rowSlot: FieldPlayerSlot,
+    fieldSlot: number,
+  ): FieldCardEntry | null {
+    const lands = rowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+    for (const land of lands) {
+      if (!this.isThousandMileWallActive(rowSlot, land)) {
+        continue;
+      }
+      if ((land.influencedSpaces ?? []).includes(fieldSlot)) {
+        return land;
+      }
+    }
+    return null;
+  }
+
+  private monstersOnInfluencedSpaces(
+    rowSlot: FieldPlayerSlot,
+    spaces: number[],
+  ): FieldCardEntry[] {
+    const spaceSet = new Set(spaces);
+    const monsters =
+      rowSlot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
+    return monsters.filter(
+      (m) => m.fieldSlot !== undefined && spaceSet.has(m.fieldSlot),
+    );
+  }
+
+  /**
+   * When a monster is played onto a space covered by 1000 Mile Wall:
+   * - each other monster already on the wall gains +1 block
+   * - the newly placed monster gains +N blocks (N = monsters on the wall, including itself)
+   */
+  private applyThousandMileWallOnMonsterPlaced(
+    rowSlot: FieldPlayerSlot,
+    newMonsterSlot: number,
+  ): void {
+    const wall = this.findThousandMileWallCovering(rowSlot, newMonsterSlot);
+    if (!wall) {
+      return;
+    }
+    const spaces = wall.influencedSpaces ?? [];
+    const occupants = this.monstersOnInfluencedSpaces(rowSlot, spaces);
+    const count = occupants.length;
+    if (count === 0) {
+      return;
+    }
+    const spaceSet = new Set(spaces);
+    const fieldSig =
+      rowSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
+    fieldSig.update((arr) =>
+      arr.map((m) => {
+        if (m.fieldSlot === undefined || !spaceSet.has(m.fieldSlot)) {
+          return m;
+        }
+        const gain = m.fieldSlot === newMonsterSlot ? count : 1;
+        return { ...m, blocks: (m.blocks ?? 0) + gain };
+      }),
+    );
+
+    for (const m of occupants) {
+      if (m.fieldSlot === undefined) {
+        continue;
+      }
+      const gain = m.fieldSlot === newMonsterSlot ? count : 1;
+      this.emitWallShieldingFeedback(rowSlot, m.fieldSlot, gain);
+    }
+  }
+
+  /**
+   * When a finished 1000 Mile Wall is placed over spaces that already have monsters,
+   * each of those monsters gains +N blocks (N = monsters on the wall).
+   * No-op while the wall is still building.
+   */
+  private applyThousandMileWallOnLandPlaced(
+    rowSlot: FieldPlayerSlot,
+    influencedSpaces: number[],
+  ): void {
+    const lands = rowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+    const wall = lands[lands.length - 1];
+    if (!wall || !this.isThousandMileWallActive(rowSlot, wall)) {
+      return;
+    }
+    this.grantThousandMileWallBlocksToOccupants(rowSlot, influencedSpaces);
+  }
+
+  /**
+   * On the owner's turn when a 1000 Mile Wall first finishes buildTime,
+   * grant +N blocks to each monster already on it (N = occupant count).
+   */
+  private applyThousandMileWallOnConstructionComplete(controller: FieldPlayerSlot): void {
+    const ownerTurn = this.ownerTurnCounter(controller);
+    const checkRow = (rowSlot: FieldPlayerSlot) => {
+      const lands = rowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+      for (const land of lands) {
+        if ((land.controllerSlot ?? rowSlot) !== controller) {
+          continue;
+        }
+        const def = getCardDefinition(land.cardId);
+        if (!isThousandMileWall(def)) {
+          continue;
+        }
+        const buildTime = effectiveLandBuildTime(def);
+        if (buildTime <= 0) {
+          continue;
+        }
+        // Activates at the start of the owner's turn when counter reaches placedAt + buildTime.
+        if (land.placedAtOwnerTurnCounter + buildTime !== ownerTurn) {
+          continue;
+        }
+        this.grantThousandMileWallBlocksToOccupants(rowSlot, land.influencedSpaces ?? []);
+      }
+    };
+    checkRow('player1');
+    checkRow('player2');
+  }
+
+  private grantThousandMileWallBlocksToOccupants(
+    rowSlot: FieldPlayerSlot,
+    influencedSpaces: number[],
+  ): void {
+    const occupants = this.monstersOnInfluencedSpaces(rowSlot, influencedSpaces);
+    const count = occupants.length;
+    if (count === 0) {
+      return;
+    }
+    const spaceSet = new Set(influencedSpaces);
+    const fieldSig =
+      rowSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
+    fieldSig.update((arr) =>
+      arr.map((m) => {
+        if (m.fieldSlot === undefined || !spaceSet.has(m.fieldSlot)) {
+          return m;
+        }
+        return { ...m, blocks: (m.blocks ?? 0) + count };
+      }),
+    );
+
+    for (const m of occupants) {
+      if (m.fieldSlot === undefined) {
+        continue;
+      }
+      this.emitWallShieldingFeedback(rowSlot, m.fieldSlot, count);
+    }
+  }
+
+  private emitWallShieldingFeedback(
+    rowSlot: FieldPlayerSlot,
+    monsterFieldSlot: number,
+    gain: number,
+  ): void {
+    if (gain <= 0) {
+      return;
+    }
+    // Defer so a newly placed monster card mounts before observing the event.
+    setTimeout(() => {
+      this.emitActionFeedback({
+        playerSlot: rowSlot,
+        zone: 'monster',
+        identifier: monsterFieldSlot,
+        kind: 'wall-shielding',
+        text: `+${gain} shielding`,
+      });
+    }, 0);
+  }
+
   private emitDamage(event: Omit<DamageEvent, 'timestamp'>): void {
     const ts = Date.now();
     this.damageEvents.update((prev) => [...prev, { ...event, timestamp: ts }]);
@@ -1497,6 +1706,7 @@ export class GameEngineService {
     this.clearFieldActedFlags();
     this.clearDefendingForPlayerStartingTurn(next);
     this.refreshManaPool(next === 1 ? 'player1' : 'player2');
+    this.applyThousandMileWallOnConstructionComplete(next === 1 ? 'player1' : 'player2');
     // Both players already received their opening hand at startGame; skip the draw on the first
     // handoff (P1 → P2) while still on round 1. Every later turn-start still draws one.
     const isFirstHandoffToPlayer2 =
@@ -1796,6 +2006,9 @@ export class GameEngineService {
     fieldSig.update((arr) => [...arr, entry]);
 
     this.grantImmediateManaFromPlacedLand(controllerSlot, cardId);
+    if (isThousandMileWall(def)) {
+      this.applyThousandMileWallOnLandPlaced(targetRowSlot, influencedSpaces);
+    }
     if (isFree) { this.placedFreeFieldCardThisTurn.set(true); }
     return true;
   }
@@ -1840,6 +2053,8 @@ export class GameEngineService {
     const fieldSig =
       controllerSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
     fieldSig.update((arr) => [...arr, entry]);
+
+    this.applyThousandMileWallOnMonsterPlaced(controllerSlot, fieldSlot);
 
     if (isFree) { this.placedFreeFieldCardThisTurn.set(true); }
     return true;
@@ -1944,21 +2159,27 @@ export class GameEngineService {
   /** Commit a pending card to the field with its selected space(s). */
   private finalizePendingPlacement(pending: PendingPlacement): void {
     const entry = this.createFieldCardEntry(pending.cardId, pending.controllerSlot);
+    const def = getCardDefinition(pending.cardId);
 
     if (pending.targetZone === 'monster') {
       entry.fieldSlot = pending.selectedSpaces[0];
       const fieldSig =
         pending.controllerSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
       fieldSig.update((arr) => [...arr, entry]);
+      if (entry.fieldSlot !== undefined) {
+        this.applyThousandMileWallOnMonsterPlaced(pending.controllerSlot, entry.fieldSlot);
+      }
     } else {
       entry.influencedSpaces = [...pending.selectedSpaces];
       const fieldSig =
         pending.targetRowSlot === 'player1' ? this.player1FieldLand : this.player2FieldLand;
       fieldSig.update((arr) => [...arr, entry]);
       this.grantImmediateManaFromPlacedLand(pending.controllerSlot, pending.cardId);
+      if (isThousandMileWall(def)) {
+        this.applyThousandMileWallOnLandPlaced(pending.targetRowSlot, pending.selectedSpaces);
+      }
     }
 
-    const def = getCardDefinition(pending.cardId);
     if (!hasManaCost(def?.manaCost)) {
       this.placedFreeFieldCardThisTurn.set(true);
     }

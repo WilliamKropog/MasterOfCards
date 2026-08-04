@@ -70,6 +70,11 @@ export interface CardDefinition {
    * Example: `['land']` for Rock Slide.
    */
   allowedTargetZones?: TargetZone[];
+  /**
+   * Spell-only: when true, destroy the tethered field card (set HP to 0 / remove)
+   * instead of dealing catalog `damage`.
+   */
+  destroysTarget?: boolean;
   /** Land-only: mana produced per element when tapped / per rules. */
   generateMana?: ManaGenerationMap;
   /**
@@ -338,6 +343,31 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 2, Sand: 2},
     description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard. One time use only.',
   },
+  'earth-shatter': {
+    id: 'earth-shatter',
+    name: 'Earth Shatter',
+    cardType: 'Spell',
+    manaCost: { Rock: 8 },
+    cardElement: 'Rock',
+    rarity: 'Epic',
+    allowedTargetZones: ['land'],
+    destroysTarget: true,
+    description: 'Select any one land card on your opponent\'s field and destroy it.',
+  },
+  '1000-mile-wall': {
+    id: '1000-mile-wall',
+    name: '1000 Mile Wall',
+    cardType: 'Land',
+    manaCost: { Rock: 3 },
+    maxHealth: 500,
+    cardElement: 'Rock',
+    rarity: 'Epic',
+    buildTime: 5,
+    space: 6,
+    generateMana: {Rock: 9},
+    description:
+      'After this land finishes building: whenever a Monster is placed on it, that Monster gains 1 block for each Monster on this land (including itself), and each other Monster already on this land gains 1 block. Monsters already on these spaces when this land finishes building each gain 1 block per Monster on this land.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
@@ -532,6 +562,8 @@ export const CardIds = {
   rockterrior: 'rockterrior',
   rockSlide: 'rock-slide',
   excavationSite: 'excavation-site',
+  earthShatter: 'earth-shatter',
+  thousandMileWall: '1000-mile-wall',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -542,24 +574,30 @@ export function isExcavationSite(def: CardDefinition | undefined): boolean {
   return def?.id === CardIds.excavationSite;
 }
 
+export function isThousandMileWall(def: CardDefinition | undefined): boolean {
+  return def?.id === CardIds.thousandMileWall;
+}
+
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
 export const OPENING_HAND_SIZE = 5;
 
 /** Catalog ids allowed in a constructed deck (expand as you add cards). */
 export const DECK_CARD_POOL: readonly string[] = [
   CardIds.rockMonster,
-  CardIds.mightyGopher,
-  CardIds.boulderToss,
+  // CardIds.mightyGopher,
+  // CardIds.boulderToss,
   CardIds.mudHut,
   CardIds.mountainRange,
-  CardIds.templeOfBeing,
-  CardIds.armoredillo,
-  CardIds.ruptar,
-  CardIds.mightyGopher,
-  CardIds.elderGopherStatue,
-  CardIds.rockterrior,
-  CardIds.rockSlide,
-  CardIds.excavationSite,
+  // CardIds.templeOfBeing,
+  // CardIds.armoredillo,
+  // CardIds.ruptar,
+  // CardIds.mightyGopher,
+  // CardIds.elderGopherStatue,
+  // CardIds.rockterrior,
+  // CardIds.rockSlide,
+  // CardIds.excavationSite,
+  CardIds.earthShatter,
+  CardIds.thousandMileWall,
 ];
 
 export const DECK_SIZE = 25;
