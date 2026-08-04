@@ -362,11 +362,24 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 500,
     cardElement: 'Rock',
     rarity: 'Epic',
-    buildTime: 5,
-    space: 6,
+    buildTime: 4,
+    space: 5,
     generateMana: {Rock: 9},
     description:
       'After this land finishes building: whenever a Monster is placed on it, that Monster gains 1 block for each Monster on this land (including itself), and each other Monster already on this land gains 1 block. Monsters already on these spaces when this land finishes building each gain 1 block per Monster on this land.',
+  },
+  'king-colossus': {
+    id: 'king-colossus',
+    name: 'King Colossus',
+    cardType: 'Monster',
+    manaCost: { Rock: 7 },
+    maxHealth: 300,
+    attack: 30,
+    cardElement: 'Rock',
+    rarity: 'Legendary',
+    monsterClass: 'Elemental',
+    attributes: ['Melee'],
+    description: 'When placed, starts with an additional +10 Health for every Rock mana you currently have.',
   },
 };
 
