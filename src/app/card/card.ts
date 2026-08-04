@@ -578,8 +578,16 @@ export class Card {
 
   protected readonly displayMana = computed(() => formatManaCostForDisplay(this.def()?.manaCost));
 
-  /** Catalog max HP (for "current / max" display). */
-  protected readonly maxHealth = computed(() => this.def()?.maxHealth ?? null);
+  /** Catalog max HP, or runtime override when set (e.g. King Colossus). */
+  protected readonly maxHealth = computed(() => {
+    if (this.onField()) {
+      const override = this.fieldEntry()?.maxHealthOverride;
+      if (override !== undefined) {
+        return override;
+      }
+    }
+    return this.def()?.maxHealth ?? null;
+  });
 
   /** Catalog attack; null when not applicable. */
   protected readonly displayAttack = computed(() => this.def()?.attack ?? null);

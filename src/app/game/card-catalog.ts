@@ -379,7 +379,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Legendary',
     monsterClass: 'Elemental',
     attributes: ['Melee'],
-    description: 'When placed, starts with an additional +10 Health for every Rock mana you currently have.',
+    description:
+      'When placed, starts with an additional +10 Health for every Rock mana you currently have.',
   },
 };
 
@@ -577,6 +578,7 @@ export const CardIds = {
   excavationSite: 'excavation-site',
   earthShatter: 'earth-shatter',
   thousandMileWall: '1000-mile-wall',
+  kingColossus: 'king-colossus',
 } as const;
 
 export function isElderGopherStatue(def: CardDefinition | undefined): boolean {
@@ -589,6 +591,10 @@ export function isExcavationSite(def: CardDefinition | undefined): boolean {
 
 export function isThousandMileWall(def: CardDefinition | undefined): boolean {
   return def?.id === CardIds.thousandMileWall;
+}
+
+export function isKingColossus(def: CardDefinition | undefined): boolean {
+  return def?.id === CardIds.kingColossus;
 }
 
 /** Cards dealt from the top of the deck when a match starts (before any draw phase). */
@@ -611,6 +617,7 @@ export const DECK_CARD_POOL: readonly string[] = [
   // CardIds.excavationSite,
   CardIds.earthShatter,
   CardIds.thousandMileWall,
+  CardIds.kingColossus,
 ];
 
 export const DECK_SIZE = 25;

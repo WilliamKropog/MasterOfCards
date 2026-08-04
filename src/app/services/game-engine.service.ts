@@ -14,6 +14,7 @@ import {
   isExcavationSite,
   isLandStillBuilding,
   isThousandMileWall,
+  isKingColossus,
   landCapacityOwner,
   landCapacityOwnerForPlay,
   monsterSummoningSicknessCleared,
@@ -51,6 +52,11 @@ export interface FieldCardEntry {
   controllerSlot?: FieldPlayerSlot;
   /** Battle damage; defaults to catalog `maxHealth` when missing. */
   currentHealth?: number;
+  /**
+   * Runtime max HP when different from catalog (e.g. King Colossus Rock mana bonus).
+   * Used for "current / max" display; damage still tracks `currentHealth`.
+   */
+  maxHealthOverride?: number;
   /** Monster/land has attacked or been in combat this turn; cleared on Next Turn. */
   hasActedThisTurn?: boolean;
   /** Monster is in defense position (horizontal); cleared when that player’s turn begins. */
@@ -1282,7 +1288,7 @@ export class GameEngineService {
     if (blocks > 0 && def?.cardType === 'Monster') {
       return { entry: { ...entry, blocks: blocks - 1 }, blocked: true };
     }
-    const maxHp = def?.maxHealth ?? 0;
+    const maxHp = entry.maxHealthOverride ?? def?.maxHealth ?? 0;
     const hp = entry.currentHealth ?? maxHp;
     return { entry: { ...entry, currentHealth: Math.max(0, hp - damage) }, blocked: false };
   }
@@ -1307,7 +1313,7 @@ export class GameEngineService {
     entry: FieldCardEntry,
   ): void {
     const def = getCardDefinition(entry.cardId);
-    const maxHp = def?.maxHealth ?? 0;
+    const maxHp = entry.maxHealthOverride ?? def?.maxHealth ?? 0;
     const hp = entry.currentHealth ?? maxHp;
 
     const excavationRevive =
@@ -1601,6 +1607,29 @@ export class GameEngineService {
       }
       this.emitWallShieldingFeedback(rowSlot, m.fieldSlot, count);
     }
+  }
+
+  /**
+   * King Colossus: set HP to catalog max + 10 × Rock mana the player had before paying its cost.
+   * Must run after `trySpendMana` so we reconstruct pre-spend Rock from pool + cost.
+   */
+  private applyKingColossusOnPlaced(
+    controllerSlot: FieldPlayerSlot,
+    entry: FieldCardEntry,
+  ): void {
+    const def = getCardDefinition(entry.cardId);
+    if (!isKingColossus(def)) {
+      return;
+    }
+    const pool =
+      controllerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
+    const rockAfterSpend = pool['Rock'] ?? 0;
+    const rockCost = def?.manaCost?.['Rock'] ?? 0;
+    const rockBeforeSpend = rockAfterSpend + rockCost;
+    const baseHp = def?.maxHealth ?? 300;
+    const hp = baseHp + rockBeforeSpend * 10;
+    entry.currentHealth = hp;
+    entry.maxHealthOverride = hp;
   }
 
   private emitWallShieldingFeedback(
@@ -2050,6 +2079,7 @@ export class GameEngineService {
 
     const entry = this.createFieldCardEntry(cardId, controllerSlot);
     entry.fieldSlot = fieldSlot;
+    this.applyKingColossusOnPlaced(controllerSlot, entry);
     const fieldSig =
       controllerSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
     fieldSig.update((arr) => [...arr, entry]);
@@ -2163,6 +2193,7 @@ export class GameEngineService {
 
     if (pending.targetZone === 'monster') {
       entry.fieldSlot = pending.selectedSpaces[0];
+      this.applyKingColossusOnPlaced(pending.controllerSlot, entry);
       const fieldSig =
         pending.controllerSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
       fieldSig.update((arr) => [...arr, entry]);
