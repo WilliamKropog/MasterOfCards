@@ -354,6 +354,19 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     destroysTarget: true,
     description: 'Select any one land card on your opponent\'s field and destroy it.',
   },
+  '1000-mile-wall': {
+    id: '1000-mile-wall',
+    name: '1000 Mile Wall',
+    cardType: 'Land',
+    manaCost: { Rock: 7 },
+    maxHealth: 500,
+    cardElement: 'Rock',
+    rarity: 'Epic',
+    buildTime: 5,
+    space: 6,
+    generateMana: {Rock: 9},
+    description: 'Every creature placed on this land card, or was already in play before being put on this land card, is granted 1 block and +10 attack for every creature this card.',
+  },
 };
 
 /** Land-only capacity footprint; `0` for non-lands or when unset. */
