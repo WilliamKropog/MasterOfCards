@@ -39,6 +39,11 @@ export interface CardDefinition {
   maxHealth?: number;
   /** Combat power (creatures, weapons, etc.) — used for outgoing and counter damage in combat. */
   attack?: number;
+  /**
+   * Monster-only: how many times this monster may attack per turn (`2` = two attacks).
+   * Omit or `1` for a single attack (default).
+   */
+  multiAttack?: number;
   // /** Monster-only: retired — combat uses `attack` for all damage. */
   // defense?: number;
   /**
@@ -323,13 +328,14 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     name: 'Ruptar',
     cardType: 'Monster',
     manaCost: { Rock: 4 },
-    maxHealth: 100,
+    maxHealth: 120,
     attack: 30,
+    multiAttack: 2,
     cardElement: 'Rock',
     rarity: 'Uncommon',
     monsterClass: 'Dinosaur',
     attributes: ['Melee', 'Haste'],
-    description: 'Deals an additional +30 damage when attacking targets that are Lightning typed.',
+    description: 'If attacking a target that is Lightning typed, gain an additional attack for that turn.',
   },
   'elder-gopher-statue': {
     id: 'elder-gopher-statue',

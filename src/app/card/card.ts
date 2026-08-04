@@ -293,6 +293,8 @@ export class Card {
     if (this.fieldEntry()?.hasActedThisTurn) {
       return false;
     }
+    // Mid multi-attack: keep ready glow so Attack can re-open targeting if canceled.
+    // Defend/abilities are blocked in the engine via canMonsterAct.
     const slot = this.ownerPlayerSlot();
     if (slot === null) {
       return false;

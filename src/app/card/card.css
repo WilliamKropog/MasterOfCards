@@ -474,6 +474,19 @@
   pointer-events: auto;
 }
 
+/**
+ * Attacking mode: keep the gray action overlay visible while choosing targets
+ * (including remaining multiAttack hits), not only on hover/focus.
+ */
+.card.card--field.card--field-ready.card--attack-source {
+  z-index: 40;
+}
+
+.card.card--field.card--field-ready.card--attack-source .card-field-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .card.card--field.card--land-praise-hoverable .card-field-actions {
   position: absolute;
   inset: 0;

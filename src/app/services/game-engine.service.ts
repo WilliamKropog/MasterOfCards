@@ -34,7 +34,7 @@ import {
 export type PlayerId = 1 | 2;
 
 /** Starting life total per player (win condition: reduce opponent to 0). */
-export const STARTING_LIFE_POINTS = 2000;
+export const STARTING_LIFE_POINTS = 1000;
 
 /** Maximum land capacity per player (displayed as current / max). */
 export const MAX_LAND_CAPACITY = 9;
@@ -62,6 +62,11 @@ export interface FieldCardEntry {
   maxHealthOverride?: number;
   /** Monster/land has attacked or been in combat this turn; cleared on Next Turn. */
   hasActedThisTurn?: boolean;
+  /**
+   * Monster-only: attacks completed this turn (for `multiAttack`).
+   * Cleared on Next Turn with other acted flags.
+   */
+  attacksThisTurn?: number;
   /** Monster is in defense position (horizontal); cleared when that player’s turn begins. */
   defending?: boolean;
   /**
@@ -549,6 +554,41 @@ export class GameEngineService {
     if (entry.hasActedThisTurn) {
       return false;
     }
+    // Already spent an attack this turn — may still multi-attack, but cannot defend/use abilities.
+    if ((entry.attacksThisTurn ?? 0) > 0) {
+      return false;
+    }
+    return monsterSummoningSicknessCleared(
+      def,
+      entry.placedAtTurnCounter,
+      this.turnCounter(),
+    );
+  }
+
+  /** True when this monster may perform another attack this turn (honors `multiAttack`). */
+  private canMonsterAttack(ownerSlot: FieldPlayerSlot, entry: FieldCardEntry): boolean {
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const ownerId: PlayerId = ownerSlot === 'player1' ? 1 : 2;
+    if (turn !== ownerId) {
+      return false;
+    }
+    const def = getCardDefinition(entry.cardId);
+    if (!def || def.cardType !== 'Monster') {
+      return false;
+    }
+    if (entry.hasActedThisTurn) {
+      return false;
+    }
+    const multi = Math.max(1, def.multiAttack ?? 1);
+    if ((entry.attacksThisTurn ?? 0) >= multi) {
+      return false;
+    }
     return monsterSummoningSicknessCleared(
       def,
       entry.placedAtTurnCounter,
@@ -570,11 +610,16 @@ export class GameEngineService {
       current.attackerSlot === attackerSlot &&
       current.attackerMonsterSlot === monsterSlot
     ) {
+      // Mid multi-attack: clicking Attack again should not cancel targeting.
+      const entry = this.getMonsterBySlot(attackerSlot, monsterSlot);
+      if (entry && this.canMonsterAttack(attackerSlot, entry) && (entry.attacksThisTurn ?? 0) > 0) {
+        return;
+      }
       this.attackMode.set(null);
       return;
     }
     const entry = this.getMonsterBySlot(attackerSlot, monsterSlot);
-    if (!entry || !this.canMonsterAct(attackerSlot, entry)) {
+    if (!entry || !this.canMonsterAttack(attackerSlot, entry)) {
       return;
     }
     this.attackMode.set({ attackerSlot, attackerMonsterSlot: monsterSlot });
@@ -1138,8 +1183,9 @@ export class GameEngineService {
   }
 
   /**
-   * Resolves combat: attacker and defender deal damage simultaneously, then both are marked
-   * as having acted this turn. Cards at 0 or less HP are removed from the field.
+   * Resolves combat: attacker and defender deal damage simultaneously.
+   * Monsters with `multiAttack` stay in attack targeting until their attacks for the turn are used.
+   * Cards at 0 or less HP are removed from the field.
    */
   resolveAttackOnTarget(
     defenderSlot: FieldPlayerSlot,
@@ -1162,7 +1208,7 @@ export class GameEngineService {
     if (!attackerEntry || !defenderEntry) {
       return;
     }
-    if (!this.canMonsterAct(attackerSlot, attackerEntry)) {
+    if (!this.canMonsterAttack(attackerSlot, attackerEntry)) {
       return;
     }
 
@@ -1185,19 +1231,29 @@ export class GameEngineService {
       this.emitDamage({ playerSlot: defenderSlot, zone: defenderZone, identifier: defenderIndex, amount: atkPower, blocked: defBlocked });
     }
 
+    const attacksThisTurn = (attackerEntry.attacksThisTurn ?? 0) + 1;
+    const multi = Math.max(1, atkDef.multiAttack ?? 1);
+    const attacksExhausted = attacksThisTurn >= multi;
+
     const attackerResult: FieldCardEntry = {
       ...attackerAfterDamage,
-      hasActedThisTurn: true,
+      attacksThisTurn,
+      hasActedThisTurn: attacksExhausted ? true : attackerAfterDamage.hasActedThisTurn,
     };
     const defenderResult: FieldCardEntry = {
       ...defenderAfterDamage,
       hasActedThisTurn: true,
     };
 
-    this.attackMode.set(null);
-
     this.applyFieldEntry(attackerSlot, 'monster', attackerMonsterSlot, attackerResult);
     this.applyFieldEntry(defenderSlot, defenderZone, defenderIndex, defenderResult);
+
+    const surviving = this.getMonsterBySlot(attackerSlot, attackerMonsterSlot);
+    if (surviving && this.canMonsterAttack(attackerSlot, surviving)) {
+      this.attackMode.set({ attackerSlot, attackerMonsterSlot });
+    } else {
+      this.attackMode.set(null);
+    }
   }
 
   /**
@@ -1226,7 +1282,7 @@ export class GameEngineService {
     if (!attackerEntry) {
       return;
     }
-    if (!this.canMonsterAct(attackerSlot, attackerEntry)) {
+    if (!this.canMonsterAttack(attackerSlot, attackerEntry)) {
       return;
     }
 
@@ -1247,13 +1303,24 @@ export class GameEngineService {
     }
     this.emitDamage({ playerSlot: enemy, amount: atkPower });
 
+    const attacksThisTurn = (attackerEntry.attacksThisTurn ?? 0) + 1;
+    const multi = Math.max(1, atkDef.multiAttack ?? 1);
+    const attacksExhausted = attacksThisTurn >= multi;
+
     const attackerResult: FieldCardEntry = {
       ...attackerEntry,
-      hasActedThisTurn: true,
+      attacksThisTurn,
+      hasActedThisTurn: attacksExhausted ? true : attackerEntry.hasActedThisTurn,
     };
 
-    this.attackMode.set(null);
     this.applyFieldEntry(attackerSlot, 'monster', attackerMonsterSlot, attackerResult);
+
+    const surviving = this.getMonsterBySlot(attackerSlot, attackerMonsterSlot);
+    if (surviving && this.canMonsterAttack(attackerSlot, surviving)) {
+      this.attackMode.set({ attackerSlot, attackerMonsterSlot });
+    } else {
+      this.attackMode.set(null);
+    }
   }
 
   /**
@@ -1700,7 +1767,7 @@ export class GameEngineService {
 
   private clearFieldActedFlags(): void {
     const clear = (a: FieldCardEntry[]): FieldCardEntry[] =>
-      a.map((e) => ({ ...e, hasActedThisTurn: false }));
+      a.map((e) => ({ ...e, hasActedThisTurn: false, attacksThisTurn: undefined }));
     this.player1FieldLand.update(clear);
     this.player1FieldMonster.update(clear);
     this.player2FieldLand.update(clear);
@@ -1899,7 +1966,9 @@ export class GameEngineService {
     if (canPlayAnyHandCard) { return false; }
 
     const monsters = slot === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
-    const hasActableMonster = monsters.some((entry) => this.canMonsterAct(slot, entry));
+    const hasActableMonster = monsters.some(
+      (entry) => this.canMonsterAct(slot, entry) || this.canMonsterAttack(slot, entry),
+    );
     if (hasActableMonster) { return false; }
 
     const lands = slot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
