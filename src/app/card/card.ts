@@ -844,9 +844,18 @@ export class Card {
     this.engine.beginAttackFromMonster(slot, idx);
   }
 
+  /** True once a multi-attack sequence has begun (or mid multi-attack) — cannot defend. */
+  protected readonly defendDisabled = computed(() => {
+    if ((this.fieldEntry()?.attacksThisTurn ?? 0) > 0) {
+      return true;
+    }
+    const multi = this.def()?.multiAttack ?? 1;
+    return multi > 1 && this.isAttackSource();
+  });
+
   protected onDefendClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.fieldReadyHighlight()) {
+    if (!this.fieldReadyHighlight() || this.defendDisabled()) {
       return;
     }
     const slot = this.ownerPlayerSlot();

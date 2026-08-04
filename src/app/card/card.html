@@ -107,6 +107,7 @@
             matButton="filled"
             type="button"
             class="card-field-action-btn"
+            [disabled]="defendDisabled()"
             (click)="onDefendClick($event)"
           >
             Defend
