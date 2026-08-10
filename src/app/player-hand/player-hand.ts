@@ -121,22 +121,28 @@ export class PlayerHand {
     return !hasDefendingEnemy;
   });
 
-  /** Sorted rows for template: mana type + amount available this turn. */
+  /** Sorted rows for template: current/max mana per element from active lands. */
   protected readonly manaFromLandsRows = computed(() => {
-    const pool =
-      this.playerSlot() === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
-    return Object.entries(pool)
-      .filter(([, amount]) => amount > 0)
-      .map(([element, amount]) => ({ element, amount }))
+    const slot = this.playerSlot();
+    const pool = slot === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
+    const maxMana = this.engine.manaMaxFromLands(slot);
+    const elements = new Set([...Object.keys(pool), ...Object.keys(maxMana)]);
+    return [...elements]
+      .map((element) => ({
+        element,
+        amount: pool[element] ?? 0,
+        max: maxMana[element] ?? 0,
+      }))
+      .filter((m) => m.amount > 0 || m.max > 0)
       .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
   });
 
   protected readonly manaFromLandsAriaLabel = computed(() => {
     const rows = this.manaFromLandsRows();
     if (rows.length === 0) {
-      return 'No mana available this turn';
+      return 'No mana available';
     }
-    return `Mana available: ${rows.map((m) => `${m.amount} ${m.element}`).join(', ')}`;
+    return `Mana available: ${rows.map((m) => `${m.amount}/${m.max} ${m.element}`).join(', ')}`;
   });
 
   /** True when it is this player's turn. */

@@ -196,7 +196,7 @@ export class Card {
     return slotId === turn;
   });
 
-  /** Cards with `manaCost` require each listed element from the player's current turn mana pool. */
+  /** Cards with `manaCost` require each listed element from the player's mana pool. */
   private readonly cannotAffordManaCostInHand = computed(() => {
     if (!this.inPlayerHand()) {
       return false;
@@ -293,6 +293,8 @@ export class Card {
     if (this.fieldEntry()?.hasActedThisTurn) {
       return false;
     }
+    // Mid multi-attack: keep ready glow so Attack can re-open targeting if canceled.
+    // Defend/abilities are blocked in the engine via canMonsterAct.
     const slot = this.ownerPlayerSlot();
     if (slot === null) {
       return false;
@@ -578,8 +580,16 @@ export class Card {
 
   protected readonly displayMana = computed(() => formatManaCostForDisplay(this.def()?.manaCost));
 
-  /** Catalog max HP (for "current / max" display). */
-  protected readonly maxHealth = computed(() => this.def()?.maxHealth ?? null);
+  /** Catalog max HP, or runtime override when set (e.g. King Colossus). */
+  protected readonly maxHealth = computed(() => {
+    if (this.onField()) {
+      const override = this.fieldEntry()?.maxHealthOverride;
+      if (override !== undefined) {
+        return override;
+      }
+    }
+    return this.def()?.maxHealth ?? null;
+  });
 
   /** Catalog attack; null when not applicable. */
   protected readonly displayAttack = computed(() => this.def()?.attack ?? null);
@@ -834,9 +844,18 @@ export class Card {
     this.engine.beginAttackFromMonster(slot, idx);
   }
 
+  /** True once a multi-attack sequence has begun (or mid multi-attack) — cannot defend. */
+  protected readonly defendDisabled = computed(() => {
+    if ((this.fieldEntry()?.attacksThisTurn ?? 0) > 0) {
+      return true;
+    }
+    const multi = this.def()?.multiAttack ?? 1;
+    return multi > 1 && this.isAttackSource();
+  });
+
   protected onDefendClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.fieldReadyHighlight()) {
+    if (!this.fieldReadyHighlight() || this.defendDisabled()) {
       return;
     }
     const slot = this.ownerPlayerSlot();
