@@ -1,6 +1,15 @@
 <header class="nav-bar" role="banner">
   <div class="nav-bar-left">
     <div class="nav-bar-start">
+      <button
+        matButton="filled"
+        type="button"
+        class="nav-bar-start-btn"
+        aria-label="Start game"
+        (click)="onStartGame()"
+      >
+        Start Game
+      </button>
       <ng-content select="[navStart]"></ng-content>
     </div>
     <nav class="nav-bar-links" aria-label="Main">

@@ -49,10 +49,6 @@
   min-height: 0;
 }
 
-.home-start-btn {
-  white-space: nowrap;
-}
-
 @media (max-width: 720px) {
   .home-body {
     grid-template-columns: 1fr;

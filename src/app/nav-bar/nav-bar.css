@@ -33,6 +33,10 @@
   flex-shrink: 0;
 }
 
+.nav-bar-start-btn {
+  white-space: nowrap;
+}
+
 .nav-bar-links {
   display: flex;
   flex-direction: row;
