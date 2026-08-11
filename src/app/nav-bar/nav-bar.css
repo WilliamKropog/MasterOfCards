@@ -12,7 +12,8 @@
   width: 100%;
   box-sizing: border-box;
   padding: 0.65rem 1rem;
-  background: rgba(28, 32, 38, 0.96);
+  background: rgba(28, 32, 38, 0.78);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.92);
 }

@@ -12,7 +12,8 @@
   height: 100%;
   min-height: 0;
   padding: 1rem 0.85rem;
-  background: rgba(28, 32, 38, 0.96);
+  background: rgba(28, 32, 38, 0.78);
+  backdrop-filter: blur(8px);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.9);
   overflow: auto;
