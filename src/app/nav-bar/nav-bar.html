@@ -1,0 +1,28 @@
+<header class="nav-bar" role="banner">
+  <div class="nav-bar-left">
+    <div class="nav-bar-start">
+      <ng-content select="[navStart]"></ng-content>
+    </div>
+    <nav class="nav-bar-links" aria-label="Main">
+      <a
+        routerLink="/"
+        routerLinkActive="nav-bar-link--active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="nav-bar-link"
+      >Home</a>
+      <a
+        routerLink="/store"
+        routerLinkActive="nav-bar-link--active"
+        class="nav-bar-link"
+      >Store</a>
+      <a
+        routerLink="/deck-builder"
+        routerLinkActive="nav-bar-link--active"
+        class="nav-bar-link"
+      >Deck Builder</a>
+    </nav>
+  </div>
+  <div class="nav-bar-right">
+    <ng-content select="[navEnd]"></ng-content>
+  </div>
+</header>
