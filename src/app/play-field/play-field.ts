@@ -16,9 +16,13 @@ export interface LandInfluenceOverlay {
   imports: [FieldRow],
   templateUrl: './play-field.html',
   styleUrl: './play-field.css',
+  host: {
+    '[style.--slot-count]': 'monsterFieldSlots',
+  },
 })
 export class PlayField {
   protected readonly engine = inject(GameEngineService);
+  protected readonly monsterFieldSlots = MONSTER_FIELD_SLOTS;
 
   protected readonly landInfluenceOverlays = computed((): LandInfluenceOverlay[] => {
     const overlays: LandInfluenceOverlay[] = [];

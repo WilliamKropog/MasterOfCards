@@ -1,10 +1,13 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { App } from './app';
+import { routes } from './app.routes';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
+      providers: [provideRouter(routes)],
     }).compileComponents();
   });
 
@@ -14,13 +17,10 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render two player hands', () => {
+  it('should render a router outlet', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('section[aria-label="Game table"]')).toBeTruthy();
-    expect(compiled.querySelectorAll('app-player-hand').length).toBe(2);
-    expect(compiled.querySelector('app-play-field')).toBeTruthy();
-    expect(compiled.querySelectorAll('app-card').length).toBe(0);
+    expect(compiled.querySelector('router-outlet')).toBeTruthy();
   });
 });

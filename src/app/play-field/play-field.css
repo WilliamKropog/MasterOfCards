@@ -9,6 +9,7 @@
   box-sizing: border-box;
   border: 1px solid red;
   overflow: hidden;
+  --slot-count: 6;
 }
 
 .play-field {
@@ -22,16 +23,26 @@
   overflow: hidden;
 }
 
-/* ── Influence overlay grid ────────────────────────────────────────── */
+/* ── Influence overlay: same centered slot tracks as field rows ────── */
 
 .influence-overlay-grid {
+  --slot-gap: 0.25rem;
+  --slot-pad: 0.25rem;
+  --slot-size-tracks: 9;
+  --slot-size: calc(
+    (100% - 2 * var(--slot-pad) - (var(--slot-size-tracks) - 1) * var(--slot-gap))
+    / var(--slot-size-tracks)
+  );
+
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(var(--slot-count, 6), var(--slot-size));
   grid-template-rows: repeat(4, 1fr);
-  gap: 0.25rem;
-  padding: 0.25rem;
+  justify-content: center;
+  column-gap: var(--slot-gap);
+  row-gap: 0;
+  padding: var(--slot-pad) var(--slot-pad) var(--slot-pad) var(--slot-pad);
   box-sizing: border-box;
   pointer-events: none;
   z-index: 5;

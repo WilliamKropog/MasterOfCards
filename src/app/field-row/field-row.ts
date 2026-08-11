@@ -23,10 +23,16 @@ export interface MonsterSlotView {
   imports: [Card, CdkDropList],
   templateUrl: './field-row.html',
   styleUrl: './field-row.css',
+  host: {
+    '[style.--slot-count]': 'monsterFieldSlots',
+  },
 })
 export class FieldRow {
   private readonly cardDrag = inject(CardDragService);
   private readonly engine = inject(GameEngineService);
+
+  /** Logical slot count; inherited by grids as `--slot-count`. */
+  protected readonly monsterFieldSlots = MONSTER_FIELD_SLOTS;
 
   readonly playerSlot = input.required<PlayerSlot>();
   readonly zone = input.required<FieldZone>();

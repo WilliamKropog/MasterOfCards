@@ -37,10 +37,10 @@ export type PlayerId = 1 | 2;
 export const STARTING_LIFE_POINTS = 1000;
 
 /** Maximum land capacity per player (displayed as current / max). */
-export const MAX_LAND_CAPACITY = 9;
+export const MAX_LAND_CAPACITY = 6;
 
-/** Number of numbered spaces in each player's monster row (1–9). */
-export const MONSTER_FIELD_SLOTS = 9;
+/** Number of numbered spaces in each player's monster row (1–6). */
+export const MONSTER_FIELD_SLOTS = 6;
 
 /** Field row entry: catalog id + turn counter when played (for summoning / tap rules). */
 export interface FieldCardEntry {

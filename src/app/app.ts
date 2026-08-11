@@ -1,73 +1,10 @@
-import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { Component, HostListener, inject, signal } from '@angular/core';
-import { MatButton } from '@angular/material/button';
-import { SpellDragLineOverlay } from './spell-drag-line-overlay/spell-drag-line-overlay';
-import { PlayField } from './play-field/play-field';
-import { PlayerDeck } from './player-deck/player-deck';
-import { PlayerHand } from './player-hand/player-hand';
-import { CardDragService } from './services/card-drag.service';
-import { GameEngineService } from './services/game-engine.service';
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [MatButton, PlayerDeck, PlayerHand, PlayField, SpellDragLineOverlay, CdkDropListGroup],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
-export class App {
-  protected readonly engine = inject(GameEngineService);
-  private readonly cardDrag = inject(CardDragService);
-
-  protected readonly title = signal('masterofcards');
-
-  protected onStartOrEndClick(): void {
-    if (this.engine.gameStarted()) {
-      this.cardDrag.endDrag();
-      this.engine.resetMatch();
-    } else {
-      this.engine.startGame();
-    }
-  }
-
-  protected onNextTurnClick(): void {
-    this.engine.nextTurn();
-  }
-
-  @HostListener('document:keydown', ['$event'])
-  protected onDocumentKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') {
-      this.engine.cancelAllTargetModes();
-    }
-  }
-
-  /**
-   * Clicking outside the attacking / ability-casting card dismisses targeting mode.
-   * Clicks on the source or on a valid target stay inside the flow.
-   */
-  @HostListener('document:click', ['$event'])
-  protected onDocumentClick(event: MouseEvent): void {
-    if (!this.engine.attackMode() && !this.engine.abilityTargetMode()) {
-      return;
-    }
-    let insideAttackSource = false;
-    let insideAttackTarget = false;
-    for (const n of event.composedPath()) {
-      if (!(n instanceof Element)) {
-        continue;
-      }
-      if (n.hasAttribute('data-attack-source')) {
-        insideAttackSource = true;
-      }
-      if (n.classList.contains('card--attack-target')) {
-        insideAttackTarget = true;
-      }
-      if (n.classList.contains('player-hand--attack-target')) {
-        insideAttackTarget = true;
-      }
-    }
-    if (insideAttackSource || insideAttackTarget) {
-      return;
-    }
-    this.engine.cancelAllTargetModes();
-  }
-}
+export class App {}
