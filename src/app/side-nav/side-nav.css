@@ -34,9 +34,74 @@
   color: rgba(255, 255, 255, 0.55);
 }
 
+.side-nav-lead,
 .side-nav-empty {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.field-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(12, 14, 18, 0.55);
+  color: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.field-input:focus {
+  outline: 2px solid rgba(196, 165, 116, 0.65);
+  outline-offset: 1px;
+  border-color: rgba(196, 165, 116, 0.55);
+}
+
+.field-input[aria-invalid='true'] {
+  border-color: rgba(232, 120, 120, 0.75);
+}
+
+.field-error,
+.form-error {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #f0a0a0;
+}
+
+.form-error {
+  margin-top: 0.15rem;
+}
+
+.register-btn {
+  margin-top: 0.25rem;
+  width: 100%;
+}
+
+.register-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

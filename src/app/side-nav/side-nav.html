@@ -1,10 +1,97 @@
 <aside class="side-nav" aria-label="Player panel">
-  <section class="side-nav-section">
-    <h2 class="side-nav-heading">Friends</h2>
-    <p class="side-nav-empty">Friends list coming soon.</p>
-  </section>
-  <section class="side-nav-section">
-    <h2 class="side-nav-heading">Messages</h2>
-    <p class="side-nav-empty">Chat coming soon.</p>
-  </section>
+  @if (user$ | async; as user) {
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Signed in</h2>
+      <p class="side-nav-empty">{{ user.displayName || user.email }}</p>
+    </section>
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Friends</h2>
+      <p class="side-nav-empty">Friends list coming soon.</p>
+    </section>
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Messages</h2>
+      <p class="side-nav-empty">Chat coming soon.</p>
+    </section>
+  } @else {
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Create account</h2>
+      <p class="side-nav-lead">Register to save decks, friends, and progress.</p>
+
+      <form class="register-form" [formGroup]="registerForm" (ngSubmit)="onRegister()" novalidate>
+        <label class="field">
+          <span class="field-label">Username</span>
+          <input
+            class="field-input"
+            type="text"
+            formControlName="username"
+            autocomplete="username"
+            maxlength="20"
+            [attr.aria-invalid]="!!usernameError()"
+            [attr.aria-describedby]="usernameError() ? 'username-error' : null"
+          />
+          @if (usernameError()) {
+            <span id="username-error" class="field-error">{{ usernameError() }}</span>
+          }
+        </label>
+
+        <label class="field">
+          <span class="field-label">Email</span>
+          <input
+            class="field-input"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            [attr.aria-invalid]="!!emailError()"
+            [attr.aria-describedby]="emailError() ? 'email-error' : null"
+          />
+          @if (emailError()) {
+            <span id="email-error" class="field-error">{{ emailError() }}</span>
+          }
+        </label>
+
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input
+            class="field-input"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+            [attr.aria-invalid]="!!passwordError()"
+            [attr.aria-describedby]="passwordError() ? 'password-error' : null"
+          />
+          @if (passwordError()) {
+            <span id="password-error" class="field-error">{{ passwordError() }}</span>
+          }
+        </label>
+
+        <label class="field">
+          <span class="field-label">Confirm password</span>
+          <input
+            class="field-input"
+            type="password"
+            formControlName="confirmPassword"
+            autocomplete="new-password"
+            [attr.aria-invalid]="!!confirmPasswordError()"
+            [attr.aria-describedby]="confirmPasswordError() ? 'confirm-password-error' : null"
+          />
+          @if (confirmPasswordError()) {
+            <span id="confirm-password-error" class="field-error">{{ confirmPasswordError() }}</span>
+          }
+        </label>
+
+        @if (formError) {
+          <p class="form-error" role="alert">{{ formError }}</p>
+        }
+
+        <button
+          matButton="filled"
+          type="submit"
+          class="register-btn"
+          [disabled]="!canSubmit()"
+        >
+          {{ submitting ? 'Creating account…' : 'Register' }}
+        </button>
+      </form>
+    </section>
+  }
 </aside>

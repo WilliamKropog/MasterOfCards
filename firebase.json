@@ -1,4 +1,15 @@
 {
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "master-of-cards.web.app",
+      "master-of-cards.firebaseapp.com"
+    ],
+    "providers": {
+      "emailPassword": true,
+      "anonymous": false
+    }
+  },
   "firestore": {
     "database": "(default)",
     "location": "nam5",
