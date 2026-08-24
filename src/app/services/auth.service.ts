@@ -5,6 +5,7 @@ import {
   authState,
   createUserWithEmailAndPassword,
   deleteUser,
+  signOut,
   updateProfile,
 } from '@angular/fire/auth';
 import {
@@ -28,6 +29,10 @@ export class AuthService {
   private readonly firestore = inject(Firestore);
 
   readonly user$: Observable<User | null> = authState(this.auth);
+
+  async logout(): Promise<void> {
+    await signOut(this.auth);
+  }
 
   normalizeUsername(username: string): string {
     return username.trim().toLowerCase();

@@ -28,7 +28,9 @@ export class SideNav {
   readonly user$ = this.auth.user$;
 
   submitting = false;
+  loggingOut = false;
   formError = '';
+  logoutError = '';
 
   readonly registerForm = this.fb.nonNullable.group(
     {
@@ -137,6 +139,19 @@ export class SideNav {
       this.formError = this.auth.getFirebaseErrorMessage(error);
     } finally {
       this.submitting = false;
+    }
+  }
+
+  async onLogout(): Promise<void> {
+    this.logoutError = '';
+    this.loggingOut = true;
+    try {
+      await this.auth.logout();
+      this.registerForm.reset();
+    } catch {
+      this.logoutError = 'Could not sign out. Please try again.';
+    } finally {
+      this.loggingOut = false;
     }
   }
 }

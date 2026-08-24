@@ -12,6 +12,18 @@
       <h2 class="side-nav-heading">Messages</h2>
       <p class="side-nav-empty">Chat coming soon.</p>
     </section>
+    @if (logoutError) {
+      <p class="form-error" role="alert">{{ logoutError }}</p>
+    }
+    <button
+      matButton="filled"
+      type="button"
+      class="register-btn"
+      [disabled]="loggingOut"
+      (click)="onLogout()"
+    >
+      {{ loggingOut ? 'Signing out…' : 'Logout' }}
+    </button>
   } @else {
     <section class="side-nav-section">
       <h2 class="side-nav-heading">Create account</h2>
