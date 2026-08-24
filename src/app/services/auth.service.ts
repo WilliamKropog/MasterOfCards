@@ -5,6 +5,7 @@ import {
   authState,
   createUserWithEmailAndPassword,
   deleteUser,
+  signInWithEmailAndPassword,
   signOut,
   updateProfile,
 } from '@angular/fire/auth';
@@ -47,6 +48,43 @@ export class AuthService {
     return snap.exists();
   }
 
+  /**
+   * Resolves a username or email to the account email, then signs in.
+   * Throws Error('INVALID_CREDENTIALS') for any failed login attempt.
+   */
+  async login(identifier: string, password: string): Promise<User> {
+    const trimmedId = identifier.trim();
+    const trimmedPassword = password;
+
+    if (!trimmedId || !trimmedPassword) {
+      throw new Error('INVALID_CREDENTIALS');
+    }
+
+    let email = trimmedId.toLowerCase();
+
+    if (!trimmedId.includes('@')) {
+      const usernameSnap = await getDoc(
+        doc(this.firestore, 'usernames', this.normalizeUsername(trimmedId)),
+      );
+      const storedEmail = usernameSnap.data()?.['email'];
+      if (!usernameSnap.exists() || typeof storedEmail !== 'string' || !storedEmail) {
+        throw new Error('INVALID_CREDENTIALS');
+      }
+      email = storedEmail;
+    }
+
+    try {
+      const credential = await signInWithEmailAndPassword(
+        this.auth,
+        email,
+        trimmedPassword,
+      );
+      return credential.user;
+    } catch {
+      throw new Error('INVALID_CREDENTIALS');
+    }
+  }
+
   async register({ username, email, password }: RegisterPayload): Promise<User> {
     const trimmedUsername = username.trim();
     const usernameKey = this.normalizeUsername(trimmedUsername);
@@ -77,6 +115,7 @@ export class AuthService {
           uid: user.uid,
           username: trimmedUsername,
           usernameLower: usernameKey,
+          email: trimmedEmail,
           createdAt: serverTimestamp(),
         });
 
@@ -103,6 +142,9 @@ export class AuthService {
   getFirebaseErrorMessage(error: unknown): string {
     if (error instanceof Error && error.message === 'USERNAME_TAKEN') {
       return 'That username is already taken.';
+    }
+    if (error instanceof Error && error.message === 'INVALID_CREDENTIALS') {
+      return 'Invalid username or password';
     }
 
     const code =

@@ -1,23 +1,13 @@
 import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import {
-  FormBuilder,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import {
-  establishedEmailValidator,
-  passwordsMatchValidator,
-  strongPasswordValidator,
-  usernameFormatValidator,
-  usernameUniqueValidator,
-} from '../auth/auth.validators';
 
 @Component({
   selector: 'app-side-nav',
-  imports: [AsyncPipe, ReactiveFormsModule, MatButton],
+  imports: [AsyncPipe, ReactiveFormsModule, MatButton, RouterLink],
   templateUrl: './side-nav.html',
   styleUrl: './side-nav.css',
 })
@@ -27,118 +17,34 @@ export class SideNav {
 
   readonly user$ = this.auth.user$;
 
-  submitting = false;
+  loggingIn = false;
   loggingOut = false;
-  formError = '';
+  loginError = '';
   logoutError = '';
 
-  readonly registerForm = this.fb.nonNullable.group(
-    {
-      username: [
-        '',
-        {
-          validators: [usernameFormatValidator()],
-          asyncValidators: [usernameUniqueValidator(this.auth)],
-        },
-      ],
-      email: ['', establishedEmailValidator()],
-      password: ['', strongPasswordValidator()],
-      confirmPassword: ['', Validators.required],
-    },
-    { validators: [passwordsMatchValidator()] },
-  );
+  readonly loginForm = this.fb.nonNullable.group({
+    identifier: ['', Validators.required],
+    password: ['', Validators.required],
+  });
 
-  usernameError(): string {
-    const control = this.registerForm.controls.username;
-    if (!(control.touched || control.dirty) || !control.errors) {
-      return '';
-    }
-    if (control.errors['required']) {
-      return 'Username is required.';
-    }
-    if (control.errors['usernameTooShort']) {
-      return 'Username must be at least 4 characters.';
-    }
-    if (control.errors['usernameFormat']) {
-      return 'Use 4–20 letters, numbers, or underscores.';
-    }
-    if (control.errors['usernameTaken']) {
-      return 'That username is already taken.';
-    }
-    return '';
-  }
+  async onLogin(): Promise<void> {
+    this.loginError = '';
+    this.loginForm.markAllAsTouched();
 
-  emailError(): string {
-    const control = this.registerForm.controls.email;
-    if (!(control.touched || control.dirty) || !control.errors) {
-      return '';
-    }
-    if (control.errors['required']) {
-      return 'Email is required.';
-    }
-    if (control.errors['emailFormat']) {
-      return 'Enter a valid email address.';
-    }
-    if (control.errors['emailDomain']) {
-      return 'Use a major provider (Gmail, Outlook, Yahoo, iCloud, etc.).';
-    }
-    return '';
-  }
-
-  passwordError(): string {
-    const control = this.registerForm.controls.password;
-    if (!(control.touched || control.dirty) || !control.errors) {
-      return '';
-    }
-    if (control.errors['required']) {
-      return 'Password is required.';
-    }
-    if (control.errors['passwordTooShort']) {
-      return 'Password must be at least 8 characters.';
-    }
-    if (control.errors['passwordWeak']) {
-      return 'Include at least one capital letter and one special character.';
-    }
-    return '';
-  }
-
-  confirmPasswordError(): string {
-    const control = this.registerForm.controls.confirmPassword;
-    if (!(control.touched || control.dirty) || !control.errors) {
-      return '';
-    }
-    if (control.errors['required']) {
-      return 'Confirm your password.';
-    }
-    if (control.errors['passwordMismatch']) {
-      return 'Passwords do not match.';
-    }
-    return '';
-  }
-
-  canSubmit(): boolean {
-    return this.registerForm.valid && !this.submitting && !this.registerForm.pending;
-  }
-
-  async onRegister(): Promise<void> {
-    this.formError = '';
-    this.registerForm.markAllAsTouched();
-    this.registerForm.updateValueAndValidity();
-
-    if (!this.canSubmit()) {
+    if (this.loginForm.invalid || this.loggingIn) {
       return;
     }
 
-    this.submitting = true;
-    const { username, email, password } = this.registerForm.getRawValue();
+    this.loggingIn = true;
+    const { identifier, password } = this.loginForm.getRawValue();
 
     try {
-      await this.auth.register({ username, email, password });
-      this.registerForm.reset();
+      await this.auth.login(identifier, password);
+      this.loginForm.reset();
     } catch (error) {
-      this.formError = this.auth.getFirebaseErrorMessage(error);
+      this.loginError = this.auth.getFirebaseErrorMessage(error);
     } finally {
-      this.submitting = false;
+      this.loggingIn = false;
     }
   }
 
@@ -147,7 +53,7 @@ export class SideNav {
     this.loggingOut = true;
     try {
       await this.auth.logout();
-      this.registerForm.reset();
+      this.loginForm.reset();
     } catch {
       this.logoutError = 'Could not sign out. Please try again.';
     } finally {

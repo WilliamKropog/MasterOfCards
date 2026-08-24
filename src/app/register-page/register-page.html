@@ -1,0 +1,94 @@
+<div class="register-shell">
+  <img
+    class="register-bg"
+    src="/home/rock-golem-hero.png"
+    alt=""
+    decoding="async"
+    fetchpriority="high"
+  />
+
+  <app-nav-bar />
+
+  <main class="register-main">
+    <section class="register-card" aria-labelledby="register-heading">
+      <h1 id="register-heading" class="register-title">Register Account</h1>
+      <p class="register-lead">Create an account to save decks, friends, and progress.</p>
+
+      <form class="register-form" [formGroup]="registerForm" (ngSubmit)="onRegister()" novalidate>
+        <label class="field">
+          <span class="field-label">Username</span>
+          <input
+            class="field-input"
+            type="text"
+            formControlName="username"
+            autocomplete="username"
+            maxlength="20"
+            [attr.aria-invalid]="!!usernameError()"
+            [attr.aria-describedby]="usernameError() ? 'reg-username-error' : null"
+          />
+          @if (usernameError()) {
+            <span id="reg-username-error" class="field-error">{{ usernameError() }}</span>
+          }
+        </label>
+
+        <label class="field">
+          <span class="field-label">Email</span>
+          <input
+            class="field-input"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            [attr.aria-invalid]="!!emailError()"
+            [attr.aria-describedby]="emailError() ? 'reg-email-error' : null"
+          />
+          @if (emailError()) {
+            <span id="reg-email-error" class="field-error">{{ emailError() }}</span>
+          }
+        </label>
+
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input
+            class="field-input"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+            [attr.aria-invalid]="!!passwordError()"
+            [attr.aria-describedby]="passwordError() ? 'reg-password-error' : null"
+          />
+          @if (passwordError()) {
+            <span id="reg-password-error" class="field-error">{{ passwordError() }}</span>
+          }
+        </label>
+
+        <label class="field">
+          <span class="field-label">Confirm password</span>
+          <input
+            class="field-input"
+            type="password"
+            formControlName="confirmPassword"
+            autocomplete="new-password"
+            [attr.aria-invalid]="!!confirmPasswordError()"
+            [attr.aria-describedby]="confirmPasswordError() ? 'reg-confirm-password-error' : null"
+          />
+          @if (confirmPasswordError()) {
+            <span id="reg-confirm-password-error" class="field-error">{{ confirmPasswordError() }}</span>
+          }
+        </label>
+
+        @if (formError) {
+          <p class="form-error" role="alert">{{ formError }}</p>
+        }
+
+        <button
+          matButton="filled"
+          type="submit"
+          class="register-btn"
+          [disabled]="!canSubmit()"
+        >
+          {{ submitting ? 'Creating account…' : 'Register' }}
+        </button>
+      </form>
+    </section>
+  </main>
+</div>

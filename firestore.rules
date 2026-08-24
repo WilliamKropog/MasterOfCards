@@ -11,13 +11,20 @@ service cloud.firestore {
     }
 
     // Username reservation map (doc id = lowercase username).
+    // Public get so login can resolve username → email.
     match /usernames/{username} {
       allow get: if true;
       allow list: if false;
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.usernameLower == username
-        && request.resource.data.keys().hasAll(['uid', 'username', 'usernameLower', 'createdAt']);
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'username',
+          'usernameLower',
+          'email',
+          'createdAt'
+        ]);
       allow update, delete: if false;
     }
 
@@ -27,7 +34,13 @@ service cloud.firestore {
       allow list: if false;
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
-        && request.resource.data.keys().hasAll(['uid', 'username', 'usernameLower', 'email', 'createdAt']);
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'username',
+          'usernameLower',
+          'email',
+          'createdAt'
+        ]);
       allow update: if isOwner(userId);
       allow delete: if false;
     }

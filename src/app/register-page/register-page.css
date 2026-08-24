@@ -1,0 +1,141 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.register-shell {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  min-height: 100vh;
+  background-color: #1a1d22;
+  color: rgba(245, 240, 232, 0.95);
+}
+
+.register-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.register-shell > app-nav-bar,
+.register-shell > .register-main {
+  position: relative;
+  z-index: 1;
+}
+
+.register-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem 2rem;
+  box-sizing: border-box;
+}
+
+.register-card {
+  width: min(26rem, 100%);
+  padding: 1.5rem 1.4rem 1.35rem;
+  border-radius: 12px;
+  background: rgba(18, 20, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+}
+
+.register-title {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.register-lead {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: rgba(245, 240, 232, 0.72);
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1.15rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.field-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(12, 14, 18, 0.55);
+  color: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.field-input:focus {
+  outline: 2px solid rgba(196, 165, 116, 0.65);
+  outline-offset: 1px;
+  border-color: rgba(196, 165, 116, 0.55);
+}
+
+.field-input[aria-invalid='true'] {
+  border-color: rgba(232, 120, 120, 0.75);
+}
+
+.field-error,
+.form-error {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #f0a0a0;
+}
+
+.register-btn {
+  margin-top: 0.35rem;
+  width: 50%;
+  align-self: center;
+}
+
+/* Keep primary fill when disabled — muted, not flat grey. */
+.register-btn:disabled,
+.register-btn[disabled] {
+  opacity: 1;
+  cursor: not-allowed;
+  --mat-button-filled-disabled-container-color: color-mix(
+    in srgb,
+    var(--mat-sys-primary) 42%,
+    rgba(20, 24, 28, 0.85)
+  );
+  --mat-button-filled-disabled-label-text-color: color-mix(
+    in srgb,
+    var(--mat-sys-on-primary) 78%,
+    rgba(255, 255, 255, 0.35)
+  );
+}
