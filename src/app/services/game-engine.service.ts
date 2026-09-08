@@ -208,11 +208,34 @@ export class GameEngineService {
   /** Whose turn it is once the match has started; `null` before `startGame()`. */
   readonly currentTurn = signal<PlayerId | null>(null);
 
-  /** Label for UI: "—" pre-game, then "Player 1" / "Player 2". */
+  /** Optional live-match display names; when null, UI falls back to "Player 1/2". */
+  readonly player1DisplayName = signal<string | null>(null);
+  readonly player2DisplayName = signal<string | null>(null);
+  readonly liveMatchId = signal<string | null>(null);
+
+  /** Label for UI: "—" pre-game, then player name or "Player 1" / "Player 2". */
   readonly currentTurnDisplay = computed(() => {
     const t = this.currentTurn();
-    return t === null ? '—' : `Player ${t}`;
+    if (t === null) {
+      return '—';
+    }
+    return this.playerDisplayName(t === 1 ? 'player1' : 'player2');
   });
+
+  playerDisplayName(slot: 'player1' | 'player2'): string {
+    const custom =
+      slot === 'player1' ? this.player1DisplayName() : this.player2DisplayName();
+    if (custom?.trim()) {
+      return custom.trim();
+    }
+    return slot === 'player1' ? 'Player 1' : 'Player 2';
+  }
+
+  setLivePlayerNames(player1: string | null, player2: string | null, matchId: string | null): void {
+    this.player1DisplayName.set(player1);
+    this.player2DisplayName.set(player2);
+    this.liveMatchId.set(matchId);
+  }
 
   /**
    * Mana available this turn (refilled from lands at turn start; spent on spells, abilities, and plays).
@@ -1919,6 +1942,9 @@ export class GameEngineService {
     this.player2ManaPool.set({});
     this.damageEvents.set([]);
     this.actionFeedbackEvents.set([]);
+    this.player1DisplayName.set(null);
+    this.player2DisplayName.set(null);
+    this.liveMatchId.set(null);
   }
 
   /** Stub — advance turn / pass priority when you add phases. */

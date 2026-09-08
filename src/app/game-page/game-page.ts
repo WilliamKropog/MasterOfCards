@@ -1,13 +1,15 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { SpellDragLineOverlay } from '../spell-drag-line-overlay/spell-drag-line-overlay';
 import { PlayField } from '../play-field/play-field';
 import { PlayerDeck } from '../player-deck/player-deck';
 import { PlayerHand } from '../player-hand/player-hand';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService } from '../services/game-engine.service';
+import { MatchmakingService } from '../services/matchmaking.service';
 
 @Component({
   selector: 'app-game-page',
@@ -15,15 +17,52 @@ import { GameEngineService } from '../services/game-engine.service';
   templateUrl: './game-page.html',
   styleUrl: './game-page.css',
 })
-export class GamePage implements OnInit {
+export class GamePage implements OnInit, OnDestroy {
   protected readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
+  private readonly matchmaking = inject(MatchmakingService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   protected readonly title = signal('masterofcards');
+  protected readonly liveMatchError = signal('');
+
+  private fragmentSub: Subscription | null = null;
 
   ngOnInit(): void {
+    this.fragmentSub = this.route.fragment.subscribe((fragment) => {
+      void this.bootstrapFromFragment(fragment);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.fragmentSub?.unsubscribe();
+  }
+
+  private async bootstrapFromFragment(fragment: string | null): Promise<void> {
+    this.liveMatchError.set('');
+
+    if (fragment) {
+      const match = await this.matchmaking.loadMatch(fragment);
+      if (!match) {
+        this.liveMatchError.set('Live match not found.');
+        this.engine.resetMatch();
+        this.engine.startGame();
+        return;
+      }
+
+      this.engine.resetMatch();
+      this.engine.setLivePlayerNames(
+        match.player1.username,
+        match.player2.username,
+        match.id,
+      );
+      this.engine.startGame();
+      return;
+    }
+
     if (!this.engine.gameStarted()) {
+      this.engine.setLivePlayerNames(null, null, null);
       this.engine.startGame();
     }
   }

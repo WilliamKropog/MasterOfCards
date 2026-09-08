@@ -37,5 +37,49 @@ service cloud.firestore {
       allow update: if isOwner(userId);
       allow delete: if false;
     }
+
+    // Live matchmaking queue (doc id = uid).
+    match /matchmakingQueue/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'username',
+          'status',
+          'matchId',
+          'createdAt'
+        ]);
+      // Owner can update their own entry; any signed-in player can mark a waiting
+      // opponent as matched when creating a match.
+      allow update: if isSignedIn() && (
+        isOwner(uid)
+        || (
+          resource.data.status == 'waiting'
+          && request.resource.data.status == 'matched'
+          && request.resource.data.uid == uid
+          && request.resource.data.matchId is string
+        )
+      );
+      allow delete: if isOwner(uid);
+    }
+
+    // Live matches created by matchmaking.
+    match /matches/{matchId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.player1.uid
+          || request.auth.uid == resource.data.player2.uid
+        );
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['player1', 'player2', 'status', 'createdAt'])
+        && request.resource.data.status == 'active'
+        && (
+          request.auth.uid == request.resource.data.player1.uid
+          || request.auth.uid == request.resource.data.player2.uid
+        );
+      allow update, delete: if false;
+    }
   }
 }

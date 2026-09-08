@@ -2,6 +2,12 @@
   <div class="app-header-top">
     <div class="app-header-left">
       <h1 class="app-title">{{ title() }}</h1>
+      @if (engine.liveMatchId(); as matchId) {
+        <p class="app-live-match-id">Live match #{{ matchId }}</p>
+      }
+      @if (liveMatchError()) {
+        <p class="app-live-match-error" role="alert">{{ liveMatchError() }}</p>
+      }
       <div class="app-header-stats">
         <p class="app-turn-counter">
           <span class="app-stat-label">Turn Counter:</span>

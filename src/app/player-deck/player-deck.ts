@@ -22,7 +22,7 @@ export class PlayerDeck {
   });
 
   protected readonly ariaLabel = computed(() => {
-    const who = this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2';
+    const who = this.engine.playerDisplayName(this.playerSlot());
     const n = this.deckCount();
     return this.gameStarted() ? `${who} deck, ${n} cards` : `${who} deck`;
   });

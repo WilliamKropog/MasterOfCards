@@ -27,7 +27,7 @@ export class PlayerHand {
   readonly cardIds = input<string[]>([]);
 
   protected readonly displayLabel = computed(() =>
-    this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2',
+    this.engine.playerDisplayName(this.playerSlot()),
   );
 
   protected readonly lifePoints = computed(() =>

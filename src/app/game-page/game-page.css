@@ -56,6 +56,19 @@
   font-weight: 600;
 }
 
+.app-live-match-id {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e6c84a;
+}
+
+.app-live-match-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #f0a0a0;
+}
+
 .app-header-stats {
   display: flex;
   flex-direction: column;

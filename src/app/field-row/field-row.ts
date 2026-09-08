@@ -38,7 +38,7 @@ export class FieldRow {
   readonly zone = input.required<FieldZone>();
 
   protected readonly rowLabel = computed(() => {
-    const player = this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2';
+    const player = this.engine.playerDisplayName(this.playerSlot());
     const zone = this.zone() === 'land' ? 'land' : 'monster';
     return `${player}'s ${zone} row`;
   });
