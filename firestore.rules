@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Username reservation map (doc id = lowercase username).
+    // Public get so login can resolve username → email.
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.usernameLower == username
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'username',
+          'usernameLower',
+          'email',
+          'createdAt'
+        ]);
+      allow update, delete: if false;
+    }
+
+    // Per-user profile documents.
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'username',
+          'usernameLower',
+          'email',
+          'createdAt'
+        ]);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+  }
+}

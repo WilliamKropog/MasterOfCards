@@ -1,10 +1,77 @@
 <aside class="side-nav" aria-label="Player panel">
-  <section class="side-nav-section">
-    <h2 class="side-nav-heading">Friends</h2>
-    <p class="side-nav-empty">Friends list coming soon.</p>
-  </section>
-  <section class="side-nav-section">
-    <h2 class="side-nav-heading">Messages</h2>
-    <p class="side-nav-empty">Chat coming soon.</p>
-  </section>
+  @if (user$ | async; as user) {
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Signed in</h2>
+      <p class="side-nav-empty">{{ user.displayName || user.email }}</p>
+    </section>
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Friends</h2>
+      <p class="side-nav-empty">Friends list coming soon.</p>
+    </section>
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Messages</h2>
+      <p class="side-nav-empty">Chat coming soon.</p>
+    </section>
+    @if (logoutError) {
+      <p class="form-error" role="alert">{{ logoutError }}</p>
+    }
+    <button
+      matButton="filled"
+      type="button"
+      class="auth-btn"
+      [disabled]="loggingOut"
+      (click)="onLogout()"
+    >
+      {{ loggingOut ? 'Signing out…' : 'Logout' }}
+    </button>
+  } @else {
+    <section class="side-nav-section">
+      <h2 class="side-nav-heading">Login</h2>
+      <p class="side-nav-lead">Sign in to access friends, messages, and progress.</p>
+
+      <form class="login-form" [formGroup]="loginForm" (ngSubmit)="onLogin()" novalidate>
+        <label class="field">
+          <span class="field-label">Username or email</span>
+          <input
+            class="field-input"
+            type="text"
+            formControlName="identifier"
+            autocomplete="username"
+            aria-label="Username or email"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input
+            class="field-input"
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            aria-label="Password"
+          />
+        </label>
+
+        @if (loginError) {
+          <p class="form-error" role="alert">{{ loginError }}</p>
+        }
+
+        <button
+          matButton="filled"
+          type="submit"
+          class="auth-btn"
+          [disabled]="loggingIn || loginForm.invalid"
+        >
+          {{ loggingIn ? 'Signing in…' : 'Login' }}
+        </button>
+      </form>
+
+      <br>
+      <p class="register-link-row">
+        Don't have an account?
+        <br>
+        <a routerLink="/register" class="register-link">Register</a>
+      </p>
+    </section>
+  }
 </aside>
