@@ -10,27 +10,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Username reservation map (doc id = lowercase username).
-    // Public get so login can resolve username → email.
+    // Thin username → uid index (doc id = lowercase username).
     match /usernames/{username} {
       allow get: if true;
       allow list: if false;
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.usernameLower == username
-        && request.resource.data.keys().hasAll([
-          'uid',
-          'username',
-          'usernameLower',
-          'email',
-          'createdAt'
-        ]);
+        && request.resource.data.keys().hasOnly(['uid']);
       allow update, delete: if false;
     }
 
-    // Per-user profile documents.
+    // Per-user profile documents (source of truth).
+    // Public get allows username login to resolve uid → email before auth.
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if true;
       allow list: if false;
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId

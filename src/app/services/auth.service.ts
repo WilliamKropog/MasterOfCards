@@ -63,14 +63,7 @@ export class AuthService {
     let email = trimmedId.toLowerCase();
 
     if (!trimmedId.includes('@')) {
-      const usernameSnap = await getDoc(
-        doc(this.firestore, 'usernames', this.normalizeUsername(trimmedId)),
-      );
-      const storedEmail = usernameSnap.data()?.['email'];
-      if (!usernameSnap.exists() || typeof storedEmail !== 'string' || !storedEmail) {
-        throw new Error('INVALID_CREDENTIALS');
-      }
-      email = storedEmail;
+      email = await this.resolveEmailFromUsername(trimmedId);
     }
 
     try {
@@ -83,6 +76,36 @@ export class AuthService {
     } catch {
       throw new Error('INVALID_CREDENTIALS');
     }
+  }
+
+  /** Username index stores only uid; profile email lives on users/{uid}. */
+  private async resolveEmailFromUsername(username: string): Promise<string> {
+    const usernameSnap = await getDoc(
+      doc(this.firestore, 'usernames', this.normalizeUsername(username)),
+    );
+    if (!usernameSnap.exists()) {
+      throw new Error('INVALID_CREDENTIALS');
+    }
+
+    const data = usernameSnap.data();
+    // Legacy docs may still have email; new docs are uid-only.
+    const legacyEmail = data?.['email'];
+    if (typeof legacyEmail === 'string' && legacyEmail) {
+      return legacyEmail;
+    }
+
+    const uid = data?.['uid'];
+    if (typeof uid !== 'string' || !uid) {
+      throw new Error('INVALID_CREDENTIALS');
+    }
+
+    const userSnap = await getDoc(doc(this.firestore, 'users', uid));
+    const profileEmail = userSnap.data()?.['email'];
+    if (!userSnap.exists() || typeof profileEmail !== 'string' || !profileEmail) {
+      throw new Error('INVALID_CREDENTIALS');
+    }
+
+    return profileEmail;
   }
 
   async register({ username, email, password }: RegisterPayload): Promise<User> {
@@ -111,12 +134,9 @@ export class AuthService {
           throw new Error('USERNAME_TAKEN');
         }
 
+        // Thin uniqueness index: doc id = lowercase username, value = uid only.
         transaction.set(usernameRef, {
           uid: user.uid,
-          username: trimmedUsername,
-          usernameLower: usernameKey,
-          email: trimmedEmail,
-          createdAt: serverTimestamp(),
         });
 
         transaction.set(doc(this.firestore, 'users', user.uid), {
