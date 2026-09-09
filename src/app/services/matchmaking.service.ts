@@ -45,6 +45,16 @@ export class MatchmakingService {
 
   private queueUnsub: Unsubscribe | null = null;
   private pairTimer: ReturnType<typeof setInterval> | null = null;
+  /** Uid of the player currently in queue (kept so logout can still delete the queue doc). */
+  private searchingUid: string | null = null;
+
+  constructor() {
+    authState(this.auth).subscribe((user) => {
+      if (!user && this.searching()) {
+        void this.cancelLiveSearch();
+      }
+    });
+  }
 
   async startLiveSearch(): Promise<void> {
     this.error.set('');
@@ -72,6 +82,7 @@ export class MatchmakingService {
     const username = await this.resolveUsername(uid, displayName);
     const queueRef = doc(this.firestore, 'matchmakingQueue', uid);
 
+    this.searchingUid = uid;
     this.searching.set(true);
 
     await setDoc(queueRef, {
@@ -97,16 +108,17 @@ export class MatchmakingService {
 
   async cancelLiveSearch(): Promise<void> {
     this.error.set('');
-    const user = this.auth.currentUser;
+    const uid = this.auth.currentUser?.uid ?? this.searchingUid;
     this.clearSearchListeners();
     this.searching.set(false);
+    this.searchingUid = null;
 
-    if (!user) {
+    if (!uid) {
       return;
     }
 
     try {
-      await deleteDoc(doc(this.firestore, 'matchmakingQueue', user.uid));
+      await deleteDoc(doc(this.firestore, 'matchmakingQueue', uid));
     } catch {
       // Ignore if already removed by a successful match.
     }
@@ -129,13 +141,14 @@ export class MatchmakingService {
 
   private async onMatched(matchId: string): Promise<void> {
     const wasSearching = this.searching();
+    const uid = this.auth.currentUser?.uid ?? this.searchingUid;
     this.clearSearchListeners();
     this.searching.set(false);
+    this.searchingUid = null;
 
-    const user = this.auth.currentUser;
-    if (user) {
+    if (uid) {
       try {
-        await deleteDoc(doc(this.firestore, 'matchmakingQueue', user.uid));
+        await deleteDoc(doc(this.firestore, 'matchmakingQueue', uid));
       } catch {
         // Already cleaned up.
       }
@@ -169,7 +182,7 @@ export class MatchmakingService {
       candidates = await getDocs(waitingQuery);
     } catch (error) {
       console.error('Matchmaking query failed', error);
-      this.error.set('Matchmaking query failed. Check Firestore indexes/rules.');
+      this.error.set('Matchmaking failed. Please try again.');
       return;
     }
 
