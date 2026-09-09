@@ -3,10 +3,13 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import {
+  applyAttackToLiveGameState,
+  applyDefendToLiveGameState,
   applyEndTurnToLiveGameState,
   applyPlayCardToLiveGameState,
   createInitialLiveGameState,
   stripUndefinedDeep,
+  type AttackIntent,
   type LiveGameState,
   type PlayCardIntent,
 } from "./game/live-game-state";
@@ -98,10 +101,18 @@ type SubmitMatchActionRequest = {
   fieldSlot?: number;
   targetRowSlot?: "player1" | "player2";
   influencedSpaces?: number[];
+  monsterFieldSlot?: number;
+  attackerFieldSlot?: number;
+  defenderRowSlot?: "player1" | "player2";
+  defenderZone?: "monster" | "land";
+  defenderIdentifier?: number;
+  defenderPlayerSlot?: "player1" | "player2";
 };
 
+const SUPPORTED_ACTIONS = new Set(["endTurn", "playCard", "defend", "attack"]);
+
 /**
- * Action Sync entry point for endTurn + playCard.
+ * Action Sync entry point for endTurn, playCard, defend, and attack.
  */
 export const submitMatchAction = onCall(async (request) => {
   if (!request.auth?.uid) {
@@ -116,10 +127,10 @@ export const submitMatchAction = onCall(async (request) => {
   if (!matchId) {
     throw new HttpsError("invalid-argument", "matchId is required.");
   }
-  if (type !== "endTurn" && type !== "playCard") {
+  if (!SUPPORTED_ACTIONS.has(type)) {
     throw new HttpsError(
       "invalid-argument",
-      "Supported actions: endTurn, playCard.",
+      "Supported actions: endTurn, playCard, defend, attack.",
     );
   }
 
@@ -151,6 +162,7 @@ export const submitMatchAction = onCall(async (request) => {
 
     let nextState: LiveGameState;
     let actionPayload: Record<string, unknown>;
+    const controllerSlot = seatToSlot(callerSeat);
 
     if (type === "endTurn") {
       nextState = applyEndTurnToLiveGameState(match.gameState);
@@ -159,6 +171,78 @@ export const submitMatchAction = onCall(async (request) => {
         fromTurn: currentTurn,
         toTurn: nextState.currentTurn,
       };
+    } else if (type === "defend") {
+      const monsterFieldSlot =
+        typeof data.monsterFieldSlot === "number"
+          ? data.monsterFieldSlot
+          : typeof data.fieldSlot === "number"
+            ? data.fieldSlot
+            : -1;
+      if (monsterFieldSlot < 1) {
+        throw new HttpsError(
+          "invalid-argument",
+          "defend requires monsterFieldSlot.",
+        );
+      }
+      const applied = applyDefendToLiveGameState(
+        match.gameState,
+        controllerSlot,
+        monsterFieldSlot,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal defend move.");
+      }
+      nextState = applied;
+      actionPayload = { type: "defend", monsterFieldSlot };
+    } else if (type === "attack") {
+      const attackerFieldSlot =
+        typeof data.attackerFieldSlot === "number" ? data.attackerFieldSlot : -1;
+      if (attackerFieldSlot < 1) {
+        throw new HttpsError(
+          "invalid-argument",
+          "attack requires attackerFieldSlot.",
+        );
+      }
+
+      let intent: AttackIntent;
+      if (
+        data.defenderPlayerSlot === "player1" ||
+        data.defenderPlayerSlot === "player2"
+      ) {
+        intent = {
+          kind: "life",
+          attackerFieldSlot,
+          defenderPlayerSlot: data.defenderPlayerSlot,
+        };
+      } else if (
+        (data.defenderRowSlot === "player1" || data.defenderRowSlot === "player2") &&
+        (data.defenderZone === "monster" || data.defenderZone === "land") &&
+        typeof data.defenderIdentifier === "number"
+      ) {
+        intent = {
+          kind: "field",
+          attackerFieldSlot,
+          defenderRowSlot: data.defenderRowSlot,
+          defenderZone: data.defenderZone,
+          defenderIdentifier: data.defenderIdentifier,
+        };
+      } else {
+        throw new HttpsError(
+          "invalid-argument",
+          "attack requires a field target or defenderPlayerSlot for life.",
+        );
+      }
+
+      const applied = applyAttackToLiveGameState(
+        match.gameState,
+        controllerSlot,
+        intent,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal attack move.");
+      }
+      nextState = applied;
+      actionPayload = { type: "attack", ...intent };
     } else {
       const cardId = typeof data.cardId === "string" ? data.cardId : "";
       const handIndex =
@@ -200,7 +284,7 @@ export const submitMatchAction = onCall(async (request) => {
 
       const applied = applyPlayCardToLiveGameState(
         match.gameState,
-        seatToSlot(callerSeat),
+        controllerSlot,
         intent,
       );
       if (!applied) {

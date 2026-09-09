@@ -471,3 +471,365 @@ export function applyPlayCardToLiveGameState(
   return next;
 }
 
+type FieldPlayerSlot = 'player1' | 'player2';
+type FieldZone = 'monster' | 'land';
+
+function cloneBoard(state: LiveGameState): LiveGameState {
+  return {
+    ...state,
+    version: state.version + 1,
+    player1Hand: [...state.player1Hand],
+    player2Hand: [...state.player2Hand],
+    player1Deck: [...state.player1Deck],
+    player2Deck: [...state.player2Deck],
+    player1FieldLand: state.player1FieldLand.map((e) => ({ ...e })),
+    player1FieldMonster: state.player1FieldMonster.map((e) => ({ ...e })),
+    player2FieldLand: state.player2FieldLand.map((e) => ({ ...e })),
+    player2FieldMonster: state.player2FieldMonster.map((e) => ({ ...e })),
+    player1ManaPool: { ...state.player1ManaPool },
+    player2ManaPool: { ...state.player2ManaPool },
+  };
+}
+
+function monstersOf(state: LiveGameState, slot: FieldPlayerSlot): LiveFieldCard[] {
+  return slot === 'player1' ? state.player1FieldMonster : state.player2FieldMonster;
+}
+
+function landsOf(state: LiveGameState, slot: FieldPlayerSlot): LiveFieldCard[] {
+  return slot === 'player1' ? state.player1FieldLand : state.player2FieldLand;
+}
+
+function getMonsterBySlot(
+  state: LiveGameState,
+  slot: FieldPlayerSlot,
+  fieldSlot: number,
+): LiveFieldCard | undefined {
+  return monstersOf(state, slot).find((m) => m.fieldSlot === fieldSlot);
+}
+
+function getFieldEntry(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  zone: FieldZone,
+  identifier: number,
+): LiveFieldCard | undefined {
+  if (zone === 'monster') {
+    return getMonsterBySlot(state, rowSlot, identifier);
+  }
+  return landsOf(state, rowSlot)[identifier];
+}
+
+function fieldCardController(entry: LiveFieldCard, rowSlot: FieldPlayerSlot): FieldPlayerSlot {
+  return entry.controllerSlot ?? rowSlot;
+}
+
+function monsterSummoningSicknessCleared(
+  rules: ReturnType<typeof getLiveCardRules>,
+  placedAtTurnCounter: number,
+  turnCounter: number,
+): boolean {
+  if (turnCounter > placedAtTurnCounter) {
+    return true;
+  }
+  return turnCounter === placedAtTurnCounter && !!rules?.hasHaste;
+}
+
+function canMonsterAct(
+  state: LiveGameState,
+  ownerSlot: FieldPlayerSlot,
+  entry: LiveFieldCard,
+): boolean {
+  if (!state.gameStarted) {
+    return false;
+  }
+  const ownerId: 1 | 2 = ownerSlot === 'player1' ? 1 : 2;
+  if (state.currentTurn !== ownerId) {
+    return false;
+  }
+  const rules = getLiveCardRules(entry.cardId);
+  if (!rules || rules.cardType !== 'Monster') {
+    return false;
+  }
+  if (entry.hasActedThisTurn) {
+    return false;
+  }
+  if ((entry.attacksThisTurn ?? 0) > 0) {
+    return false;
+  }
+  return monsterSummoningSicknessCleared(rules, entry.placedAtTurnCounter, state.turnCounter);
+}
+
+function canMonsterAttack(
+  state: LiveGameState,
+  ownerSlot: FieldPlayerSlot,
+  entry: LiveFieldCard,
+): boolean {
+  if (!state.gameStarted) {
+    return false;
+  }
+  const ownerId: 1 | 2 = ownerSlot === 'player1' ? 1 : 2;
+  if (state.currentTurn !== ownerId) {
+    return false;
+  }
+  const rules = getLiveCardRules(entry.cardId);
+  if (!rules || rules.cardType !== 'Monster') {
+    return false;
+  }
+  if (entry.hasActedThisTurn) {
+    return false;
+  }
+  const multi = Math.max(1, rules.multiAttack ?? 1);
+  if ((entry.attacksThisTurn ?? 0) >= multi) {
+    return false;
+  }
+  return monsterSummoningSicknessCleared(rules, entry.placedAtTurnCounter, state.turnCounter);
+}
+
+function isLegalAttackTarget(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  defenderZone: FieldZone,
+  defenderIdentifier: number,
+  attackerSlot: FieldPlayerSlot,
+): boolean {
+  const defenderEntry = getFieldEntry(state, rowSlot, defenderZone, defenderIdentifier);
+  if (!defenderEntry) {
+    return false;
+  }
+  const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
+  if (fieldCardController(defenderEntry, rowSlot) !== enemy) {
+    return false;
+  }
+  const enemyMonsters = monstersOf(state, enemy);
+  const hasDefendingEnemy = enemyMonsters.some((e) => e.defending === true);
+
+  if (hasDefendingEnemy) {
+    if (defenderZone !== 'monster') {
+      return false;
+    }
+    const targetEntry = getMonsterBySlot(state, rowSlot, defenderIdentifier);
+    return targetEntry?.defending === true;
+  }
+
+  if (defenderZone === 'monster') {
+    return rowSlot === enemy && getMonsterBySlot(state, rowSlot, defenderIdentifier) !== undefined;
+  }
+  return defenderZone === 'land';
+}
+
+function applyIncomingFieldDamage(
+  entry: LiveFieldCard,
+  damage: number,
+  rules: ReturnType<typeof getLiveCardRules>,
+): LiveFieldCard {
+  if (damage <= 0) {
+    return entry;
+  }
+  const blocks = entry.blocks ?? 0;
+  if (blocks > 0 && rules?.cardType === 'Monster') {
+    return { ...entry, blocks: blocks - 1 };
+  }
+  const maxHp = entry.maxHealthOverride ?? rules?.maxHealth ?? 0;
+  const hp = entry.currentHealth ?? maxHp;
+  return { ...entry, currentHealth: Math.max(0, hp - damage) };
+}
+
+function setFieldEntry(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  zone: FieldZone,
+  identifier: number,
+  entry: LiveFieldCard | null,
+): void {
+  const rules = entry ? getLiveCardRules(entry.cardId) : undefined;
+  const maxHp = entry ? (entry.maxHealthOverride ?? rules?.maxHealth ?? 0) : 0;
+  const hp = entry ? (entry.currentHealth ?? maxHp) : 0;
+  const shouldRemove = !entry || hp <= 0;
+
+  if (zone === 'monster') {
+    const arr =
+      rowSlot === 'player1' ? state.player1FieldMonster : state.player2FieldMonster;
+    const idx = arr.findIndex((e) => e.fieldSlot === identifier);
+    if (idx < 0) {
+      return;
+    }
+    if (shouldRemove) {
+      arr.splice(idx, 1);
+    } else {
+      arr[idx] = entry!;
+    }
+    return;
+  }
+
+  const arr = rowSlot === 'player1' ? state.player1FieldLand : state.player2FieldLand;
+  if (identifier < 0 || identifier >= arr.length) {
+    return;
+  }
+  if (shouldRemove) {
+    arr.splice(identifier, 1);
+  } else {
+    arr[identifier] = entry!;
+  }
+}
+
+/**
+ * Put a monster into defense for the rest of the opponent's turn.
+ */
+export function applyDefendToLiveGameState(
+  state: LiveGameState,
+  controllerSlot: FieldPlayerSlot,
+  monsterFieldSlot: number,
+): LiveGameState | null {
+  if (!state.gameStarted) {
+    return null;
+  }
+  const seat: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
+  if (state.currentTurn !== seat) {
+    return null;
+  }
+
+  const entry = getMonsterBySlot(state, controllerSlot, monsterFieldSlot);
+  if (!entry || !canMonsterAct(state, controllerSlot, entry)) {
+    return null;
+  }
+
+  const next = cloneBoard(state);
+  const monsters = monstersOf(next, controllerSlot);
+  const idx = monsters.findIndex((m) => m.fieldSlot === monsterFieldSlot);
+  if (idx < 0) {
+    return null;
+  }
+  monsters[idx] = {
+    ...monsters[idx]!,
+    defending: true,
+    hasActedThisTurn: true,
+  };
+  return next;
+}
+
+export type AttackIntent =
+  | {
+      kind: 'field';
+      attackerFieldSlot: number;
+      defenderRowSlot: FieldPlayerSlot;
+      defenderZone: FieldZone;
+      defenderIdentifier: number;
+    }
+  | {
+      kind: 'life';
+      attackerFieldSlot: number;
+      defenderPlayerSlot: FieldPlayerSlot;
+    };
+
+/**
+ * Resolve one attack (field target or direct LP). Mirrors GameEngine combat.
+ */
+export function applyAttackToLiveGameState(
+  state: LiveGameState,
+  controllerSlot: FieldPlayerSlot,
+  intent: AttackIntent,
+): LiveGameState | null {
+  if (!state.gameStarted) {
+    return null;
+  }
+  const seat: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
+  if (state.currentTurn !== seat) {
+    return null;
+  }
+
+  const attackerEntry = getMonsterBySlot(state, controllerSlot, intent.attackerFieldSlot);
+  if (!attackerEntry || !canMonsterAttack(state, controllerSlot, attackerEntry)) {
+    return null;
+  }
+
+  const atkRules = getLiveCardRules(attackerEntry.cardId);
+  if (!atkRules || atkRules.cardType !== 'Monster') {
+    return null;
+  }
+
+  const next = cloneBoard(state);
+  const liveAttacker = getMonsterBySlot(next, controllerSlot, intent.attackerFieldSlot);
+  if (!liveAttacker) {
+    return null;
+  }
+
+  if (intent.kind === 'life') {
+    const enemy: FieldPlayerSlot = controllerSlot === 'player1' ? 'player2' : 'player1';
+    if (intent.defenderPlayerSlot !== enemy) {
+      return null;
+    }
+    if (monstersOf(next, enemy).some((e) => e.defending === true)) {
+      return null;
+    }
+
+    const atkPower = atkRules.attack ?? 0;
+    if (atkPower <= 0) {
+      return null;
+    }
+
+    if (enemy === 'player1') {
+      next.player1LifePoints = Math.max(0, next.player1LifePoints - atkPower);
+    } else {
+      next.player2LifePoints = Math.max(0, next.player2LifePoints - atkPower);
+    }
+
+    const attacksThisTurn = (liveAttacker.attacksThisTurn ?? 0) + 1;
+    const multi = Math.max(1, atkRules.multiAttack ?? 1);
+    setFieldEntry(next, controllerSlot, 'monster', intent.attackerFieldSlot, {
+      ...liveAttacker,
+      attacksThisTurn,
+      hasActedThisTurn: attacksThisTurn >= multi ? true : liveAttacker.hasActedThisTurn,
+    });
+    return next;
+  }
+
+  if (
+    !isLegalAttackTarget(
+      next,
+      intent.defenderRowSlot,
+      intent.defenderZone,
+      intent.defenderIdentifier,
+      controllerSlot,
+    )
+  ) {
+    return null;
+  }
+
+  const defenderEntry = getFieldEntry(
+    next,
+    intent.defenderRowSlot,
+    intent.defenderZone,
+    intent.defenderIdentifier,
+  );
+  if (!defenderEntry) {
+    return null;
+  }
+
+  const defRules = getLiveCardRules(defenderEntry.cardId);
+  if (!defRules) {
+    return null;
+  }
+
+  const atkPower = atkRules.attack ?? 0;
+  const counterPower = defRules.attack ?? 0;
+
+  const attackerAfter = applyIncomingFieldDamage(liveAttacker, counterPower, atkRules);
+  const defenderAfter = applyIncomingFieldDamage(defenderEntry, atkPower, defRules);
+
+  const attacksThisTurn = (liveAttacker.attacksThisTurn ?? 0) + 1;
+  const multi = Math.max(1, atkRules.multiAttack ?? 1);
+  const attacksExhausted = attacksThisTurn >= multi;
+
+  setFieldEntry(next, controllerSlot, 'monster', intent.attackerFieldSlot, {
+    ...attackerAfter,
+    attacksThisTurn,
+    hasActedThisTurn: attacksExhausted ? true : attackerAfter.hasActedThisTurn,
+  });
+  setFieldEntry(next, intent.defenderRowSlot, intent.defenderZone, intent.defenderIdentifier, {
+    ...defenderAfter,
+    hasActedThisTurn: true,
+  });
+
+  return next;
+}
+

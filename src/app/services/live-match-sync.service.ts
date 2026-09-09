@@ -23,6 +23,18 @@ export type PlayCardRequest =
       influencedSpaces: number[];
     };
 
+export type AttackRequest =
+  | {
+      attackerFieldSlot: number;
+      defenderRowSlot: PlayerSlot;
+      defenderZone: 'monster' | 'land';
+      defenderIdentifier: number;
+    }
+  | {
+      attackerFieldSlot: number;
+      defenderPlayerSlot: PlayerSlot;
+    };
+
 @Injectable({ providedIn: 'root' })
 export class LiveMatchSyncService {
   private readonly firestore = inject(Firestore);
@@ -79,6 +91,14 @@ export class LiveMatchSyncService {
 
   async submitPlayCard(matchId: string, play: PlayCardRequest): Promise<void> {
     await this.submitAction({ matchId, type: 'playCard', ...play });
+  }
+
+  async submitDefend(matchId: string, monsterFieldSlot: number): Promise<void> {
+    await this.submitAction({ matchId, type: 'defend', monsterFieldSlot });
+  }
+
+  async submitAttack(matchId: string, attack: AttackRequest): Promise<void> {
+    await this.submitAction({ matchId, type: 'attack', ...attack });
   }
 
   private async submitAction(payload: Record<string, unknown>): Promise<void> {

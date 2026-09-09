@@ -260,9 +260,21 @@ export class GameEngineService {
     this.player2ManaPool.set({ ...state.player2ManaPool });
     this.placedFreeFieldCardThisTurn.set(!!state.placedFreeFieldCardThisTurn);
     this.nextFieldInstanceId = state.nextFieldInstanceId ?? 1;
-    this.attackMode.set(null);
+
+    const prevAttack = this.attackMode();
     this.abilityTargetMode.set(null);
     this.pendingPlacement.set(null);
+    // Keep multi-attack targeting when the same attacker still has attacks left.
+    if (prevAttack) {
+      const entry = this.getMonsterBySlot(prevAttack.attackerSlot, prevAttack.attackerMonsterSlot);
+      if (entry && this.canMonsterAttack(prevAttack.attackerSlot, entry)) {
+        this.attackMode.set(prevAttack);
+      } else {
+        this.attackMode.set(null);
+      }
+    } else {
+      this.attackMode.set(null);
+    }
   }
 
   /**

@@ -5,6 +5,7 @@ import { getCardDefinition, spellAllowsPlayerLifeTarget } from '../game/card-cat
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService, MAX_LAND_CAPACITY } from '../services/game-engine.service';
+import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
 
 export type PlayerSlot = 'player1' | 'player2';
@@ -19,6 +20,7 @@ export class PlayerHand {
   protected readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
   private readonly spellDragLine = inject(SpellDragLineService);
+  private readonly liveSync = inject(LiveMatchSyncService);
 
   /** Which player this hand belongs to. */
   readonly playerSlot = input.required<PlayerSlot>();
@@ -212,6 +214,15 @@ export class PlayerHand {
       return;
     }
     event.stopPropagation();
+    const matchId = this.engine.liveMatchId();
+    const mode = this.engine.attackMode();
+    if (matchId && mode) {
+      void this.liveSync.submitAttack(matchId, {
+        attackerFieldSlot: mode.attackerMonsterSlot,
+        defenderPlayerSlot: this.playerSlot(),
+      });
+      return;
+    }
     this.engine.resolveAttackOnEnemyLife(this.playerSlot());
   }
 }

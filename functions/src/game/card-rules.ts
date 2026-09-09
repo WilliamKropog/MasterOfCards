@@ -1,4 +1,4 @@
-/** Minimal card rules for live playCard validation (subset of card-catalog). */
+/** Minimal card rules for live playCard / combat validation (subset of card-catalog). */
 
 export type ManaMap = Record<string, number>;
 
@@ -12,6 +12,9 @@ export interface LiveCardRules {
   buildTime?: number;
   placeOnOpponentLandRow?: boolean;
   maxHealth?: number;
+  attack?: number;
+  multiAttack?: number;
+  hasHaste?: boolean;
   startingBlocks?: number;
 }
 
@@ -19,12 +22,14 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'rock-monster': {
     id: 'rock-monster',
     cardType: 'Monster',
-    maxHealth: 50,
+    maxHealth: 80,
+    attack: 10,
   },
   'mighty-gopher': {
     id: 'mighty-gopher',
     cardType: 'Monster',
-    maxHealth: 40,
+    maxHealth: 50,
+    attack: 20,
   },
   'boulder-toss': {
     id: 'boulder-toss',
@@ -34,6 +39,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'mud-hut': {
     id: 'mud-hut',
     cardType: 'Land',
+    maxHealth: 80,
     space: 1,
     generateMana: { Rock: 1 },
     maxMana: { Rock: 10 },
@@ -42,6 +48,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: 'mountain-range',
     cardType: 'Land',
     manaCost: { Rock: 4 },
+    maxHealth: 400,
     space: 3,
     generateMana: { Rock: 4, Ice: 3, Wind: 3, Mystic: 2, Grass: 2, Lightning: 2 },
     maxMana: { Rock: 20, Ice: 10, Wind: 10, Mystic: 10, Grass: 10, Lightning: 10 },
@@ -49,6 +56,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'temple-of-being': {
     id: 'temple-of-being',
     cardType: 'Land',
+    maxHealth: 100,
     space: 1,
     generateMana: { Rock: 2 },
     maxMana: { Rock: 10 },
@@ -57,18 +65,23 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   armoredillo: {
     id: 'armoredillo',
     cardType: 'Monster',
-    maxHealth: 80,
+    maxHealth: 30,
+    attack: 20,
     startingBlocks: 1,
   },
   ruptar: {
     id: 'ruptar',
     cardType: 'Monster',
     manaCost: { Rock: 4 },
-    maxHealth: 90,
+    maxHealth: 120,
+    attack: 30,
+    multiAttack: 2,
+    hasHaste: true,
   },
   'elder-gopher-statue': {
     id: 'elder-gopher-statue',
     cardType: 'Land',
+    maxHealth: 200,
     space: 1,
     generateMana: { Rock: 1 },
     maxMana: { Rock: 10 },
@@ -77,7 +90,8 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: 'rockterrior',
     cardType: 'Monster',
     manaCost: { Rock: 8 },
-    maxHealth: 120,
+    maxHealth: 180,
+    attack: 30,
   },
   'rock-slide': {
     id: 'rock-slide',
@@ -87,6 +101,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'excavation-site': {
     id: 'excavation-site',
     cardType: 'Land',
+    maxHealth: 160,
     space: 1,
     generateMana: { Rock: 2, Sand: 2 },
     maxMana: { Rock: 15, Sand: 10 },
@@ -100,6 +115,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: '1000-mile-wall',
     cardType: 'Land',
     manaCost: { Rock: 7 },
+    maxHealth: 500,
     space: 5,
     generateMana: { Rock: 9 },
     maxMana: { Rock: 30 },
@@ -109,7 +125,8 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: 'king-colossus',
     cardType: 'Monster',
     manaCost: { Rock: 15 },
-    maxHealth: 300,
+    maxHealth: 200,
+    attack: 50,
   },
 };
 

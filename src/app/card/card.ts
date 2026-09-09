@@ -888,6 +888,11 @@ export class Card {
     if (slot === null || zone !== 'monster' || idx === null) {
       return;
     }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      void this.liveSync.submitDefend(matchId, idx);
+      return;
+    }
     this.engine.setMonsterDefending(slot, idx);
   }
 
@@ -948,6 +953,17 @@ export class Card {
     }
     if (this.engine.abilityTargetMode()?.abilityId === 'tail-smash') {
       this.engine.resolveTailSmashOnTarget(rowSlot, zone, idx);
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    const mode = this.engine.attackMode();
+    if (matchId && mode) {
+      void this.liveSync.submitAttack(matchId, {
+        attackerFieldSlot: mode.attackerMonsterSlot,
+        defenderRowSlot: rowSlot,
+        defenderZone: zone,
+        defenderIdentifier: idx,
+      });
       return;
     }
     this.engine.resolveAttackOnTarget(rowSlot, zone, idx);
