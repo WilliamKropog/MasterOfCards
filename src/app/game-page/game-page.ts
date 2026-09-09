@@ -61,8 +61,20 @@ export class GamePage implements OnInit, OnDestroy {
         match.player2.username,
         match.id,
       );
-      this.engine.startGame();
-      this.liveSync.attach(match.id);
+
+      try {
+        await this.liveSync.attach(match.id);
+      } catch (error) {
+        const message =
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : 'Could not initialize live match.';
+        this.liveMatchError.set(message);
+        this.engine.startGame();
+      }
       return;
     }
 

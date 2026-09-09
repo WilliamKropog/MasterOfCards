@@ -2,6 +2,11 @@ import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import {
+  applyEndTurnToLiveGameState,
+  createInitialLiveGameState,
+  type LiveGameState,
+} from "./game/live-game-state";
 
 initializeApp();
 
@@ -18,7 +23,65 @@ type MatchDoc = {
   status: string;
   currentTurn?: number;
   actionSeq?: number;
+  gameState?: LiveGameState;
 };
+
+function assertParticipant(match: MatchDoc, uid: string): 1 | 2 {
+  if (match.player1?.uid === uid) {
+    return 1;
+  }
+  if (match.player2?.uid === uid) {
+    return 2;
+  }
+  throw new HttpsError(
+    "permission-denied",
+    "You are not a participant in this match.",
+  );
+}
+
+/**
+ * Creates the shared board once per match (idempotent).
+ * Both clients should call this after matchmaking; only the first write wins.
+ */
+export const initializeLiveMatch = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to initialize a match.");
+  }
+
+  const uid = request.auth.uid;
+  const matchId =
+    typeof request.data?.matchId === "string" ? request.data.matchId.trim() : "";
+  if (!matchId) {
+    throw new HttpsError("invalid-argument", "matchId is required.");
+  }
+
+  const matchRef = db.collection("matches").doc(matchId);
+
+  const gameState = await db.runTransaction(async (tx) => {
+    const matchSnap = await tx.get(matchRef);
+    if (!matchSnap.exists) {
+      throw new HttpsError("not-found", "Match not found.");
+    }
+
+    const match = matchSnap.data() as MatchDoc;
+    assertParticipant(match, uid);
+
+    if (match.gameState?.gameStarted) {
+      return match.gameState;
+    }
+
+    const initial = createInitialLiveGameState();
+    tx.update(matchRef, {
+      gameState: initial,
+      currentTurn: initial.currentTurn,
+      actionSeq: 0,
+    });
+    return initial;
+  });
+
+  logger.info("initializeLiveMatch", { matchId, uid, version: gameState.version });
+  return { ok: true, version: gameState.version };
+});
 
 type SubmitMatchActionRequest = {
   matchId?: string;
@@ -27,7 +90,7 @@ type SubmitMatchActionRequest = {
 
 /**
  * Action Sync entry point.
- * Clients send intents here; only Admin SDK writes authoritative match actions.
+ * Clients send intents here; only Admin SDK writes authoritative match actions + gameState.
  */
 export const submitMatchAction = onCall(async (request) => {
   if (!request.auth?.uid) {
@@ -62,17 +125,15 @@ export const submitMatchAction = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Match is not active.");
     }
 
-    const isP1 = match.player1?.uid === uid;
-    const isP2 = match.player2?.uid === uid;
-    if (!isP1 && !isP2) {
+    const callerSeat = assertParticipant(match, uid);
+    if (!match.gameState?.gameStarted) {
       throw new HttpsError(
-        "permission-denied",
-        "You are not a participant in this match.",
+        "failed-precondition",
+        "Match game state is not initialized.",
       );
     }
 
-    const currentTurn = match.currentTurn === 2 ? 2 : 1;
-    const callerSeat = isP1 ? 1 : 2;
+    const currentTurn = match.gameState.currentTurn === 2 ? 2 : 1;
     if (callerSeat !== currentTurn) {
       throw new HttpsError(
         "failed-precondition",
@@ -80,8 +141,8 @@ export const submitMatchAction = onCall(async (request) => {
       );
     }
 
+    const nextState = applyEndTurnToLiveGameState(match.gameState);
     const nextSeq = (match.actionSeq ?? 0) + 1;
-    const nextTurn = currentTurn === 1 ? 2 : 1;
     const actionRef = matchRef.collection("actions").doc(String(nextSeq));
 
     tx.set(actionRef, {
@@ -89,16 +150,17 @@ export const submitMatchAction = onCall(async (request) => {
       type: "endTurn",
       byUid: uid,
       fromTurn: currentTurn,
-      toTurn: nextTurn,
+      toTurn: nextState.currentTurn,
       createdAt: FieldValue.serverTimestamp(),
     });
 
     tx.update(matchRef, {
-      currentTurn: nextTurn,
+      currentTurn: nextState.currentTurn,
       actionSeq: nextSeq,
+      gameState: nextState,
     });
 
-    return { seq: nextSeq, currentTurn: nextTurn };
+    return { seq: nextSeq, currentTurn: nextState.currentTurn, version: nextState.version };
   });
 
   logger.info("endTurn applied", { matchId, uid, ...result });

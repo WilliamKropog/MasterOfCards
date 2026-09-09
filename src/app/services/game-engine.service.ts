@@ -29,6 +29,7 @@ import {
   type ManaCostMap,
   type ManaGenerationMap,
 } from '../game/card-catalog';
+import type { LiveGameState } from '../game/live-game-state';
 
 /** Which seat is acting in the match (extend as your rules need). */
 export type PlayerId = 1 | 2;
@@ -235,6 +236,33 @@ export class GameEngineService {
     this.player1DisplayName.set(player1);
     this.player2DisplayName.set(player2);
     this.liveMatchId.set(matchId);
+  }
+
+  /** Replace local engine signals from authoritative live match gameState. */
+  applyLiveGameState(state: LiveGameState): void {
+    this.gameStarted.set(!!state.gameStarted);
+    this.currentTurn.set(state.currentTurn);
+    this.activePlayer.set(state.activePlayer);
+    this.turnCounter.set(state.turnCounter);
+    this.player1TurnCounter.set(state.player1TurnCounter);
+    this.player2TurnCounter.set(state.player2TurnCounter);
+    this.player1LifePoints.set(state.player1LifePoints);
+    this.player2LifePoints.set(state.player2LifePoints);
+    this.player1Hand.set([...state.player1Hand]);
+    this.player2Hand.set([...state.player2Hand]);
+    this.player1Deck.set([...state.player1Deck]);
+    this.player2Deck.set([...state.player2Deck]);
+    this.player1FieldLand.set(structuredClone(state.player1FieldLand) as FieldCardEntry[]);
+    this.player1FieldMonster.set(structuredClone(state.player1FieldMonster) as FieldCardEntry[]);
+    this.player2FieldLand.set(structuredClone(state.player2FieldLand) as FieldCardEntry[]);
+    this.player2FieldMonster.set(structuredClone(state.player2FieldMonster) as FieldCardEntry[]);
+    this.player1ManaPool.set({ ...state.player1ManaPool });
+    this.player2ManaPool.set({ ...state.player2ManaPool });
+    this.placedFreeFieldCardThisTurn.set(!!state.placedFreeFieldCardThisTurn);
+    this.nextFieldInstanceId = state.nextFieldInstanceId ?? 1;
+    this.attackMode.set(null);
+    this.abilityTargetMode.set(null);
+    this.pendingPlacement.set(null);
   }
 
   /**
