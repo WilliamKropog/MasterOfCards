@@ -225,6 +225,8 @@ export class MatchmakingService {
           player2,
           status: 'active',
           createdAt: serverTimestamp(),
+          currentTurn: 1,
+          actionSeq: 0,
         });
         transaction.update(myRef, { status: 'matched', matchId });
         transaction.update(partnerRef, { status: 'matched', matchId });

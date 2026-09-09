@@ -6,7 +6,10 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "emulators": "firebase emulators:start --import=./.emulator-data --export-on-exit=./.emulator-data",
+    "emulators:fresh": "firebase emulators:start",
+    "functions:build": "npm --prefix functions run build"
   },
   "prettier": {
     "overrides": [

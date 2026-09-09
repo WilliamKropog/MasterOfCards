@@ -9,6 +9,7 @@ import { PlayerDeck } from '../player-deck/player-deck';
 import { PlayerHand } from '../player-hand/player-hand';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService } from '../services/game-engine.service';
+import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import { MatchmakingService } from '../services/matchmaking.service';
 
 @Component({
@@ -21,6 +22,7 @@ export class GamePage implements OnInit, OnDestroy {
   protected readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
   private readonly matchmaking = inject(MatchmakingService);
+  private readonly liveSync = inject(LiveMatchSyncService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -37,10 +39,12 @@ export class GamePage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.fragmentSub?.unsubscribe();
+    this.liveSync.detach();
   }
 
   private async bootstrapFromFragment(fragment: string | null): Promise<void> {
     this.liveMatchError.set('');
+    this.liveSync.detach();
 
     if (fragment) {
       const match = await this.matchmaking.loadMatch(fragment);
@@ -58,6 +62,7 @@ export class GamePage implements OnInit, OnDestroy {
         match.id,
       );
       this.engine.startGame();
+      this.liveSync.attach(match.id);
       return;
     }
 
@@ -69,11 +74,30 @@ export class GamePage implements OnInit, OnDestroy {
 
   protected onEndGameClick(): void {
     this.cardDrag.endDrag();
+    this.liveSync.detach();
     this.engine.resetMatch();
     void this.router.navigate(['/']);
   }
 
-  protected onNextTurnClick(): void {
+  protected async onNextTurnClick(): Promise<void> {
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      try {
+        this.liveMatchError.set('');
+        await this.liveSync.submitEndTurn(matchId);
+      } catch (error) {
+        const message =
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : 'Could not end turn.';
+        this.liveMatchError.set(message);
+      }
+      return;
+    }
+
     this.engine.nextTurn();
   }
 
