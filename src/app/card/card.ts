@@ -19,6 +19,7 @@ import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
 import { GameEngineService, type ActionFeedbackKind, type FieldZone } from '../services/game-engine.service';
+import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
 @Component({
@@ -31,6 +32,7 @@ export class Card {
   private readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
   private readonly spellDragLine = inject(SpellDragLineService);
+  private readonly liveSync = inject(LiveMatchSyncService);
 
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
@@ -696,6 +698,7 @@ export class Card {
         return;
       }
       const type = this.def()?.cardType;
+      const matchId = this.engine.liveMatchId();
 
       if (type === 'Spell') {
         const tether = this.spellDragLine.tetherTarget();
@@ -704,6 +707,10 @@ export class Card {
         const slot = this.ownerPlayerSlot();
         const idx = this.handIndex();
         if (slot === null || idx === undefined) {
+          return;
+        }
+        // Live spell sync comes in a later slice; keep local for now.
+        if (matchId) {
           return;
         }
         if (tether !== null) {
@@ -733,25 +740,42 @@ export class Card {
           const targetRowSlot: PlayerSlot = mustPlaceLandOnOpponentRow(def)
             ? (slot === 'player1' ? 'player2' : 'player1')
             : slot;
-          this.engine.placeLandFromHand({
-            controllerSlot: slot,
-            handIndex: idx,
-            cardId: this.cardId(),
-            targetRowSlot,
-            influencedSpaces: preview,
-          });
+          if (matchId) {
+            void this.liveSync.submitPlayCard(matchId, {
+              cardId: this.cardId(),
+              handIndex: idx,
+              targetRowSlot,
+              influencedSpaces: preview,
+            });
+          } else {
+            this.engine.placeLandFromHand({
+              controllerSlot: slot,
+              handIndex: idx,
+              cardId: this.cardId(),
+              targetRowSlot,
+              influencedSpaces: preview,
+            });
+          }
         }
       } else if (type === 'Monster') {
         const previewSlot = this.cardDrag.monsterPreviewSlot();
         const slot = this.ownerPlayerSlot();
         const idx = this.handIndex();
         if (previewSlot !== null && slot !== null && idx !== undefined) {
-          this.engine.placeMonsterFromHand({
-            controllerSlot: slot,
-            handIndex: idx,
-            cardId: this.cardId(),
-            fieldSlot: previewSlot,
-          });
+          if (matchId) {
+            void this.liveSync.submitPlayCard(matchId, {
+              cardId: this.cardId(),
+              handIndex: idx,
+              fieldSlot: previewSlot,
+            });
+          } else {
+            this.engine.placeMonsterFromHand({
+              controllerSlot: slot,
+              handIndex: idx,
+              cardId: this.cardId(),
+              fieldSlot: previewSlot,
+            });
+          }
         }
       }
     } finally {

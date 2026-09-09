@@ -4,13 +4,17 @@ import { logger } from "firebase-functions";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import {
   applyEndTurnToLiveGameState,
+  applyPlayCardToLiveGameState,
   createInitialLiveGameState,
+  stripUndefinedDeep,
   type LiveGameState,
+  type PlayCardIntent,
 } from "./game/live-game-state";
 
 initializeApp();
 
 const db = getFirestore();
+db.settings({ ignoreUndefinedProperties: true });
 
 type MatchPlayer = {
   uid: string;
@@ -39,9 +43,12 @@ function assertParticipant(match: MatchDoc, uid: string): 1 | 2 {
   );
 }
 
+function seatToSlot(seat: 1 | 2): "player1" | "player2" {
+  return seat === 1 ? "player1" : "player2";
+}
+
 /**
  * Creates the shared board once per match (idempotent).
- * Both clients should call this after matchmaking; only the first write wins.
  */
 export const initializeLiveMatch = onCall(async (request) => {
   if (!request.auth?.uid) {
@@ -70,7 +77,7 @@ export const initializeLiveMatch = onCall(async (request) => {
       return match.gameState;
     }
 
-    const initial = createInitialLiveGameState();
+    const initial = stripUndefinedDeep(createInitialLiveGameState());
     tx.update(matchRef, {
       gameState: initial,
       currentTurn: initial.currentTurn,
@@ -86,11 +93,15 @@ export const initializeLiveMatch = onCall(async (request) => {
 type SubmitMatchActionRequest = {
   matchId?: string;
   type?: string;
+  cardId?: string;
+  handIndex?: number;
+  fieldSlot?: number;
+  targetRowSlot?: "player1" | "player2";
+  influencedSpaces?: number[];
 };
 
 /**
- * Action Sync entry point.
- * Clients send intents here; only Admin SDK writes authoritative match actions + gameState.
+ * Action Sync entry point for endTurn + playCard.
  */
 export const submitMatchAction = onCall(async (request) => {
   if (!request.auth?.uid) {
@@ -105,10 +116,10 @@ export const submitMatchAction = onCall(async (request) => {
   if (!matchId) {
     throw new HttpsError("invalid-argument", "matchId is required.");
   }
-  if (type !== "endTurn") {
+  if (type !== "endTurn" && type !== "playCard") {
     throw new HttpsError(
       "invalid-argument",
-      "Only endTurn is supported in this slice.",
+      "Supported actions: endTurn, playCard.",
     );
   }
 
@@ -135,34 +146,94 @@ export const submitMatchAction = onCall(async (request) => {
 
     const currentTurn = match.gameState.currentTurn === 2 ? 2 : 1;
     if (callerSeat !== currentTurn) {
-      throw new HttpsError(
-        "failed-precondition",
-        "It is not your turn to end the turn.",
-      );
+      throw new HttpsError("failed-precondition", "It is not your turn.");
     }
 
-    const nextState = applyEndTurnToLiveGameState(match.gameState);
+    let nextState: LiveGameState;
+    let actionPayload: Record<string, unknown>;
+
+    if (type === "endTurn") {
+      nextState = applyEndTurnToLiveGameState(match.gameState);
+      actionPayload = {
+        type: "endTurn",
+        fromTurn: currentTurn,
+        toTurn: nextState.currentTurn,
+      };
+    } else {
+      const cardId = typeof data.cardId === "string" ? data.cardId : "";
+      const handIndex =
+        typeof data.handIndex === "number" ? data.handIndex : -1;
+      if (!cardId || handIndex < 0) {
+        throw new HttpsError(
+          "invalid-argument",
+          "playCard requires cardId and handIndex.",
+        );
+      }
+
+      let intent: PlayCardIntent;
+      if (typeof data.fieldSlot === "number") {
+        intent = {
+          cardKind: "Monster",
+          cardId,
+          handIndex,
+          fieldSlot: data.fieldSlot,
+        };
+      } else if (
+        (data.targetRowSlot === "player1" || data.targetRowSlot === "player2") &&
+        Array.isArray(data.influencedSpaces)
+      ) {
+        intent = {
+          cardKind: "Land",
+          cardId,
+          handIndex,
+          targetRowSlot: data.targetRowSlot,
+          influencedSpaces: data.influencedSpaces.filter(
+            (n): n is number => typeof n === "number",
+          ),
+        };
+      } else {
+        throw new HttpsError(
+          "invalid-argument",
+          "playCard requires fieldSlot (monster) or targetRowSlot + influencedSpaces (land).",
+        );
+      }
+
+      const applied = applyPlayCardToLiveGameState(
+        match.gameState,
+        seatToSlot(callerSeat),
+        intent,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal playCard move.");
+      }
+      nextState = applied;
+      actionPayload = { type: "playCard", ...intent };
+    }
+
     const nextSeq = (match.actionSeq ?? 0) + 1;
     const actionRef = matchRef.collection("actions").doc(String(nextSeq));
 
     tx.set(actionRef, {
       seq: nextSeq,
-      type: "endTurn",
       byUid: uid,
-      fromTurn: currentTurn,
-      toTurn: nextState.currentTurn,
       createdAt: FieldValue.serverTimestamp(),
+      ...actionPayload,
     });
 
     tx.update(matchRef, {
       currentTurn: nextState.currentTurn,
       actionSeq: nextSeq,
-      gameState: nextState,
+      gameState: stripUndefinedDeep(nextState),
     });
 
-    return { seq: nextSeq, currentTurn: nextState.currentTurn, version: nextState.version };
+    return {
+      seq: nextSeq,
+      currentTurn: nextState.currentTurn,
+      version: nextState.version,
+      type,
+    };
   });
 
-  logger.info("endTurn applied", { matchId, uid, ...result });
+  logger.info("submitMatchAction applied", { matchId, uid, ...result });
   return result;
 });

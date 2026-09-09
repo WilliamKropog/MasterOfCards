@@ -7,7 +7,21 @@ import {
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import type { LiveGameState } from '../game/live-game-state';
+import type { PlayerSlot } from '../player-hand/player-hand';
 import { GameEngineService } from './game-engine.service';
+
+export type PlayCardRequest =
+  | {
+      cardId: string;
+      handIndex: number;
+      fieldSlot: number;
+    }
+  | {
+      cardId: string;
+      handIndex: number;
+      targetRowSlot: PlayerSlot;
+      influencedSpaces: number[];
+    };
 
 @Injectable({ providedIn: 'root' })
 export class LiveMatchSyncService {
@@ -59,15 +73,22 @@ export class LiveMatchSyncService {
     this.lastAppliedVersion = -1;
   }
 
-  /** Submit an endTurn intent; board updates arrive via gameState listener. */
   async submitEndTurn(matchId: string): Promise<void> {
+    await this.submitAction({ matchId, type: 'endTurn' });
+  }
+
+  async submitPlayCard(matchId: string, play: PlayCardRequest): Promise<void> {
+    await this.submitAction({ matchId, type: 'playCard', ...play });
+  }
+
+  private async submitAction(payload: Record<string, unknown>): Promise<void> {
     if (this.submitting) {
       return;
     }
     this.submitting = true;
     try {
       const callable = httpsCallable(this.functions, 'submitMatchAction');
-      await callable({ matchId, type: 'endTurn' });
+      await callable(payload);
     } finally {
       this.submitting = false;
     }
