@@ -4,6 +4,7 @@ import {
   addManaCapped,
   getLiveCardRules,
   hasManaCost,
+  isLandStillBuilding,
   spendMana,
   type ManaMap,
 } from './card-rules';
@@ -201,6 +202,10 @@ export function applyEndTurnToLiveGameState(state: LiveGameState): LiveGameState
     nextState.player2FieldMonster = clearDefending(nextState.player2FieldMonster);
   }
 
+  // Incoming player's lands generate mana into their pool (capped), same as local nextTurn.
+  const startingSlot: "player1" | "player2" = next === 1 ? "player1" : "player2";
+  refreshManaPool(nextState, startingSlot);
+
   // Skip draw on first handoff P1→P2 while still on round 1.
   const isFirstHandoffToPlayer2 = t === 1 && next === 2 && turnCounter === 1;
   if (!isFirstHandoffToPlayer2) {
@@ -273,35 +278,92 @@ function influencedSpacesOnRow(lands: LiveFieldCard[]): Set<number> {
   return claimed;
 }
 
+function controlledLandEntries(
+  state: LiveGameState,
+  controller: 'player1' | 'player2',
+): LiveFieldCard[] {
+  const entries: LiveFieldCard[] = [];
+  for (const entry of state.player1FieldLand) {
+    if ((entry.controllerSlot ?? 'player1') === controller) {
+      entries.push(entry);
+    }
+  }
+  for (const entry of state.player2FieldLand) {
+    if ((entry.controllerSlot ?? 'player2') === controller) {
+      entries.push(entry);
+    }
+  }
+  return entries;
+}
+
+function ownerTurnCounter(state: LiveGameState, controller: 'player1' | 'player2'): number {
+  return controller === 'player1' ? state.player1TurnCounter : state.player2TurnCounter;
+}
+
 function maxManaFromControlledLands(
   state: LiveGameState,
   controller: 'player1' | 'player2',
 ): ManaMap {
   const max: ManaMap = {};
-  const consider = (rowSlot: 'player1' | 'player2', lands: LiveFieldCard[]) => {
-    for (const entry of lands) {
-      if ((entry.controllerSlot ?? rowSlot) !== controller) {
-        continue;
-      }
-      const rules = getLiveCardRules(entry.cardId);
-      if (!rules?.maxMana) {
-        continue;
-      }
-      // Skip building lands (buildTime > 0 and not finished) — treat newly placed build lands as not generating max yet if buildTime set and same turn.
-      const buildTime = rules.buildTime ?? 0;
-      const ownerTurn =
-        controller === 'player1' ? state.player1TurnCounter : state.player2TurnCounter;
-      if (buildTime > 0 && ownerTurn - entry.placedAtOwnerTurnCounter < buildTime) {
-        continue;
-      }
-      for (const [el, amount] of Object.entries(rules.maxMana)) {
+  const ownerTurn = ownerTurnCounter(state, controller);
+  for (const entry of controlledLandEntries(state, controller)) {
+    const rules = getLiveCardRules(entry.cardId);
+    if (!rules?.maxMana) {
+      continue;
+    }
+    if (isLandStillBuilding(rules, entry.placedAtOwnerTurnCounter, ownerTurn)) {
+      continue;
+    }
+    for (const [el, amount] of Object.entries(rules.maxMana)) {
+      if (amount > 0) {
         max[el] = (max[el] ?? 0) + amount;
       }
     }
-  };
-  consider('player1', state.player1FieldLand);
-  consider('player2', state.player2FieldLand);
+  }
   return max;
+}
+
+/** Per-turn generation from finished lands this player controls (includes Praise Rock bonus). */
+function generateManaFromControlledLands(
+  state: LiveGameState,
+  controller: 'player1' | 'player2',
+): ManaMap {
+  const generated: ManaMap = {};
+  const ownerTurn = ownerTurnCounter(state, controller);
+  for (const entry of controlledLandEntries(state, controller)) {
+    const rules = getLiveCardRules(entry.cardId);
+    if (!rules?.generateMana) {
+      continue;
+    }
+    if (isLandStillBuilding(rules, entry.placedAtOwnerTurnCounter, ownerTurn)) {
+      continue;
+    }
+    for (const [el, amount] of Object.entries(rules.generateMana)) {
+      generated[el] = (generated[el] ?? 0) + amount;
+    }
+    const praiseRock = entry.praiseBonusRock ?? 0;
+    if (praiseRock > 0) {
+      generated['Rock'] = (generated['Rock'] ?? 0) + praiseRock;
+    }
+  }
+  return generated;
+}
+
+/** Mutates `state` mana pool for `controller` — accumulate generated mana, clamp to caps. */
+function refreshManaPool(
+  state: LiveGameState,
+  controller: 'player1' | 'player2',
+): void {
+  const generated = generateManaFromControlledLands(state, controller);
+  const max = maxManaFromControlledLands(state, controller);
+  const pool =
+    controller === 'player1' ? state.player1ManaPool : state.player2ManaPool;
+  const next = addManaCapped(pool, generated, max);
+  if (controller === 'player1') {
+    state.player1ManaPool = next;
+  } else {
+    state.player2ManaPool = next;
+  }
 }
 
 /**

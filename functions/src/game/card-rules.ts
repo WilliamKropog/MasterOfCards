@@ -40,26 +40,29 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: 'mud-hut',
     cardType: 'Land',
     maxHealth: 80,
+    buildTime: 0,
     space: 1,
     generateMana: { Rock: 1 },
-    maxMana: { Rock: 10 },
+    maxMana: { Rock: 5 },
   },
   'mountain-range': {
     id: 'mountain-range',
     cardType: 'Land',
     manaCost: { Rock: 4 },
     maxHealth: 400,
+    buildTime: 3,
     space: 3,
     generateMana: { Rock: 4, Ice: 3, Wind: 3, Mystic: 2, Grass: 2, Lightning: 2 },
-    maxMana: { Rock: 20, Ice: 10, Wind: 10, Mystic: 10, Grass: 10, Lightning: 10 },
+    maxMana: { Rock: 15, Ice: 10, Wind: 10, Mystic: 5, Grass: 5, Lightning: 5 },
   },
   'temple-of-being': {
     id: 'temple-of-being',
     cardType: 'Land',
     maxHealth: 100,
+    buildTime: 2,
     space: 1,
     generateMana: { Rock: 2 },
-    maxMana: { Rock: 10 },
+    maxMana: { Rock: 6 },
     placeOnOpponentLandRow: true,
   },
   armoredillo: {
@@ -82,6 +85,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: 'elder-gopher-statue',
     cardType: 'Land',
     maxHealth: 200,
+    buildTime: 1,
     space: 1,
     generateMana: { Rock: 1 },
     maxMana: { Rock: 10 },
@@ -102,9 +106,10 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     id: 'excavation-site',
     cardType: 'Land',
     maxHealth: 160,
+    buildTime: 2,
     space: 1,
     generateMana: { Rock: 2, Sand: 2 },
-    maxMana: { Rock: 15, Sand: 10 },
+    maxMana: { Rock: 7, Sand: 7 },
   },
   'earth-shatter': {
     id: 'earth-shatter',
@@ -116,10 +121,10 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Land',
     manaCost: { Rock: 7 },
     maxHealth: 500,
+    buildTime: 4,
     space: 5,
     generateMana: { Rock: 9 },
-    maxMana: { Rock: 30 },
-    buildTime: 2,
+    maxMana: { Rock: 20 },
   },
   'king-colossus': {
     id: 'king-colossus',
@@ -175,14 +180,40 @@ export function addManaCapped(
   add: ManaMap | undefined,
   max: ManaMap | undefined,
 ): ManaMap {
-  if (!add) {
-    return { ...pool };
+  const merged = { ...pool };
+  if (add) {
+    for (const [el, amount] of Object.entries(add)) {
+      merged[el] = (merged[el] ?? 0) + amount;
+    }
   }
-  const next = { ...pool };
-  for (const [el, amount] of Object.entries(add)) {
-    const cap = max?.[el];
-    const raw = (next[el] ?? 0) + amount;
-    next[el] = cap === undefined ? raw : Math.min(raw, cap);
+  return clampManaPoolToMax(merged, max ?? {});
+}
+
+/** Clamp every element in the pool to active land caps (missing cap → 0). */
+export function clampManaPoolToMax(pool: ManaMap, maxMana: ManaMap): ManaMap {
+  const out: ManaMap = {};
+  for (const [element, amount] of Object.entries(pool)) {
+    if (amount <= 0) {
+      continue;
+    }
+    const cap = maxMana[element] ?? 0;
+    const clamped = Math.min(amount, cap);
+    if (clamped > 0) {
+      out[element] = clamped;
+    }
   }
-  return next;
+  return out;
+}
+
+/** True while a land’s buildTime has not elapsed for the owning player. */
+export function isLandStillBuilding(
+  rules: LiveCardRules | undefined,
+  placedAtOwnerTurnCounter: number,
+  ownerTurnCounter: number,
+): boolean {
+  const buildTime = rules?.buildTime ?? 0;
+  if (buildTime <= 0) {
+    return false;
+  }
+  return placedAtOwnerTurnCounter + buildTime - ownerTurnCounter > 0;
 }
