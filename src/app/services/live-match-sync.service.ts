@@ -35,6 +35,38 @@ export type AttackRequest =
       defenderPlayerSlot: PlayerSlot;
     };
 
+export type CastSpellRequest =
+  | {
+      cardId: string;
+      handIndex: number;
+      defenderRowSlot: PlayerSlot;
+      defenderZone: 'monster' | 'land';
+      defenderIdentifier: number;
+    }
+  | {
+      cardId: string;
+      handIndex: number;
+      defenderPlayerSlot: PlayerSlot;
+    };
+
+export type UseAbilityRequest =
+  | {
+      abilityId: 'burrow';
+      casterMonsterSlot: number;
+    }
+  | {
+      abilityId: 'tail-smash';
+      casterMonsterSlot: number;
+      defenderRowSlot: PlayerSlot;
+      defenderZone: 'monster' | 'land';
+      defenderIdentifier: number;
+    }
+  | {
+      abilityId: 'praise';
+      landRowSlot: PlayerSlot;
+      landIndex: number;
+    };
+
 @Injectable({ providedIn: 'root' })
 export class LiveMatchSyncService {
   private readonly firestore = inject(Firestore);
@@ -99,6 +131,14 @@ export class LiveMatchSyncService {
 
   async submitAttack(matchId: string, attack: AttackRequest): Promise<void> {
     await this.submitAction({ matchId, type: 'attack', ...attack });
+  }
+
+  async submitCastSpell(matchId: string, spell: CastSpellRequest): Promise<void> {
+    await this.submitAction({ matchId, type: 'castSpell', ...spell });
+  }
+
+  async submitUseAbility(matchId: string, ability: UseAbilityRequest): Promise<void> {
+    await this.submitAction({ matchId, type: 'useAbility', ...ability });
   }
 
   private async submitAction(payload: Record<string, unknown>): Promise<void> {

@@ -709,8 +709,25 @@ export class Card {
         if (slot === null || idx === undefined) {
           return;
         }
-        // Live spell sync comes in a later slice; keep local for now.
         if (matchId) {
+          if (tether !== null) {
+            void this.liveSync.submitCastSpell(matchId, {
+              cardId: this.cardId(),
+              handIndex: idx,
+              defenderRowSlot: tether.slot,
+              defenderZone: tether.zone,
+              defenderIdentifier: tether.index,
+            });
+          } else {
+            const targetSlot = snapHand ?? overEnemyHand;
+            if (targetSlot !== null) {
+              void this.liveSync.submitCastSpell(matchId, {
+                cardId: this.cardId(),
+                handIndex: idx,
+                defenderPlayerSlot: targetSlot,
+              });
+            }
+          }
           return;
         }
         if (tether !== null) {
@@ -907,6 +924,14 @@ export class Card {
     if (slot === null || zone !== 'monster' || idx === null) {
       return;
     }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      void this.liveSync.submitUseAbility(matchId, {
+        abilityId: 'burrow',
+        casterMonsterSlot: idx,
+      });
+      return;
+    }
     this.engine.tryUseBurrow(slot, idx);
   }
 
@@ -921,6 +946,7 @@ export class Card {
     if (slot === null || zone !== 'monster' || idx === null) {
       return;
     }
+    // Targeting stays local; resolve submits in onFieldCardClick for live.
     this.engine.beginTailSmash(slot, idx);
   }
 
@@ -932,6 +958,15 @@ export class Card {
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const idx = this.fieldCardIndex();
     if (rowSlot === null || idx === null) {
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      void this.liveSync.submitUseAbility(matchId, {
+        abilityId: 'praise',
+        landRowSlot: rowSlot,
+        landIndex: idx,
+      });
       return;
     }
     this.engine.tryUsePraise(rowSlot, idx);
@@ -951,7 +986,20 @@ export class Card {
     if (rowSlot === null || zone === null || idx === null) {
       return;
     }
-    if (this.engine.abilityTargetMode()?.abilityId === 'tail-smash') {
+    const abilityMode = this.engine.abilityTargetMode();
+    if (abilityMode?.abilityId === 'tail-smash') {
+      const matchId = this.engine.liveMatchId();
+      if (matchId) {
+        void this.liveSync.submitUseAbility(matchId, {
+          abilityId: 'tail-smash',
+          casterMonsterSlot: abilityMode.casterMonsterSlot,
+          defenderRowSlot: rowSlot,
+          defenderZone: zone,
+          defenderIdentifier: idx,
+        });
+        this.engine.cancelAbilityTargetMode();
+        return;
+      }
       this.engine.resolveTailSmashOnTarget(rowSlot, zone, idx);
       return;
     }

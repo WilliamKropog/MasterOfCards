@@ -4,14 +4,18 @@ import { logger } from "firebase-functions";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import {
   applyAttackToLiveGameState,
+  applyCastSpellToLiveGameState,
   applyDefendToLiveGameState,
   applyEndTurnToLiveGameState,
   applyPlayCardToLiveGameState,
+  applyUseAbilityToLiveGameState,
   createInitialLiveGameState,
   stripUndefinedDeep,
   type AttackIntent,
+  type CastSpellIntent,
   type LiveGameState,
   type PlayCardIntent,
+  type UseAbilityIntent,
 } from "./game/live-game-state";
 
 initializeApp();
@@ -107,12 +111,23 @@ type SubmitMatchActionRequest = {
   defenderZone?: "monster" | "land";
   defenderIdentifier?: number;
   defenderPlayerSlot?: "player1" | "player2";
+  abilityId?: string;
+  casterMonsterSlot?: number;
+  landRowSlot?: "player1" | "player2";
+  landIndex?: number;
 };
 
-const SUPPORTED_ACTIONS = new Set(["endTurn", "playCard", "defend", "attack"]);
+const SUPPORTED_ACTIONS = new Set([
+  "endTurn",
+  "playCard",
+  "defend",
+  "attack",
+  "castSpell",
+  "useAbility",
+]);
 
 /**
- * Action Sync entry point for endTurn, playCard, defend, and attack.
+ * Action Sync entry point for live match mutations.
  */
 export const submitMatchAction = onCall(async (request) => {
   if (!request.auth?.uid) {
@@ -130,7 +145,7 @@ export const submitMatchAction = onCall(async (request) => {
   if (!SUPPORTED_ACTIONS.has(type)) {
     throw new HttpsError(
       "invalid-argument",
-      "Supported actions: endTurn, playCard, defend, attack.",
+      "Supported actions: endTurn, playCard, defend, attack, castSpell, useAbility.",
     );
   }
 
@@ -243,6 +258,132 @@ export const submitMatchAction = onCall(async (request) => {
       }
       nextState = applied;
       actionPayload = { type: "attack", ...intent };
+    } else if (type === "castSpell") {
+      const cardId = typeof data.cardId === "string" ? data.cardId : "";
+      const handIndex =
+        typeof data.handIndex === "number" ? data.handIndex : -1;
+      if (!cardId || handIndex < 0) {
+        throw new HttpsError(
+          "invalid-argument",
+          "castSpell requires cardId and handIndex.",
+        );
+      }
+
+      let intent: CastSpellIntent;
+      if (
+        data.defenderPlayerSlot === "player1" ||
+        data.defenderPlayerSlot === "player2"
+      ) {
+        intent = {
+          kind: "life",
+          cardId,
+          handIndex,
+          defenderPlayerSlot: data.defenderPlayerSlot,
+        };
+      } else if (
+        (data.defenderRowSlot === "player1" || data.defenderRowSlot === "player2") &&
+        (data.defenderZone === "monster" || data.defenderZone === "land") &&
+        typeof data.defenderIdentifier === "number"
+      ) {
+        intent = {
+          kind: "field",
+          cardId,
+          handIndex,
+          defenderRowSlot: data.defenderRowSlot,
+          defenderZone: data.defenderZone,
+          defenderIdentifier: data.defenderIdentifier,
+        };
+      } else {
+        throw new HttpsError(
+          "invalid-argument",
+          "castSpell requires a field target or defenderPlayerSlot for life.",
+        );
+      }
+
+      const applied = applyCastSpellToLiveGameState(
+        match.gameState,
+        controllerSlot,
+        intent,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal castSpell move.");
+      }
+      nextState = applied;
+      actionPayload = { type: "castSpell", ...intent };
+    } else if (type === "useAbility") {
+      const abilityId =
+        typeof data.abilityId === "string" ? data.abilityId.trim() : "";
+      let intent: UseAbilityIntent;
+      if (abilityId === "burrow") {
+        const casterMonsterSlot =
+          typeof data.casterMonsterSlot === "number"
+            ? data.casterMonsterSlot
+            : typeof data.monsterFieldSlot === "number"
+              ? data.monsterFieldSlot
+              : -1;
+        if (casterMonsterSlot < 1) {
+          throw new HttpsError(
+            "invalid-argument",
+            "burrow requires casterMonsterSlot.",
+          );
+        }
+        intent = { abilityId: "burrow", casterMonsterSlot };
+      } else if (abilityId === "tail-smash") {
+        const casterMonsterSlot =
+          typeof data.casterMonsterSlot === "number"
+            ? data.casterMonsterSlot
+            : -1;
+        if (
+          casterMonsterSlot < 1 ||
+          (data.defenderRowSlot !== "player1" &&
+            data.defenderRowSlot !== "player2") ||
+          (data.defenderZone !== "monster" && data.defenderZone !== "land") ||
+          typeof data.defenderIdentifier !== "number"
+        ) {
+          throw new HttpsError(
+            "invalid-argument",
+            "tail-smash requires caster and field target.",
+          );
+        }
+        intent = {
+          abilityId: "tail-smash",
+          casterMonsterSlot,
+          defenderRowSlot: data.defenderRowSlot,
+          defenderZone: data.defenderZone,
+          defenderIdentifier: data.defenderIdentifier,
+        };
+      } else if (abilityId === "praise") {
+        if (
+          (data.landRowSlot !== "player1" && data.landRowSlot !== "player2") ||
+          typeof data.landIndex !== "number"
+        ) {
+          throw new HttpsError(
+            "invalid-argument",
+            "praise requires landRowSlot and landIndex.",
+          );
+        }
+        intent = {
+          abilityId: "praise",
+          landRowSlot: data.landRowSlot,
+          landIndex: data.landIndex,
+        };
+      } else {
+        throw new HttpsError(
+          "invalid-argument",
+          "Supported abilities: burrow, tail-smash, praise.",
+        );
+      }
+
+      const applied = applyUseAbilityToLiveGameState(
+        match.gameState,
+        controllerSlot,
+        intent,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal useAbility move.");
+      }
+      nextState = applied;
+      actionPayload = { type: "useAbility", ...intent };
     } else {
       const cardId = typeof data.cardId === "string" ? data.cardId : "";
       const handIndex =

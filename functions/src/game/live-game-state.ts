@@ -2,9 +2,12 @@
 
 import {
   addManaCapped,
+  clampManaPoolToMax,
   getLiveCardRules,
   hasManaCost,
   isLandStillBuilding,
+  spellAllowsPlayerLifeTarget,
+  spellAllowsTargetZone,
   spendMana,
   type ManaMap,
 } from './card-rules';
@@ -205,6 +208,7 @@ export function applyEndTurnToLiveGameState(state: LiveGameState): LiveGameState
   // Incoming player's lands generate mana into their pool (capped), same as local nextTurn.
   const startingSlot: "player1" | "player2" = next === 1 ? "player1" : "player2";
   refreshManaPool(nextState, startingSlot);
+  applyThousandMileWallOnConstructionComplete(nextState, startingSlot);
 
   // Skip draw on first handoff P1→P2 while still on round 1.
   const isFirstHandoffToPlayer2 = t === 1 && next === 2 && turnCounter === 1;
@@ -472,6 +476,7 @@ export function applyPlayCardToLiveGameState(
     } else {
       next.player2FieldMonster = [...monsters, entry];
     }
+    applyThousandMileWallOnMonsterPlaced(next, controllerSlot, intent.fieldSlot);
   } else {
     if (rules.cardType !== 'Land') {
       return null;
@@ -524,6 +529,8 @@ export function applyPlayCardToLiveGameState(
         next.player2ManaPool = addManaCapped(next.player2ManaPool, rules.generateMana, max);
       }
     }
+
+    applyThousandMileWallOnLandPlaced(next, intent.targetRowSlot, entry.influencedSpaces);
   }
 
   if (isFree) {
@@ -716,7 +723,13 @@ function setFieldEntry(
       return;
     }
     if (shouldRemove) {
+      const dead = arr[idx]!;
+      const excavate = findExcavationSiteRevive(state, rowSlot, dead);
       arr.splice(idx, 1);
+      if (excavate) {
+        putCardAtBottomOfDeck(state, excavate.deckOwner, excavate.cardId);
+        markExcavationSiteUsed(state, rowSlot, excavate.landIndex);
+      }
     } else {
       arr[idx] = entry!;
     }
@@ -728,10 +741,232 @@ function setFieldEntry(
     return;
   }
   if (shouldRemove) {
+    const removed = arr[identifier]!;
+    const landController = removed.controllerSlot ?? rowSlot;
     arr.splice(identifier, 1);
+    clampManaPoolForController(state, landController);
   } else {
     arr[identifier] = entry!;
   }
+}
+
+function clampManaPoolForController(
+  state: LiveGameState,
+  controller: FieldPlayerSlot,
+): void {
+  const max = maxManaFromControlledLands(state, controller);
+  if (controller === 'player1') {
+    state.player1ManaPool = clampManaPoolToMax(state.player1ManaPool, max);
+  } else {
+    state.player2ManaPool = clampManaPoolToMax(state.player2ManaPool, max);
+  }
+}
+
+function putCardAtBottomOfDeck(
+  state: LiveGameState,
+  owner: FieldPlayerSlot,
+  cardId: string,
+): void {
+  if (owner === 'player1') {
+    state.player1Deck = [...state.player1Deck, cardId];
+  } else {
+    state.player2Deck = [...state.player2Deck, cardId];
+  }
+}
+
+function markExcavationSiteUsed(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  landIndex: number,
+): void {
+  const lands = landsOf(state, rowSlot);
+  const land = lands[landIndex];
+  if (!land) {
+    return;
+  }
+  const used = [...(land.usedAbilities ?? [])];
+  if (!used.includes('excavate')) {
+    used.push('excavate');
+  }
+  lands[landIndex] = { ...land, usedAbilities: used };
+}
+
+function findExcavationSiteRevive(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  deadMonster: LiveFieldCard,
+): { landIndex: number; cardId: string; deckOwner: FieldPlayerSlot } | null {
+  const monsterRules = getLiveCardRules(deadMonster.cardId);
+  if (!monsterRules || monsterRules.monsterClass !== 'Dinosaur') {
+    return null;
+  }
+  const fieldSlot = deadMonster.fieldSlot;
+  if (fieldSlot === undefined) {
+    return null;
+  }
+  const lands = landsOf(state, rowSlot);
+  for (let i = 0; i < lands.length; i++) {
+    const land = lands[i]!;
+    if (land.cardId !== 'excavation-site') {
+      continue;
+    }
+    if ((land.usedAbilities ?? []).includes('excavate')) {
+      continue;
+    }
+    const landController = land.controllerSlot ?? rowSlot;
+    const landRules = getLiveCardRules(land.cardId);
+    if (
+      isLandStillBuilding(
+        landRules,
+        land.placedAtOwnerTurnCounter,
+        ownerTurnCounter(state, landController),
+      )
+    ) {
+      continue;
+    }
+    if (!(land.influencedSpaces ?? []).includes(fieldSlot)) {
+      continue;
+    }
+    return {
+      landIndex: i,
+      cardId: deadMonster.cardId,
+      deckOwner: deadMonster.controllerSlot ?? rowSlot,
+    };
+  }
+  return null;
+}
+
+function isThousandMileWallActive(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  land: LiveFieldCard,
+): boolean {
+  if (land.cardId !== '1000-mile-wall') {
+    return false;
+  }
+  const landController = land.controllerSlot ?? rowSlot;
+  const rules = getLiveCardRules(land.cardId);
+  return !isLandStillBuilding(
+    rules,
+    land.placedAtOwnerTurnCounter,
+    ownerTurnCounter(state, landController),
+  );
+}
+
+function findThousandMileWallCovering(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  fieldSlot: number,
+): LiveFieldCard | null {
+  for (const land of landsOf(state, rowSlot)) {
+    if (!isThousandMileWallActive(state, rowSlot, land)) {
+      continue;
+    }
+    if ((land.influencedSpaces ?? []).includes(fieldSlot)) {
+      return land;
+    }
+  }
+  return null;
+}
+
+function monstersOnInfluencedSpaces(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  spaces: number[],
+): LiveFieldCard[] {
+  const spaceSet = new Set(spaces);
+  return monstersOf(state, rowSlot).filter(
+    (m) => m.fieldSlot !== undefined && spaceSet.has(m.fieldSlot),
+  );
+}
+
+function grantThousandMileWallBlocksToOccupants(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  influencedSpaces: number[],
+): void {
+  const occupants = monstersOnInfluencedSpaces(state, rowSlot, influencedSpaces);
+  const count = occupants.length;
+  if (count === 0) {
+    return;
+  }
+  const spaceSet = new Set(influencedSpaces);
+  const monsters = monstersOf(state, rowSlot);
+  for (let i = 0; i < monsters.length; i++) {
+    const m = monsters[i]!;
+    if (m.fieldSlot === undefined || !spaceSet.has(m.fieldSlot)) {
+      continue;
+    }
+    monsters[i] = { ...m, blocks: (m.blocks ?? 0) + count };
+  }
+}
+
+function applyThousandMileWallOnMonsterPlaced(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  newMonsterSlot: number,
+): void {
+  const wall = findThousandMileWallCovering(state, rowSlot, newMonsterSlot);
+  if (!wall) {
+    return;
+  }
+  const spaces = wall.influencedSpaces ?? [];
+  const occupants = monstersOnInfluencedSpaces(state, rowSlot, spaces);
+  const count = occupants.length;
+  if (count === 0) {
+    return;
+  }
+  const spaceSet = new Set(spaces);
+  const monsters = monstersOf(state, rowSlot);
+  for (let i = 0; i < monsters.length; i++) {
+    const m = monsters[i]!;
+    if (m.fieldSlot === undefined || !spaceSet.has(m.fieldSlot)) {
+      continue;
+    }
+    const gain = m.fieldSlot === newMonsterSlot ? count : 1;
+    monsters[i] = { ...m, blocks: (m.blocks ?? 0) + gain };
+  }
+}
+
+function applyThousandMileWallOnLandPlaced(
+  state: LiveGameState,
+  rowSlot: FieldPlayerSlot,
+  influencedSpaces: number[],
+): void {
+  const lands = landsOf(state, rowSlot);
+  const wall = lands[lands.length - 1];
+  if (!wall || !isThousandMileWallActive(state, rowSlot, wall)) {
+    return;
+  }
+  grantThousandMileWallBlocksToOccupants(state, rowSlot, influencedSpaces);
+}
+
+function applyThousandMileWallOnConstructionComplete(
+  state: LiveGameState,
+  controller: FieldPlayerSlot,
+): void {
+  const ownerTurn = ownerTurnCounter(state, controller);
+  const checkRow = (rowSlot: FieldPlayerSlot) => {
+    for (const land of landsOf(state, rowSlot)) {
+      if ((land.controllerSlot ?? rowSlot) !== controller) {
+        continue;
+      }
+      if (land.cardId !== '1000-mile-wall') {
+        continue;
+      }
+      const rules = getLiveCardRules(land.cardId);
+      const buildTime = rules?.buildTime ?? 0;
+      if (buildTime <= 0) {
+        continue;
+      }
+      if (land.placedAtOwnerTurnCounter + buildTime !== ownerTurn) {
+        continue;
+      }
+      grantThousandMileWallBlocksToOccupants(state, rowSlot, land.influencedSpaces ?? []);
+    }
+  };
+  checkRow('player1');
+  checkRow('player2');
 }
 
 /**
@@ -892,6 +1127,338 @@ export function applyAttackToLiveGameState(
     hasActedThisTurn: true,
   });
 
+  return next;
+}
+
+export type CastSpellIntent =
+  | {
+      kind: 'field';
+      cardId: string;
+      handIndex: number;
+      defenderRowSlot: FieldPlayerSlot;
+      defenderZone: FieldZone;
+      defenderIdentifier: number;
+    }
+  | {
+      kind: 'life';
+      cardId: string;
+      handIndex: number;
+      defenderPlayerSlot: FieldPlayerSlot;
+    };
+
+export function applyCastSpellToLiveGameState(
+  state: LiveGameState,
+  controllerSlot: FieldPlayerSlot,
+  intent: CastSpellIntent,
+): LiveGameState | null {
+  if (!state.gameStarted) {
+    return null;
+  }
+  const seat: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
+  if (state.currentTurn !== seat) {
+    return null;
+  }
+
+  const hand =
+    controllerSlot === 'player1' ? state.player1Hand : state.player2Hand;
+  if (intent.handIndex < 0 || intent.handIndex >= hand.length) {
+    return null;
+  }
+  if (hand[intent.handIndex] !== intent.cardId) {
+    return null;
+  }
+
+  const spellRules = getLiveCardRules(intent.cardId);
+  if (!spellRules || spellRules.cardType !== 'Spell') {
+    return null;
+  }
+
+  const pool =
+    controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
+  const spent = spendMana(pool, spellRules.manaCost);
+  if (spent === null) {
+    return null;
+  }
+
+  const next = cloneBoard(state);
+  if (controllerSlot === 'player1') {
+    next.player1ManaPool = spent;
+    next.player1Hand.splice(intent.handIndex, 1);
+  } else {
+    next.player2ManaPool = spent;
+    next.player2Hand.splice(intent.handIndex, 1);
+  }
+
+  if (intent.kind === 'life') {
+    if (!spellAllowsPlayerLifeTarget(spellRules)) {
+      return null;
+    }
+    if (intent.defenderPlayerSlot === controllerSlot) {
+      return null;
+    }
+    const amount = spellRules.damage;
+    if (amount === undefined || amount <= 0) {
+      return null;
+    }
+    if (intent.defenderPlayerSlot === 'player1') {
+      next.player1LifePoints = Math.max(0, next.player1LifePoints - amount);
+    } else {
+      next.player2LifePoints = Math.max(0, next.player2LifePoints - amount);
+    }
+    return next;
+  }
+
+  if (!spellAllowsTargetZone(spellRules, intent.defenderZone)) {
+    return null;
+  }
+
+  const defenderEntry = getFieldEntry(
+    next,
+    intent.defenderRowSlot,
+    intent.defenderZone,
+    intent.defenderIdentifier,
+  );
+  if (!defenderEntry) {
+    return null;
+  }
+  if (fieldCardController(defenderEntry, intent.defenderRowSlot) === controllerSlot) {
+    return null;
+  }
+  if (defenderEntry.spellImmune === true) {
+    return null;
+  }
+
+  const defenderRules = getLiveCardRules(defenderEntry.cardId);
+  if (!defenderRules) {
+    return null;
+  }
+
+  if (spellRules.destroysTarget === true) {
+    setFieldEntry(next, intent.defenderRowSlot, intent.defenderZone, intent.defenderIdentifier, {
+      ...defenderEntry,
+      currentHealth: 0,
+    });
+    return next;
+  }
+
+  const baseDamage = spellRules.damage;
+  if (baseDamage === undefined || baseDamage <= 0) {
+    return null;
+  }
+  let amount = baseDamage;
+  if (defenderRules.attributes?.includes('Flying')) {
+    amount *= 2;
+  }
+  const zoneMultiplier = spellRules.damageMultiplierAgainstZone?.[intent.defenderZone];
+  if (zoneMultiplier !== undefined) {
+    amount *= zoneMultiplier;
+  }
+  if (spellRules.scaleDamageByTargetLandSpace && intent.defenderZone === 'land') {
+    amount *= Math.max(1, defenderRules.space ?? 1);
+  }
+
+  const defenderAfter = applyIncomingFieldDamage(defenderEntry, amount, defenderRules);
+  setFieldEntry(
+    next,
+    intent.defenderRowSlot,
+    intent.defenderZone,
+    intent.defenderIdentifier,
+    defenderAfter,
+  );
+  return next;
+}
+
+export type UseAbilityIntent =
+  | {
+      abilityId: 'burrow';
+      casterMonsterSlot: number;
+    }
+  | {
+      abilityId: 'tail-smash';
+      casterMonsterSlot: number;
+      defenderRowSlot: FieldPlayerSlot;
+      defenderZone: FieldZone;
+      defenderIdentifier: number;
+    }
+  | {
+      abilityId: 'praise';
+      landRowSlot: FieldPlayerSlot;
+      landIndex: number;
+    };
+
+export function applyUseAbilityToLiveGameState(
+  state: LiveGameState,
+  controllerSlot: FieldPlayerSlot,
+  intent: UseAbilityIntent,
+): LiveGameState | null {
+  if (!state.gameStarted) {
+    return null;
+  }
+  const seat: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
+  if (state.currentTurn !== seat) {
+    return null;
+  }
+
+  if (intent.abilityId === 'burrow') {
+    const entry = getMonsterBySlot(state, controllerSlot, intent.casterMonsterSlot);
+    if (!entry || entry.cardId !== 'mighty-gopher') {
+      return null;
+    }
+    if (!canMonsterAct(state, controllerSlot, entry)) {
+      return null;
+    }
+    const pool =
+      controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
+    const spent = spendMana(pool, { Rock: 1 });
+    if (spent === null) {
+      return null;
+    }
+    const next = cloneBoard(state);
+    if (controllerSlot === 'player1') {
+      next.player1ManaPool = spent;
+    } else {
+      next.player2ManaPool = spent;
+    }
+    setFieldEntry(next, controllerSlot, 'monster', intent.casterMonsterSlot, {
+      ...entry,
+      defending: true,
+      spellImmune: true,
+      hasActedThisTurn: true,
+    });
+    return next;
+  }
+
+  if (intent.abilityId === 'tail-smash') {
+    const casterEntry = getMonsterBySlot(state, controllerSlot, intent.casterMonsterSlot);
+    if (!casterEntry || casterEntry.cardId !== 'rockterrior') {
+      return null;
+    }
+    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
+      return null;
+    }
+    if (!canMonsterAct(state, controllerSlot, casterEntry)) {
+      return null;
+    }
+
+    const defenderEntry = getFieldEntry(
+      state,
+      intent.defenderRowSlot,
+      intent.defenderZone,
+      intent.defenderIdentifier,
+    );
+    if (!defenderEntry || defenderEntry.spellImmune === true) {
+      return null;
+    }
+    const enemy: FieldPlayerSlot = controllerSlot === 'player1' ? 'player2' : 'player1';
+    if (fieldCardController(defenderEntry, intent.defenderRowSlot) !== enemy) {
+      return null;
+    }
+    if (intent.defenderZone !== 'land' && intent.defenderZone !== 'monster') {
+      return null;
+    }
+
+    const pool =
+      controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
+    const spent = spendMana(pool, { Rock: 3 });
+    if (spent === null) {
+      return null;
+    }
+
+    const defenderRules = getLiveCardRules(defenderEntry.cardId);
+    if (!defenderRules) {
+      return null;
+    }
+
+    const next = cloneBoard(state);
+    if (controllerSlot === 'player1') {
+      next.player1ManaPool = spent;
+    } else {
+      next.player2ManaPool = spent;
+    }
+
+    const liveDefender = getFieldEntry(
+      next,
+      intent.defenderRowSlot,
+      intent.defenderZone,
+      intent.defenderIdentifier,
+    );
+    const liveCaster = getMonsterBySlot(next, controllerSlot, intent.casterMonsterSlot);
+    if (!liveDefender || !liveCaster) {
+      return null;
+    }
+
+    const amount = defenderRules.cardElement === 'Ice' ? 160 : 80;
+    const defenderAfter = applyIncomingFieldDamage(liveDefender, amount, defenderRules);
+    setFieldEntry(next, controllerSlot, 'monster', intent.casterMonsterSlot, {
+      ...liveCaster,
+      hasActedThisTurn: true,
+      usedAbilities: [...(liveCaster.usedAbilities ?? []), 'tail-smash'],
+    });
+    setFieldEntry(
+      next,
+      intent.defenderRowSlot,
+      intent.defenderZone,
+      intent.defenderIdentifier,
+      defenderAfter,
+    );
+    return next;
+  }
+
+  // praise
+  const landEntry = getFieldEntry(state, intent.landRowSlot, 'land', intent.landIndex);
+  if (!landEntry || landEntry.cardId !== 'elder-gopher-statue') {
+    return null;
+  }
+  const landController = landEntry.controllerSlot ?? intent.landRowSlot;
+  if (landController !== controllerSlot) {
+    return null;
+  }
+  const landRules = getLiveCardRules(landEntry.cardId);
+  if (
+    isLandStillBuilding(
+      landRules,
+      landEntry.placedAtOwnerTurnCounter,
+      ownerTurnCounter(state, landController),
+    )
+  ) {
+    return null;
+  }
+
+  let mightySlot: number | null = null;
+  for (const space of landEntry.influencedSpaces ?? []) {
+    const monster = getMonsterBySlot(state, intent.landRowSlot, space);
+    if (!monster) {
+      continue;
+    }
+    if (monster.cardId === 'mighty-gopher') {
+      const monsterOwner = monster.controllerSlot ?? intent.landRowSlot;
+      if (!canMonsterAct(state, monsterOwner, monster)) {
+        return null;
+      }
+      mightySlot = space;
+    } else {
+      return null;
+    }
+    break;
+  }
+  if (mightySlot === null) {
+    return null;
+  }
+
+  const next = cloneBoard(state);
+  const liveLand = getFieldEntry(next, intent.landRowSlot, 'land', intent.landIndex);
+  const liveMighty = getMonsterBySlot(next, intent.landRowSlot, mightySlot);
+  if (!liveLand || !liveMighty) {
+    return null;
+  }
+  setFieldEntry(next, intent.landRowSlot, 'land', intent.landIndex, {
+    ...liveLand,
+    praiseBonusRock: (liveLand.praiseBonusRock ?? 0) + 1,
+  });
+  setFieldEntry(next, intent.landRowSlot, 'monster', mightySlot, {
+    ...liveMighty,
+    hasActedThisTurn: true,
+  });
   return next;
 }
 
