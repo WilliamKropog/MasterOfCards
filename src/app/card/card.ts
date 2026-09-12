@@ -252,10 +252,8 @@ export class Card {
 
   private readonly isInactiveHandCard = computed(() => {
     if (!this.inPlayerHand() || !this.engine.gameStarted()) { return false; }
-    const turn = this.engine.currentTurn();
-    if (turn === null) { return false; }
-    const mine = this.ownerPlayerSlot() === 'player1' ? 1 : 2;
-    return turn !== mine;
+    const slot = this.ownerPlayerSlot();
+    return !this.engine.canLocalPlayerActWithSlot(slot);
   });
 
   /** No drag on inactive turn, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
@@ -264,6 +262,7 @@ export class Card {
       this.isInactiveHandCard() ||
       !this.engine.gameStarted() ||
       this.onField() ||
+      !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot()) ||
       this.fieldLandOrMonsterLocked() ||
       this.cannotAffordManaCostInHand() ||
       this.exceedsLandCapacityInHand() ||
@@ -298,12 +297,7 @@ export class Card {
     // Mid multi-attack: keep ready glow so Attack can re-open targeting if canceled.
     // Defend/abilities are blocked in the engine via canMonsterAct.
     const slot = this.ownerPlayerSlot();
-    if (slot === null) {
-      return false;
-    }
-    const slotId: 1 | 2 = slot === 'player1' ? 1 : 2;
-    const turn = this.engine.currentTurn();
-    if (turn === null || turn !== slotId) {
+    if (!this.engine.canLocalPlayerActWithSlot(slot)) {
       return false;
     }
     return monsterSummoningSicknessCleared(this.def(), placedAt, this.engine.turnCounter());
@@ -315,6 +309,9 @@ export class Card {
       return false;
     }
     if (this.cardDrag.activeDrag()) {
+      return false;
+    }
+    if (!this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return false;
     }
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
@@ -330,6 +327,9 @@ export class Card {
     if (!this.onField() || this.fieldZone() !== 'land' || !this.engine.gameStarted()) {
       return false;
     }
+    if (!this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
+      return false;
+    }
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const idx = this.fieldCardIndex();
     if (rowSlot === null || idx === null) {
@@ -337,6 +337,11 @@ export class Card {
     }
     const state = this.engine.getLandPraiseState(rowSlot, idx);
     return state.isElderGopher && state.landActive && state.isControllerTurn;
+  });
+
+  /** True when the local player can act with this card on their turn. */
+  protected readonly canActWithCard = computed(() => {
+    return this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot());
   });
 
   protected readonly praiseDisabled = computed(() => {
@@ -679,7 +684,7 @@ export class Card {
     }
     const slot = this.ownerPlayerSlot();
     const def = this.def();
-    if (slot === null || !def) {
+    if (slot === null || !def || !this.engine.canLocalPlayerActWithSlot(slot)) {
       return;
     }
     this.cardDrag.beginDrag({
@@ -695,6 +700,10 @@ export class Card {
   protected onDragEnded(_event: CdkDragEnd): void {
     try {
       if (!this.inPlayerHand()) {
+        return;
+      }
+      const slot = this.ownerPlayerSlot();
+      if (!this.engine.canLocalPlayerActWithSlot(slot)) {
         return;
       }
       const type = this.def()?.cardType;
@@ -805,6 +814,10 @@ export class Card {
     if (!this.inPlayerHand()) {
       return;
     }
+    const slot = this.ownerPlayerSlot();
+    if (!this.engine.canLocalPlayerActWithSlot(slot)) {
+      return;
+    }
     const type = this.def()?.cardType;
     if (type === 'Spell') {
       this.spellDragLine.updateFromDragMove(event);
@@ -874,7 +887,7 @@ export class Card {
 
   protected onAttackClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.fieldReadyHighlight()) {
+    if (!this.fieldReadyHighlight() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
@@ -896,7 +909,7 @@ export class Card {
 
   protected onDefendClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.fieldReadyHighlight() || this.defendDisabled()) {
+    if (!this.fieldReadyHighlight() || this.defendDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
@@ -915,7 +928,7 @@ export class Card {
 
   protected onBurrowClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.showBurrowAbility() || this.burrowDisabled()) {
+    if (!this.showBurrowAbility() || this.burrowDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
@@ -937,7 +950,7 @@ export class Card {
 
   protected onTailSmashClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.showTailSmashAbility() || this.tailSmashDisabled()) {
+    if (!this.showTailSmashAbility() || this.tailSmashDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
@@ -952,7 +965,7 @@ export class Card {
 
   protected onPraiseClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (this.praiseDisabled()) {
+    if (this.praiseDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();

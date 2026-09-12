@@ -1,14 +1,15 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Auth, authState } from '@angular/fire/auth';
 import { MatButton } from '@angular/material/button';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom, take } from 'rxjs';
 import { SpellDragLineOverlay } from '../spell-drag-line-overlay/spell-drag-line-overlay';
 import { PlayField } from '../play-field/play-field';
 import { PlayerDeck } from '../player-deck/player-deck';
 import { PlayerHand } from '../player-hand/player-hand';
 import { CardDragService } from '../services/card-drag.service';
-import { GameEngineService } from '../services/game-engine.service';
+import { GameEngineService, type FieldPlayerSlot } from '../services/game-engine.service';
 import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import { MatchmakingService } from '../services/matchmaking.service';
 
@@ -20,6 +21,7 @@ import { MatchmakingService } from '../services/matchmaking.service';
 })
 export class GamePage implements OnInit, OnDestroy {
   protected readonly engine = inject(GameEngineService);
+  private readonly auth = inject(Auth);
   private readonly cardDrag = inject(CardDragService);
   private readonly matchmaking = inject(MatchmakingService);
   private readonly liveSync = inject(LiveMatchSyncService);
@@ -55,11 +57,28 @@ export class GamePage implements OnInit, OnDestroy {
         return;
       }
 
+      let user = this.auth.currentUser;
+      if (!user) {
+        try {
+          user = await firstValueFrom(authState(this.auth).pipe(take(1)));
+        } catch {
+          user = null;
+        }
+      }
+      const myUid = user?.uid;
+      const localSlot: FieldPlayerSlot | null =
+        myUid === match.player1.uid
+          ? 'player1'
+          : myUid === match.player2.uid
+            ? 'player2'
+            : null;
+
       this.engine.resetMatch();
       this.engine.setLivePlayerNames(
         match.player1.username,
         match.player2.username,
         match.id,
+        localSlot,
       );
 
       try {
@@ -79,7 +98,7 @@ export class GamePage implements OnInit, OnDestroy {
     }
 
     if (!this.engine.gameStarted()) {
-      this.engine.setLivePlayerNames(null, null, null);
+      this.engine.setLivePlayerNames(null, null, null, null);
       this.engine.startGame();
     }
   }
@@ -92,6 +111,9 @@ export class GamePage implements OnInit, OnDestroy {
   }
 
   protected async onNextTurnClick(): Promise<void> {
+    if (!this.engine.canAdvanceTurn()) {
+      return;
+    }
     const matchId = this.engine.liveMatchId();
     if (matchId) {
       try {

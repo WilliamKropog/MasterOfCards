@@ -214,6 +214,12 @@ export class GameEngineService {
   readonly player2DisplayName = signal<string | null>(null);
   readonly liveMatchId = signal<string | null>(null);
 
+  /**
+   * Slot controlled by the local client ('player1' | 'player2') in a live match.
+   * In a local/hotseat match, this is null, allowing the client to control both seats on their turn.
+   */
+  readonly localPlayerSlot = signal<FieldPlayerSlot | null>(null);
+
   /** Label for UI: "—" pre-game, then player name or "Player 1" / "Player 2". */
   readonly currentTurnDisplay = computed(() => {
     const t = this.currentTurn();
@@ -232,11 +238,65 @@ export class GameEngineService {
     return slot === 'player1' ? 'Player 1' : 'Player 2';
   }
 
-  setLivePlayerNames(player1: string | null, player2: string | null, matchId: string | null): void {
+  setLivePlayerNames(
+    player1: string | null,
+    player2: string | null,
+    matchId: string | null,
+    localSlot: FieldPlayerSlot | null = null,
+  ): void {
     this.player1DisplayName.set(player1);
     this.player2DisplayName.set(player2);
     this.liveMatchId.set(matchId);
+    this.localPlayerSlot.set(localSlot);
   }
+
+  /**
+   * True if the local client is allowed to control the given player slot.
+   * In a local/hotseat match (localPlayerSlot === null), both slots can be controlled.
+   * In a live match, only the seat matching localPlayerSlot can be controlled.
+   */
+  canLocalPlayerControlSlot(slot: FieldPlayerSlot | null | undefined): boolean {
+    if (!slot) {
+      return false;
+    }
+    const local = this.localPlayerSlot();
+    if (local === null) {
+      return true;
+    }
+    return local === slot;
+  }
+
+  /**
+   * True if it is currently the given slot's turn AND the local client controls that slot.
+   * Required to drag cards, place cards, attack, defend, or use card abilities.
+   */
+  canLocalPlayerActWithSlot(slot: FieldPlayerSlot | null | undefined): boolean {
+    if (!this.gameStarted() || !slot) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const slotTurn: PlayerId = slot === 'player1' ? 1 : 2;
+    if (turn !== slotTurn) {
+      return false;
+    }
+    return this.canLocalPlayerControlSlot(slot);
+  }
+
+  /** True if it is currently the local player's turn to act. */
+  readonly isLocalPlayerTurn = computed(() => {
+    if (!this.gameStarted()) {
+      return false;
+    }
+    const turn = this.currentTurn();
+    if (turn === null) {
+      return false;
+    }
+    const activeSlot: FieldPlayerSlot = turn === 1 ? 'player1' : 'player2';
+    return this.canLocalPlayerControlSlot(activeSlot);
+  });
 
   /** Replace local engine signals from authoritative live match gameState. */
   applyLiveGameState(state: LiveGameState): void {
@@ -264,8 +324,8 @@ export class GameEngineService {
     const prevAttack = this.attackMode();
     this.abilityTargetMode.set(null);
     this.pendingPlacement.set(null);
-    // Keep multi-attack targeting when the same attacker still has attacks left.
-    if (prevAttack) {
+    // Keep multi-attack targeting when the same attacker still has attacks left and local can act.
+    if (prevAttack && this.canLocalPlayerActWithSlot(prevAttack.attackerSlot)) {
       const entry = this.getMonsterBySlot(prevAttack.attackerSlot, prevAttack.attackerMonsterSlot);
       if (entry && this.canMonsterAttack(prevAttack.attackerSlot, entry)) {
         this.attackMode.set(prevAttack);
@@ -664,7 +724,7 @@ export class GameEngineService {
    * selected, toggles attack mode off. Does nothing when the enemy has no cards to attack.
    */
   beginAttackFromMonster(attackerSlot: FieldPlayerSlot, monsterSlot: number): void {
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(attackerSlot)) {
       return;
     }
     const current = this.attackMode();
@@ -708,7 +768,7 @@ export class GameEngineService {
    * action for this turn). Cleared when this player’s next turn starts.
    */
   setMonsterDefending(ownerSlot: FieldPlayerSlot, monsterSlot: number): boolean {
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(ownerSlot)) {
       return false;
     }
     const turn = this.currentTurn();
@@ -748,7 +808,7 @@ export class GameEngineService {
    * Uses the monster's action for the turn.
    */
   tryUseBurrow(ownerSlot: FieldPlayerSlot, monsterSlot: number): boolean {
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(ownerSlot)) {
       return false;
     }
     const turn = this.currentTurn();
@@ -798,7 +858,7 @@ export class GameEngineService {
 
   /** True when Rockterrior still has Tail Smash available and can pay / act. */
   canBeginTailSmash(ownerSlot: FieldPlayerSlot, monsterSlot: number): boolean {
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(ownerSlot)) {
       return false;
     }
     const entry = this.getMonsterBySlot(ownerSlot, monsterSlot);
@@ -968,7 +1028,8 @@ export class GameEngineService {
 
     const turn = this.currentTurn();
     const controllerId: PlayerId = controller === 'player1' ? 1 : 2;
-    const isControllerTurn = turn === controllerId;
+    const isControllerTurn = turn === controllerId && this.canLocalPlayerControlSlot(controller);
+    const canAct = this.canLocalPlayerActWithSlot(controller);
 
     let hasMightyGopher = false;
     let mightyGopherCanAct = false;
@@ -993,7 +1054,7 @@ export class GameEngineService {
     }
 
     const canActivate =
-      landActive && isControllerTurn && hasMightyGopher && mightyGopherCanAct;
+      landActive && isControllerTurn && hasMightyGopher && mightyGopherCanAct && canAct;
 
     return {
       isElderGopher: true,
@@ -1067,7 +1128,7 @@ export class GameEngineService {
     tether: SpellTetherTarget;
   }): boolean {
     const { casterSlot, handIndex, spellCardId, tether } = params;
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(casterSlot)) {
       return false;
     }
     const turn = this.currentTurn();
@@ -1184,7 +1245,7 @@ export class GameEngineService {
     targetPlayerSlot: FieldPlayerSlot;
   }): boolean {
     const { casterSlot, handIndex, spellCardId, targetPlayerSlot } = params;
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(casterSlot)) {
       return false;
     }
     const turn = this.currentTurn();
@@ -1985,6 +2046,7 @@ export class GameEngineService {
     this.player1DisplayName.set(null);
     this.player2DisplayName.set(null);
     this.liveMatchId.set(null);
+    this.localPlayerSlot.set(null);
   }
 
   /** Stub — advance turn / pass priority when you add phases. */
@@ -1999,7 +2061,11 @@ export class GameEngineService {
 
   /** True when Next Turn is allowed. */
   private mayAdvanceTurn(): boolean {
-    return this.gameStarted() && this.currentTurn() !== null;
+    if (!this.gameStarted() || this.currentTurn() === null) {
+      return false;
+    }
+    const activeSlot: FieldPlayerSlot = this.currentTurn() === 1 ? 'player1' : 'player2';
+    return this.canLocalPlayerControlSlot(activeSlot);
   }
 
   /** True when the active player has no hand cards left to play and no monsters that can act. */
@@ -2166,7 +2232,7 @@ export class GameEngineService {
     influencedSpaces: number[];
   }): boolean {
     const { controllerSlot, handIndex, cardId, targetRowSlot, influencedSpaces } = params;
-    if (!this.gameStarted()) { return false; }
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(controllerSlot)) { return false; }
     const turn = this.currentTurn();
     if (turn === null) { return false; }
     const ownerId: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
@@ -2218,7 +2284,7 @@ export class GameEngineService {
     fieldSlot: number;
   }): boolean {
     const { controllerSlot, handIndex, cardId, fieldSlot } = params;
-    if (!this.gameStarted()) { return false; }
+    if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(controllerSlot)) { return false; }
     const turn = this.currentTurn();
     if (turn === null) { return false; }
     const ownerId: 1 | 2 = controllerSlot === 'player1' ? 1 : 2;
@@ -2267,6 +2333,9 @@ export class GameEngineService {
     targetZone: FieldZone,
     targetRowSlot: FieldPlayerSlot,
   ): void {
+    if (!this.canLocalPlayerActWithSlot(controllerSlot)) {
+      return;
+    }
     this.attackMode.set(null);
     const def = getCardDefinition(cardId);
     const spacesNeeded = targetZone === 'monster' ? 1 : (def?.space ?? 1);

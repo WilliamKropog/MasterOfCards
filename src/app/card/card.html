@@ -92,7 +92,7 @@
       }
       -->
     </div>
-    @if (fieldZone() === 'monster') {
+    @if (fieldZone() === 'monster' && canActWithCard()) {
       <div class="card-field-actions">
         <div class="card-field-actions-row">
           <button
@@ -137,7 +137,7 @@
         }
       </div>
     }
-    @if (fieldZone() === 'land' && showLandPraiseOverlay()) {
+    @if (fieldZone() === 'land' && showLandPraiseOverlay() && canActWithCard()) {
       <div class="card-field-actions">
         <button
           matButton="filled"
