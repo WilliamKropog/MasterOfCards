@@ -220,6 +220,32 @@ export class GameEngineService {
    */
   readonly localPlayerSlot = signal<FieldPlayerSlot | null>(null);
 
+  /**
+   * The player slot displayed at the bottom of the screen (the viewer / local player).
+   * In a live match as Player 2, returns 'player2'. Otherwise defaults to 'player1'.
+   */
+  readonly bottomPlayerSlot = computed<FieldPlayerSlot>(() => {
+    return this.localPlayerSlot() === 'player2' ? 'player2' : 'player1';
+  });
+
+  /**
+   * The player slot displayed at the top of the screen (the opponent).
+   * In a live match as Player 2, returns 'player1'. Otherwise defaults to 'player2'.
+   */
+  readonly topPlayerSlot = computed<FieldPlayerSlot>(() => {
+    return this.localPlayerSlot() === 'player2' ? 'player1' : 'player2';
+  });
+
+  /** Hand cards of the player seated at the bottom of the screen. */
+  readonly bottomPlayerHand = computed(() => {
+    return this.bottomPlayerSlot() === 'player1' ? this.player1Hand() : this.player2Hand();
+  });
+
+  /** Hand cards of the player seated at the top of the screen. */
+  readonly topPlayerHand = computed(() => {
+    return this.topPlayerSlot() === 'player1' ? this.player1Hand() : this.player2Hand();
+  });
+
   /** Label for UI: "—" pre-game, then player name or "Player 1" / "Player 2". */
   readonly currentTurnDisplay = computed(() => {
     const t = this.currentTurn();

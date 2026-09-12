@@ -1,5 +1,7 @@
 <section
   class="field-row"
+  [attr.data-player-slot]="playerSlot()"
+  [attr.data-field-zone]="zone()"
   [attr.aria-label]="rowLabel()"
 >
   @if (zone() === 'monster') {

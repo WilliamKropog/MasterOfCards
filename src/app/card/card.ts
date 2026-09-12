@@ -867,7 +867,7 @@ export class Card {
       this.cardDrag.updateMonsterPreview(null);
       return;
     }
-    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer);
+    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer, slot);
     if (monsterSlotNum === null || this.engine.getMonsterBySlot(slot, monsterSlotNum)) {
       this.cardDrag.updateMonsterPreview(null);
       return;
@@ -882,15 +882,15 @@ export class Card {
       this.cardDrag.clearLandPreview();
       return;
     }
-    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer);
+    const targetRow: PlayerSlot = mustPlaceLandOnOpponentRow(def)
+      ? (slot === 'player1' ? 'player2' : 'player1')
+      : slot;
+    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer, targetRow);
     if (monsterSlotNum === null) {
       this.cardDrag.clearLandPreview();
       return;
     }
     const spaceCount = def.space ?? 1;
-    const targetRow: PlayerSlot = mustPlaceLandOnOpponentRow(def)
-      ? (slot === 'player1' ? 'player2' : 'player1')
-      : slot;
     const preview = this.engine.computeLandInfluencedSpaces(monsterSlotNum, spaceCount, targetRow);
     if (preview) {
       this.cardDrag.updateLandPreview(preview);
@@ -899,13 +899,19 @@ export class Card {
     }
   }
 
-  private findMonsterSlotAtPoint(point: { x: number; y: number }): number | null {
+  private findMonsterSlotAtPoint(point: { x: number; y: number }, targetPlayerSlot?: PlayerSlot): number | null {
     for (const el of document.elementsFromPoint(point.x, point.y)) {
       if (el instanceof HTMLElement && el.closest('.cdk-drag-preview')) {
         continue;
       }
       const slotEl = el.closest<HTMLElement>('[data-slot-number]');
       if (slotEl) {
+        if (targetPlayerSlot) {
+          const rowEl = slotEl.closest<HTMLElement>('[data-player-slot]');
+          if (rowEl && rowEl.getAttribute('data-player-slot') !== targetPlayerSlot) {
+            continue;
+          }
+        }
         const raw = slotEl.getAttribute('data-slot-number');
         if (raw) {
           const n = Number(raw);

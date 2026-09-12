@@ -36,6 +36,7 @@ export class FieldRow {
 
   readonly playerSlot = input.required<PlayerSlot>();
   readonly zone = input.required<FieldZone>();
+  readonly isTopRow = input<boolean>(false);
 
   protected readonly rowLabel = computed(() => {
     const player = this.engine.playerDisplayName(this.playerSlot());
@@ -52,16 +53,24 @@ export class FieldRow {
     return zone === 'land' ? this.engine.player2FieldLand() : this.engine.player2FieldMonster();
   });
 
-  /** 9-element view for monster rows: slot 1–9 mapped to entries or null. */
+  /** Slot view for monster rows: 1..N for bottom rows, N..1 for top rows. */
   protected readonly monsterSlots = computed((): MonsterSlotView[] => {
     if (this.zone() !== 'monster') {
       return [];
     }
     const entries = this.fieldCards();
     const slots: MonsterSlotView[] = [];
-    for (let i = 1; i <= MONSTER_FIELD_SLOTS; i++) {
-      const entry = entries.find((e) => e.fieldSlot === i) ?? null;
-      slots.push({ slotNumber: i, entry });
+    const count = this.monsterFieldSlots;
+    if (this.isTopRow()) {
+      for (let i = count; i >= 1; i--) {
+        const entry = entries.find((e) => e.fieldSlot === i) ?? null;
+        slots.push({ slotNumber: i, entry });
+      }
+    } else {
+      for (let i = 1; i <= count; i++) {
+        const entry = entries.find((e) => e.fieldSlot === i) ?? null;
+        slots.push({ slotNumber: i, entry });
+      }
     }
     return slots;
   });
@@ -71,10 +80,21 @@ export class FieldRow {
     if (this.zone() !== 'land') {
       return [];
     }
+    const count = this.monsterFieldSlots;
+    const isTop = this.isTopRow();
     return this.fieldCards().map((entry, arrIndex) => {
       const spaces = entry.influencedSpaces ?? [];
-      const colStart = spaces.length > 0 ? Math.min(...spaces) : 1;
-      const colEnd = spaces.length > 0 ? Math.max(...spaces) + 1 : 2;
+      if (spaces.length === 0) {
+        return { entry, arrIndex, colStart: 1, colEnd: 2 };
+      }
+      if (isTop) {
+        const visualCols = spaces.map((s) => count + 1 - s);
+        const colStart = Math.min(...visualCols);
+        const colEnd = Math.max(...visualCols) + 1;
+        return { entry, arrIndex, colStart, colEnd };
+      }
+      const colStart = Math.min(...spaces);
+      const colEnd = Math.max(...spaces) + 1;
       return { entry, arrIndex, colStart, colEnd };
     });
   });
