@@ -1,8 +1,8 @@
 <div class="play-field">
-  <app-field-row playerSlot="player1" zone="land" />
-  <app-field-row playerSlot="player1" zone="monster" />
-  <app-field-row playerSlot="player2" zone="monster" />
-  <app-field-row playerSlot="player2" zone="land" />
+  <app-field-row [playerSlot]="engine.topPlayerSlot()" zone="land" [isTopRow]="true" />
+  <app-field-row [playerSlot]="engine.topPlayerSlot()" zone="monster" [isTopRow]="true" />
+  <app-field-row [playerSlot]="engine.bottomPlayerSlot()" zone="monster" [isTopRow]="false" />
+  <app-field-row [playerSlot]="engine.bottomPlayerSlot()" zone="land" [isTopRow]="false" />
 
   <div class="influence-overlay-grid" aria-hidden="true">
     @for (ov of landInfluenceOverlays(); track $index) {

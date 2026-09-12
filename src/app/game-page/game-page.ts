@@ -1,13 +1,17 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Auth, authState } from '@angular/fire/auth';
 import { MatButton } from '@angular/material/button';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription, firstValueFrom, take } from 'rxjs';
 import { SpellDragLineOverlay } from '../spell-drag-line-overlay/spell-drag-line-overlay';
 import { PlayField } from '../play-field/play-field';
 import { PlayerDeck } from '../player-deck/player-deck';
 import { PlayerHand } from '../player-hand/player-hand';
 import { CardDragService } from '../services/card-drag.service';
-import { GameEngineService } from '../services/game-engine.service';
+import { GameEngineService, type FieldPlayerSlot } from '../services/game-engine.service';
+import { LiveMatchSyncService } from '../services/live-match-sync.service';
+import { MatchmakingService } from '../services/matchmaking.service';
 
 @Component({
   selector: 'app-game-page',
@@ -15,26 +19,119 @@ import { GameEngineService } from '../services/game-engine.service';
   templateUrl: './game-page.html',
   styleUrl: './game-page.css',
 })
-export class GamePage implements OnInit {
+export class GamePage implements OnInit, OnDestroy {
   protected readonly engine = inject(GameEngineService);
+  private readonly auth = inject(Auth);
   private readonly cardDrag = inject(CardDragService);
+  private readonly matchmaking = inject(MatchmakingService);
+  private readonly liveSync = inject(LiveMatchSyncService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   protected readonly title = signal('masterofcards');
+  protected readonly liveMatchError = signal('');
+
+  private fragmentSub: Subscription | null = null;
 
   ngOnInit(): void {
+    this.fragmentSub = this.route.fragment.subscribe((fragment) => {
+      void this.bootstrapFromFragment(fragment);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.fragmentSub?.unsubscribe();
+    this.liveSync.detach();
+  }
+
+  private async bootstrapFromFragment(fragment: string | null): Promise<void> {
+    this.liveMatchError.set('');
+    this.liveSync.detach();
+
+    if (fragment) {
+      const match = await this.matchmaking.loadMatch(fragment);
+      if (!match) {
+        this.liveMatchError.set('Live match not found.');
+        this.engine.resetMatch();
+        this.engine.startGame();
+        return;
+      }
+
+      let user = this.auth.currentUser;
+      if (!user) {
+        try {
+          user = await firstValueFrom(authState(this.auth).pipe(take(1)));
+        } catch {
+          user = null;
+        }
+      }
+      const myUid = user?.uid;
+      const localSlot: FieldPlayerSlot | null =
+        myUid === match.player1.uid
+          ? 'player1'
+          : myUid === match.player2.uid
+            ? 'player2'
+            : null;
+
+      this.engine.resetMatch();
+      this.engine.setLivePlayerNames(
+        match.player1.username,
+        match.player2.username,
+        match.id,
+        localSlot,
+      );
+
+      try {
+        await this.liveSync.attach(match.id);
+      } catch (error) {
+        const message =
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : 'Could not initialize live match.';
+        this.liveMatchError.set(message);
+        this.engine.startGame();
+      }
+      return;
+    }
+
     if (!this.engine.gameStarted()) {
+      this.engine.setLivePlayerNames(null, null, null, null);
       this.engine.startGame();
     }
   }
 
   protected onEndGameClick(): void {
     this.cardDrag.endDrag();
+    this.liveSync.detach();
     this.engine.resetMatch();
     void this.router.navigate(['/']);
   }
 
-  protected onNextTurnClick(): void {
+  protected async onNextTurnClick(): Promise<void> {
+    if (!this.engine.canAdvanceTurn()) {
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      try {
+        this.liveMatchError.set('');
+        await this.liveSync.submitEndTurn(matchId);
+      } catch (error) {
+        const message =
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : 'Could not end turn.';
+        this.liveMatchError.set(message);
+      }
+      return;
+    }
+
     this.engine.nextTurn();
   }
 

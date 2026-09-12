@@ -1,5 +1,7 @@
 export const environment = {
   production: false,
+  /** When true, Auth/Firestore/Functions talk to local Firebase emulators. */
+  useEmulators: true,
   firebase: {
     apiKey: 'AIzaSyCewO7QDZo3j9xgb7S4RfzLG049QWxSRKI',
     authDomain: 'master-of-cards.firebaseapp.com',
@@ -9,5 +11,10 @@ export const environment = {
     messagingSenderId: '820125994898',
     appId: '1:820125994898:web:97cc4029d3425e755dbb4b',
     measurementId: 'G-FCWPJSQ4LF',
+  },
+  emulators: {
+    auth: { host: '127.0.0.1', port: 9099 },
+    firestore: { host: '127.0.0.1', port: 8080 },
+    functions: { host: '127.0.0.1', port: 5001 },
   },
 };

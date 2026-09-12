@@ -121,6 +121,12 @@
   transform: translateY(-2rem);
 }
 
+.player-hand.player-hand--opponent .player-hand-cards > .player-hand-card-slot:hover,
+.player-hand-cards > .player-hand-card-slot:has(.card--hidden):hover {
+  z-index: calc(1000 + var(--hand-index, 0));
+  transform: none;
+}
+
 .player-hand-cards > .player-hand-card-slot:has(.card.cdk-drag-dragging) {
   transform: none;
 }

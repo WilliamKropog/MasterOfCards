@@ -10,27 +10,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Username reservation map (doc id = lowercase username).
-    // Public get so login can resolve username → email.
+    function isMatchParticipant() {
+      return isSignedIn()
+        && (
+          request.auth.uid == resource.data.player1.uid
+          || request.auth.uid == resource.data.player2.uid
+        );
+    }
+
+    // Thin username → uid index (doc id = lowercase username).
     match /usernames/{username} {
       allow get: if true;
       allow list: if false;
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.usernameLower == username
-        && request.resource.data.keys().hasAll([
-          'uid',
-          'username',
-          'usernameLower',
-          'email',
-          'createdAt'
-        ]);
+        && request.resource.data.keys().hasOnly(['uid']);
       allow update, delete: if false;
     }
 
-    // Per-user profile documents.
+    // Per-user profile documents (source of truth).
+    // Public get allows username login to resolve uid → email before auth.
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if true;
       allow list: if false;
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
@@ -43,6 +44,63 @@ service cloud.firestore {
         ]);
       allow update: if isOwner(userId);
       allow delete: if false;
+    }
+
+    // Live matchmaking queue (doc id = uid).
+    match /matchmakingQueue/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'username',
+          'status',
+          'matchId',
+          'createdAt'
+        ]);
+      allow update: if isSignedIn() && (
+        isOwner(uid)
+        || (
+          resource.data.status == 'waiting'
+          && request.resource.data.status == 'matched'
+          && request.resource.data.uid == uid
+          && request.resource.data.matchId is string
+        )
+      );
+      allow delete: if isOwner(uid);
+    }
+
+    // Live match lobby shell. Authoritative turn/actions are Admin/Cloud Function only.
+    match /matches/{matchId} {
+      allow read: if isMatchParticipant();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll([
+          'player1',
+          'player2',
+          'status',
+          'createdAt',
+          'currentTurn',
+          'actionSeq'
+        ])
+        && request.resource.data.status == 'active'
+        && request.resource.data.currentTurn == 1
+        && request.resource.data.actionSeq == 0
+        && (
+          request.auth.uid == request.resource.data.player1.uid
+          || request.auth.uid == request.resource.data.player2.uid
+        );
+      allow update, delete: if false;
+
+      // Action Sync log — clients listen; only Cloud Functions (Admin SDK) write.
+      match /actions/{actionId} {
+        allow read: if isSignedIn()
+          && (
+            request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.player1.uid
+            || request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.player2.uid
+          );
+        allow create, update, delete: if false;
+      }
     }
   }
 }

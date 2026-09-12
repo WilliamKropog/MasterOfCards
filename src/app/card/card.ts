@@ -19,6 +19,7 @@ import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
 import { GameEngineService, type ActionFeedbackKind, type FieldZone } from '../services/game-engine.service';
+import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import type { PlayerSlot } from '../player-hand/player-hand';
 
 @Component({
@@ -31,6 +32,7 @@ export class Card {
   private readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
   private readonly spellDragLine = inject(SpellDragLineService);
+  private readonly liveSync = inject(LiveMatchSyncService);
 
   /** Lookup key in `CARD_CATALOG` — pass only this from parents when possible. */
   readonly cardId = input.required<string>();
@@ -70,6 +72,9 @@ export class Card {
 
   /** Index in the parent hand list; set for hand cards so spell cast can remove the correct copy. */
   readonly handIndex = input<number | undefined>(undefined);
+
+  /** Explicit override for hiding hand card face (renders as a blank square). */
+  readonly hiddenInHand = input<boolean | undefined>(undefined);
 
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
@@ -250,18 +255,37 @@ export class Card {
 
   private readonly isInactiveHandCard = computed(() => {
     if (!this.inPlayerHand() || !this.engine.gameStarted()) { return false; }
-    const turn = this.engine.currentTurn();
-    if (turn === null) { return false; }
-    const mine = this.ownerPlayerSlot() === 'player1' ? 1 : 2;
-    return turn !== mine;
+    const slot = this.ownerPlayerSlot();
+    return !this.engine.canLocalPlayerActWithSlot(slot);
+  });
+
+  /**
+   * True when this hand card belongs to the other player in a match.
+   * Rendered as an empty, blank square to keep the opponent's hand invisible.
+   */
+  protected readonly isHiddenInHand = computed(() => {
+    const override = this.hiddenInHand();
+    if (override !== undefined) {
+      return override;
+    }
+    if (!this.inPlayerHand()) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (!slot) {
+      return false;
+    }
+    return !this.engine.canLocalPlayerControlSlot(slot);
   });
 
   /** No drag on inactive turn, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
+      this.isHiddenInHand() ||
       this.isInactiveHandCard() ||
       !this.engine.gameStarted() ||
       this.onField() ||
+      !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot()) ||
       this.fieldLandOrMonsterLocked() ||
       this.cannotAffordManaCostInHand() ||
       this.exceedsLandCapacityInHand() ||
@@ -296,12 +320,7 @@ export class Card {
     // Mid multi-attack: keep ready glow so Attack can re-open targeting if canceled.
     // Defend/abilities are blocked in the engine via canMonsterAct.
     const slot = this.ownerPlayerSlot();
-    if (slot === null) {
-      return false;
-    }
-    const slotId: 1 | 2 = slot === 'player1' ? 1 : 2;
-    const turn = this.engine.currentTurn();
-    if (turn === null || turn !== slotId) {
+    if (!this.engine.canLocalPlayerActWithSlot(slot)) {
       return false;
     }
     return monsterSummoningSicknessCleared(this.def(), placedAt, this.engine.turnCounter());
@@ -313,6 +332,9 @@ export class Card {
       return false;
     }
     if (this.cardDrag.activeDrag()) {
+      return false;
+    }
+    if (!this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return false;
     }
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
@@ -328,6 +350,9 @@ export class Card {
     if (!this.onField() || this.fieldZone() !== 'land' || !this.engine.gameStarted()) {
       return false;
     }
+    if (!this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
+      return false;
+    }
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const idx = this.fieldCardIndex();
     if (rowSlot === null || idx === null) {
@@ -335,6 +360,11 @@ export class Card {
     }
     const state = this.engine.getLandPraiseState(rowSlot, idx);
     return state.isElderGopher && state.landActive && state.isControllerTurn;
+  });
+
+  /** True when the local player can act with this card on their turn. */
+  protected readonly canActWithCard = computed(() => {
+    return this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot());
   });
 
   protected readonly praiseDisabled = computed(() => {
@@ -534,6 +564,9 @@ export class Card {
   });
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
+    if (this.isHiddenInHand()) {
+      return null;
+    }
     const slot = this.ownerPlayerSlot();
     if (slot === null) {
       return null;
@@ -541,6 +574,13 @@ export class Card {
     const hi = this.handIndex();
     const base: CardDragPayload = { cardId: this.cardId(), ownerPlayerSlot: slot };
     return hi === undefined ? base : { ...base, handIndex: hi };
+  });
+
+  protected readonly cardAriaLabel = computed(() => {
+    if (this.isHiddenInHand()) {
+      return 'Hidden card';
+    }
+    return this.compact() ? this.displayNameWithBlocks() : this.displayName();
   });
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');
@@ -677,7 +717,7 @@ export class Card {
     }
     const slot = this.ownerPlayerSlot();
     const def = this.def();
-    if (slot === null || !def) {
+    if (slot === null || !def || !this.engine.canLocalPlayerActWithSlot(slot)) {
       return;
     }
     this.cardDrag.beginDrag({
@@ -695,7 +735,12 @@ export class Card {
       if (!this.inPlayerHand()) {
         return;
       }
+      const slot = this.ownerPlayerSlot();
+      if (!this.engine.canLocalPlayerActWithSlot(slot)) {
+        return;
+      }
       const type = this.def()?.cardType;
+      const matchId = this.engine.liveMatchId();
 
       if (type === 'Spell') {
         const tether = this.spellDragLine.tetherTarget();
@@ -704,6 +749,27 @@ export class Card {
         const slot = this.ownerPlayerSlot();
         const idx = this.handIndex();
         if (slot === null || idx === undefined) {
+          return;
+        }
+        if (matchId) {
+          if (tether !== null) {
+            void this.liveSync.submitCastSpell(matchId, {
+              cardId: this.cardId(),
+              handIndex: idx,
+              defenderRowSlot: tether.slot,
+              defenderZone: tether.zone,
+              defenderIdentifier: tether.index,
+            });
+          } else {
+            const targetSlot = snapHand ?? overEnemyHand;
+            if (targetSlot !== null) {
+              void this.liveSync.submitCastSpell(matchId, {
+                cardId: this.cardId(),
+                handIndex: idx,
+                defenderPlayerSlot: targetSlot,
+              });
+            }
+          }
           return;
         }
         if (tether !== null) {
@@ -733,25 +799,42 @@ export class Card {
           const targetRowSlot: PlayerSlot = mustPlaceLandOnOpponentRow(def)
             ? (slot === 'player1' ? 'player2' : 'player1')
             : slot;
-          this.engine.placeLandFromHand({
-            controllerSlot: slot,
-            handIndex: idx,
-            cardId: this.cardId(),
-            targetRowSlot,
-            influencedSpaces: preview,
-          });
+          if (matchId) {
+            void this.liveSync.submitPlayCard(matchId, {
+              cardId: this.cardId(),
+              handIndex: idx,
+              targetRowSlot,
+              influencedSpaces: preview,
+            });
+          } else {
+            this.engine.placeLandFromHand({
+              controllerSlot: slot,
+              handIndex: idx,
+              cardId: this.cardId(),
+              targetRowSlot,
+              influencedSpaces: preview,
+            });
+          }
         }
       } else if (type === 'Monster') {
         const previewSlot = this.cardDrag.monsterPreviewSlot();
         const slot = this.ownerPlayerSlot();
         const idx = this.handIndex();
         if (previewSlot !== null && slot !== null && idx !== undefined) {
-          this.engine.placeMonsterFromHand({
-            controllerSlot: slot,
-            handIndex: idx,
-            cardId: this.cardId(),
-            fieldSlot: previewSlot,
-          });
+          if (matchId) {
+            void this.liveSync.submitPlayCard(matchId, {
+              cardId: this.cardId(),
+              handIndex: idx,
+              fieldSlot: previewSlot,
+            });
+          } else {
+            this.engine.placeMonsterFromHand({
+              controllerSlot: slot,
+              handIndex: idx,
+              cardId: this.cardId(),
+              fieldSlot: previewSlot,
+            });
+          }
         }
       }
     } finally {
@@ -762,6 +845,10 @@ export class Card {
 
   protected onDragMoved(event: CdkDragMove<CardDragPayload | null>): void {
     if (!this.inPlayerHand()) {
+      return;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (!this.engine.canLocalPlayerActWithSlot(slot)) {
       return;
     }
     const type = this.def()?.cardType;
@@ -780,7 +867,7 @@ export class Card {
       this.cardDrag.updateMonsterPreview(null);
       return;
     }
-    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer);
+    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer, slot);
     if (monsterSlotNum === null || this.engine.getMonsterBySlot(slot, monsterSlotNum)) {
       this.cardDrag.updateMonsterPreview(null);
       return;
@@ -795,15 +882,15 @@ export class Card {
       this.cardDrag.clearLandPreview();
       return;
     }
-    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer);
+    const targetRow: PlayerSlot = mustPlaceLandOnOpponentRow(def)
+      ? (slot === 'player1' ? 'player2' : 'player1')
+      : slot;
+    const monsterSlotNum = this.findMonsterSlotAtPoint(pointer, targetRow);
     if (monsterSlotNum === null) {
       this.cardDrag.clearLandPreview();
       return;
     }
     const spaceCount = def.space ?? 1;
-    const targetRow: PlayerSlot = mustPlaceLandOnOpponentRow(def)
-      ? (slot === 'player1' ? 'player2' : 'player1')
-      : slot;
     const preview = this.engine.computeLandInfluencedSpaces(monsterSlotNum, spaceCount, targetRow);
     if (preview) {
       this.cardDrag.updateLandPreview(preview);
@@ -812,13 +899,19 @@ export class Card {
     }
   }
 
-  private findMonsterSlotAtPoint(point: { x: number; y: number }): number | null {
+  private findMonsterSlotAtPoint(point: { x: number; y: number }, targetPlayerSlot?: PlayerSlot): number | null {
     for (const el of document.elementsFromPoint(point.x, point.y)) {
       if (el instanceof HTMLElement && el.closest('.cdk-drag-preview')) {
         continue;
       }
       const slotEl = el.closest<HTMLElement>('[data-slot-number]');
       if (slotEl) {
+        if (targetPlayerSlot) {
+          const rowEl = slotEl.closest<HTMLElement>('[data-player-slot]');
+          if (rowEl && rowEl.getAttribute('data-player-slot') !== targetPlayerSlot) {
+            continue;
+          }
+        }
         const raw = slotEl.getAttribute('data-slot-number');
         if (raw) {
           const n = Number(raw);
@@ -833,7 +926,7 @@ export class Card {
 
   protected onAttackClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.fieldReadyHighlight()) {
+    if (!this.fieldReadyHighlight() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
@@ -855,13 +948,18 @@ export class Card {
 
   protected onDefendClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.fieldReadyHighlight() || this.defendDisabled()) {
+    if (!this.fieldReadyHighlight() || this.defendDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
     const zone = this.fieldZone();
     const idx = this.fieldCardIndex();
     if (slot === null || zone !== 'monster' || idx === null) {
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      void this.liveSync.submitDefend(matchId, idx);
       return;
     }
     this.engine.setMonsterDefending(slot, idx);
@@ -869,13 +967,21 @@ export class Card {
 
   protected onBurrowClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.showBurrowAbility() || this.burrowDisabled()) {
+    if (!this.showBurrowAbility() || this.burrowDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
     const zone = this.fieldZone();
     const idx = this.fieldCardIndex();
     if (slot === null || zone !== 'monster' || idx === null) {
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      void this.liveSync.submitUseAbility(matchId, {
+        abilityId: 'burrow',
+        casterMonsterSlot: idx,
+      });
       return;
     }
     this.engine.tryUseBurrow(slot, idx);
@@ -883,7 +989,7 @@ export class Card {
 
   protected onTailSmashClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (!this.showTailSmashAbility() || this.tailSmashDisabled()) {
+    if (!this.showTailSmashAbility() || this.tailSmashDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const slot = this.ownerPlayerSlot();
@@ -892,17 +998,27 @@ export class Card {
     if (slot === null || zone !== 'monster' || idx === null) {
       return;
     }
+    // Targeting stays local; resolve submits in onFieldCardClick for live.
     this.engine.beginTailSmash(slot, idx);
   }
 
   protected onPraiseClick(event: MouseEvent): void {
     event.stopPropagation();
-    if (this.praiseDisabled()) {
+    if (this.praiseDisabled() || !this.engine.canLocalPlayerActWithSlot(this.ownerPlayerSlot())) {
       return;
     }
     const rowSlot = this.fieldRowSlot() ?? this.ownerPlayerSlot();
     const idx = this.fieldCardIndex();
     if (rowSlot === null || idx === null) {
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    if (matchId) {
+      void this.liveSync.submitUseAbility(matchId, {
+        abilityId: 'praise',
+        landRowSlot: rowSlot,
+        landIndex: idx,
+      });
       return;
     }
     this.engine.tryUsePraise(rowSlot, idx);
@@ -922,8 +1038,32 @@ export class Card {
     if (rowSlot === null || zone === null || idx === null) {
       return;
     }
-    if (this.engine.abilityTargetMode()?.abilityId === 'tail-smash') {
+    const abilityMode = this.engine.abilityTargetMode();
+    if (abilityMode?.abilityId === 'tail-smash') {
+      const matchId = this.engine.liveMatchId();
+      if (matchId) {
+        void this.liveSync.submitUseAbility(matchId, {
+          abilityId: 'tail-smash',
+          casterMonsterSlot: abilityMode.casterMonsterSlot,
+          defenderRowSlot: rowSlot,
+          defenderZone: zone,
+          defenderIdentifier: idx,
+        });
+        this.engine.cancelAbilityTargetMode();
+        return;
+      }
       this.engine.resolveTailSmashOnTarget(rowSlot, zone, idx);
+      return;
+    }
+    const matchId = this.engine.liveMatchId();
+    const mode = this.engine.attackMode();
+    if (matchId && mode) {
+      void this.liveSync.submitAttack(matchId, {
+        attackerFieldSlot: mode.attackerMonsterSlot,
+        defenderRowSlot: rowSlot,
+        defenderZone: zone,
+        defenderIdentifier: idx,
+      });
       return;
     }
     this.engine.resolveAttackOnTarget(rowSlot, zone, idx);

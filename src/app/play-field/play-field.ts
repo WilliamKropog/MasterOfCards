@@ -26,24 +26,31 @@ export class PlayField {
 
   protected readonly landInfluenceOverlays = computed((): LandInfluenceOverlay[] => {
     const overlays: LandInfluenceOverlay[] = [];
-    const addOverlays = (slot: FieldPlayerSlot) => {
+    const count = this.monsterFieldSlots;
+    const topSlot = this.engine.topPlayerSlot();
+    const bottomSlot = this.engine.bottomPlayerSlot();
+
+    const addOverlays = (slot: FieldPlayerSlot, isTop: boolean) => {
       const lands = slot === 'player1'
         ? this.engine.player1FieldLand()
         : this.engine.player2FieldLand();
       for (const entry of lands) {
         const spaces = entry.influencedSpaces;
         if (!spaces || spaces.length === 0) { continue; }
-        const colStart = Math.min(...spaces);
-        const colEnd = Math.max(...spaces) + 1;
-        if (slot === 'player1') {
+        if (isTop) {
+          const visualCols = spaces.map((s) => count + 1 - s);
+          const colStart = Math.min(...visualCols);
+          const colEnd = Math.max(...visualCols) + 1;
           overlays.push({ colStart, colEnd, rowStart: 1, rowEnd: 3 });
         } else {
+          const colStart = Math.min(...spaces);
+          const colEnd = Math.max(...spaces) + 1;
           overlays.push({ colStart, colEnd, rowStart: 3, rowEnd: 5 });
         }
       }
     };
-    addOverlays('player1');
-    addOverlays('player2');
+    addOverlays(topSlot, true);
+    addOverlays(bottomSlot, false);
     return overlays;
   });
 }

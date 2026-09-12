@@ -3,6 +3,7 @@
   [attr.data-player-slot]="playerSlot()"
   (click)="onEnemyHandAttackClick($event)"
   [class.player-hand--active-turn]="isActiveTurn()"
+  [class.player-hand--opponent]="isOpponentHand()"
   [class.player-hand--spell-drag-eligible]="spellDragEligibleEnemyHand()"
   [class.player-hand--spell-tether-snap]="spellSnapTetherThisHand()"
   [class.player-hand--spell-drag-target]="spellDragTargetingThisHand()"
@@ -38,6 +39,7 @@
     [cdkDropListData]="cardIds()"
     [style.--hand-size]="cardIds().length"
     [cdkDropListEnterPredicate]="canEnterHand"
+    [cdkDropListDisabled]="!engine.canLocalPlayerControlSlot(playerSlot())"
     (cdkDropListDropped)="onHandDropped($event)"
   >
     @for (cardId of cardIds(); track i; let i = $index) {
@@ -49,6 +51,7 @@
         [compact]="false"
         [inPlayerHand]="true"
         [ownerPlayerSlot]="playerSlot()"
+        [hiddenInHand]="isOpponentHand()"
       />
     }
   </div>

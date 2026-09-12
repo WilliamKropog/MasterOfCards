@@ -5,6 +5,7 @@ import { getCardDefinition, spellAllowsPlayerLifeTarget } from '../game/card-cat
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService, MAX_LAND_CAPACITY } from '../services/game-engine.service';
+import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
 
 export type PlayerSlot = 'player1' | 'player2';
@@ -19,6 +20,7 @@ export class PlayerHand {
   protected readonly engine = inject(GameEngineService);
   private readonly cardDrag = inject(CardDragService);
   private readonly spellDragLine = inject(SpellDragLineService);
+  private readonly liveSync = inject(LiveMatchSyncService);
 
   /** Which player this hand belongs to. */
   readonly playerSlot = input.required<PlayerSlot>();
@@ -26,8 +28,20 @@ export class PlayerHand {
   /** Catalog ids to show in hand order (e.g. `CardIds.rockMonster`). */
   readonly cardIds = input<string[]>([]);
 
+  /**
+   * True if this hand belongs to the remote opponent (in a live match).
+   * In a local/hotseat match (localPlayerSlot === null), both hands remain visible.
+   */
+  readonly isOpponentHand = computed(() => {
+    const local = this.engine.localPlayerSlot();
+    if (local === null) {
+      return false;
+    }
+    return this.playerSlot() !== local;
+  });
+
   protected readonly displayLabel = computed(() =>
-    this.playerSlot() === 'player1' ? 'Player 1' : 'Player 2',
+    this.engine.playerDisplayName(this.playerSlot()),
   );
 
   protected readonly lifePoints = computed(() =>
@@ -85,6 +99,9 @@ export class PlayerHand {
     if (drag.ownerPlayerSlot === this.playerSlot()) {
       return false;
     }
+    if (!this.engine.canLocalPlayerActWithSlot(drag.ownerPlayerSlot)) {
+      return false;
+    }
     return spellAllowsPlayerLifeTarget(getCardDefinition(drag.cardId));
   });
 
@@ -108,7 +125,7 @@ export class PlayerHand {
       return false;
     }
     const mode = this.engine.attackMode();
-    if (!mode) {
+    if (!mode || !this.engine.canLocalPlayerActWithSlot(mode.attackerSlot)) {
       return false;
     }
     const enemy: PlayerSlot = mode.attackerSlot === 'player1' ? 'player2' : 'player1';
@@ -174,6 +191,9 @@ export class PlayerHand {
     drag: CdkDrag<CardDragPayload | null>,
     _drop: CdkDropList,
   ): boolean => {
+    if (!this.engine.canLocalPlayerActWithSlot(this.playerSlot())) {
+      return false;
+    }
     if (this.isInactiveTurn()) {
       return false;
     }
@@ -185,6 +205,9 @@ export class PlayerHand {
   };
 
   protected onHandDropped(event: CdkDragDrop<any>): void {
+    if (!this.engine.canLocalPlayerActWithSlot(this.playerSlot())) {
+      return;
+    }
     if (this.isInactiveTurn()) {
       return;
     }
@@ -211,7 +234,19 @@ export class PlayerHand {
     if (!this.attackModeEligibleEnemyHand()) {
       return;
     }
+    const mode = this.engine.attackMode();
+    if (!mode || !this.engine.canLocalPlayerActWithSlot(mode.attackerSlot)) {
+      return;
+    }
     event.stopPropagation();
+    const matchId = this.engine.liveMatchId();
+    if (matchId && mode) {
+      void this.liveSync.submitAttack(matchId, {
+        attackerFieldSlot: mode.attackerMonsterSlot,
+        defenderPlayerSlot: this.playerSlot(),
+      });
+      return;
+    }
     this.engine.resolveAttackOnEnemyLife(this.playerSlot());
   }
 }
