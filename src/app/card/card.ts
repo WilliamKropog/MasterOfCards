@@ -73,6 +73,9 @@ export class Card {
   /** Index in the parent hand list; set for hand cards so spell cast can remove the correct copy. */
   readonly handIndex = input<number | undefined>(undefined);
 
+  /** Explicit override for hiding hand card face (renders as a blank square). */
+  readonly hiddenInHand = input<boolean | undefined>(undefined);
+
   private readonly def = computed(() => getCardDefinition(this.cardId()));
 
   /** Live field row entry (HP / acted flags); null when not on the field. */
@@ -256,9 +259,29 @@ export class Card {
     return !this.engine.canLocalPlayerActWithSlot(slot);
   });
 
+  /**
+   * True when this hand card belongs to the other player in a match.
+   * Rendered as an empty, blank square to keep the opponent's hand invisible.
+   */
+  protected readonly isHiddenInHand = computed(() => {
+    const override = this.hiddenInHand();
+    if (override !== undefined) {
+      return override;
+    }
+    if (!this.inPlayerHand()) {
+      return false;
+    }
+    const slot = this.ownerPlayerSlot();
+    if (!slot) {
+      return false;
+    }
+    return !this.engine.canLocalPlayerControlSlot(slot);
+  });
+
   /** No drag on inactive turn, on the field, when land/monster slot used this turn, or when mana cost isn’t met. */
   protected readonly dragDisabled = computed(
     () =>
+      this.isHiddenInHand() ||
       this.isInactiveHandCard() ||
       !this.engine.gameStarted() ||
       this.onField() ||
@@ -541,6 +564,9 @@ export class Card {
   });
 
   protected readonly dragPayload = computed((): CardDragPayload | null => {
+    if (this.isHiddenInHand()) {
+      return null;
+    }
     const slot = this.ownerPlayerSlot();
     if (slot === null) {
       return null;
@@ -548,6 +574,13 @@ export class Card {
     const hi = this.handIndex();
     const base: CardDragPayload = { cardId: this.cardId(), ownerPlayerSlot: slot };
     return hi === undefined ? base : { ...base, handIndex: hi };
+  });
+
+  protected readonly cardAriaLabel = computed(() => {
+    if (this.isHiddenInHand()) {
+      return 'Hidden card';
+    }
+    return this.compact() ? this.displayNameWithBlocks() : this.displayName();
   });
 
   protected readonly displayName = computed(() => this.def()?.name ?? 'Unknown card');

@@ -28,6 +28,18 @@ export class PlayerHand {
   /** Catalog ids to show in hand order (e.g. `CardIds.rockMonster`). */
   readonly cardIds = input<string[]>([]);
 
+  /**
+   * True if this hand belongs to the remote opponent (in a live match).
+   * In a local/hotseat match (localPlayerSlot === null), both hands remain visible.
+   */
+  readonly isOpponentHand = computed(() => {
+    const local = this.engine.localPlayerSlot();
+    if (local === null) {
+      return false;
+    }
+    return this.playerSlot() !== local;
+  });
+
   protected readonly displayLabel = computed(() =>
     this.engine.playerDisplayName(this.playerSlot()),
   );

@@ -1,9 +1,11 @@
 <article
   class="card"
   [attr.data-attack-source]="isAttackSource() ? '' : null"
+  [attr.aria-label]="cardAriaLabel()"
   (click)="onFieldCardClick($event)"
   [class.card--compact]="compact()"
   [class.card--in-hand]="inPlayerHand()"
+  [class.card--hidden]="isHiddenInHand()"
   [class.card--field]="onField()"
   [class.card--drag-disabled]="dragDisabled()"
   [class.card--playable]="playableHighlight()"
@@ -150,6 +152,8 @@
         </button>
       </div>
     }
+  } @else if (isHiddenInHand()) {
+    <div class="card-hidden-face" aria-hidden="true"></div>
   } @else {
     <header class="card-header">{{ displayName() }}</header>
 
