@@ -1,0 +1,58 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.deck-builder-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  min-height: 100vh;
+  background: #1a1d22;
+  color: rgba(245, 240, 232, 0.95);
+}
+
+.deck-builder-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  min-height: 0;
+}
+
+.deck-builder-main {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 42rem;
+}
+
+.deck-builder-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.deck-builder-lead {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: rgba(245, 240, 232, 0.72);
+}
+
+.deck-builder-side-nav {
+  min-height: 0;
+}
+
+@media (max-width: 720px) {
+  .deck-builder-body {
+    grid-template-columns: 1fr;
+  }
+
+  .deck-builder-side-nav {
+    order: -1;
+  }
+}
