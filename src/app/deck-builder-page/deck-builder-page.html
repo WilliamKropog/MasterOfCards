@@ -2,11 +2,10 @@
   <app-nav-bar />
 
   <div class="deck-builder-body">
-    <main class="deck-builder-main">
-      <h1 class="deck-builder-title">Deck Builder</h1>
-      <p class="deck-builder-lead">
-        Build and save decks to bring into live matches. Deck editing tools are on the way.
-      </p>
+    <main class="deck-builder-main" aria-label="Deck builder workspace">
+      <app-deck-builder class="deck-builder-column" />
+      <app-card-collection class="deck-builder-column" />
+      <app-card-info class="deck-builder-column" />
     </main>
     <app-side-nav class="deck-builder-side-nav" />
   </div>

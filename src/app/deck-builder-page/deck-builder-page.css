@@ -22,29 +22,35 @@
 }
 
 .deck-builder-main {
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
-  max-width: 42rem;
+  min-height: 0;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.deck-builder-title {
-  margin: 0;
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.deck-builder-lead {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: rgba(245, 240, 232, 0.72);
+.deck-builder-column {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .deck-builder-side-nav {
   min-height: 0;
+}
+
+@media (max-width: 960px) {
+  .deck-builder-main {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .deck-builder-column {
+    height: auto;
+    min-height: 14rem;
+  }
 }
 
 @media (max-width: 720px) {
