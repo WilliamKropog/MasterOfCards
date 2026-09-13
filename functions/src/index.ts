@@ -54,10 +54,18 @@ function seatToSlot(seat: 1 | 2): "player1" | "player2" {
   return seat === 1 ? "player1" : "player2";
 }
 
+/** Shared options for Gen2 callables used by the web client. */
+const callableOptions = {
+  region: "us-central1",
+  // Required so browsers can reach Gen2 (Cloud Run) callables; Auth is still enforced in-handler.
+  invoker: "public" as const,
+  cors: true,
+};
+
 /**
  * Creates the shared board once per match (idempotent).
  */
-export const initializeLiveMatch = onCall(async (request) => {
+export const initializeLiveMatch = onCall(callableOptions, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Sign in to initialize a match.");
   }
@@ -129,7 +137,7 @@ const SUPPORTED_ACTIONS = new Set([
 /**
  * Action Sync entry point for live match mutations.
  */
-export const submitMatchAction = onCall(async (request) => {
+export const submitMatchAction = onCall(callableOptions, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Sign in to submit a match action.");
   }

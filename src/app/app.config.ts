@@ -37,7 +37,8 @@ export const appConfig: ApplicationConfig = {
       return firestore;
     }),
     provideFunctions(() => {
-      const functions = getFunctions();
+      // Must match the region set on Gen2 callables in functions/src/index.ts.
+      const functions = getFunctions(undefined, 'us-central1');
       if (environment.useEmulators) {
         connectFunctionsEmulator(
           functions,
