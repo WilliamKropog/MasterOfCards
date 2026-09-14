@@ -24,8 +24,11 @@
           @for (slot of discoveredSlots(); track slot.catalogCardId) {
             <div class="card-collection-slot" role="listitem">
               <div
-                class="card-collection-box card-collection-box--discovered"
-                [attr.aria-label]="slot.name + ', ' + slot.ownedCount + ' owned'"
+                [class]="
+                  'card-collection-box card-collection-box--discovered card-collection-box--' +
+                  slot.rarity.toLowerCase()
+                "
+                [attr.aria-label]="slot.name + ', ' + slot.rarity + ', ' + slot.ownedCount + ' owned'"
               ></div>
               <p class="card-collection-label">
                 <span class="card-collection-name">{{ slot.name }}</span>
@@ -48,8 +51,8 @@
           @for (slot of undiscoveredSlots(); track slot.catalogCardId) {
             <div class="card-collection-slot" role="listitem">
               <div
-                class="card-collection-box"
-                [attr.aria-label]="slot.name + ', undiscovered'"
+                [class]="'card-collection-box card-collection-box--' + slot.rarity.toLowerCase()"
+                [attr.aria-label]="slot.name + ', ' + slot.rarity + ', undiscovered'"
               ></div>
               <p class="card-collection-label">
                 <span class="card-collection-name">{{ slot.name }}</span>

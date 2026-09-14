@@ -111,6 +111,34 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
+.card-collection-box--common,
+.card-collection-box--uncommon,
+.card-collection-box--rare,
+.card-collection-box--epic,
+.card-collection-box--legendary {
+  border-width: 2px;
+}
+
+.card-collection-box--common {
+  border-color: #94a3b8;
+}
+
+.card-collection-box--uncommon {
+  border-color: #22c55e;
+}
+
+.card-collection-box--rare {
+  border-color: #3b82f6;
+}
+
+.card-collection-box--epic {
+  border-color: #a855f7;
+}
+
+.card-collection-box--legendary {
+  border-color: #eab308;
+}
+
 .card-collection-label {
   margin: 0;
   display: flex;

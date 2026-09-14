@@ -5,6 +5,7 @@ import { CardCollectionService } from '../services/card-collection.service';
 export interface CollectionSlotView {
   catalogCardId: string;
   name: string;
+  rarity: string;
   ownedCount: number;
   discovered: boolean;
 }
@@ -29,6 +30,7 @@ export class CardCollection {
       return {
         catalogCardId: def.id,
         name: def.name,
+        rarity: def.rarity,
         ownedCount,
         discovered: ownedCount > 0,
       };
