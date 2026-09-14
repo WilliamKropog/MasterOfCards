@@ -47,6 +47,34 @@
   color: #f0a0a0;
 }
 
+.card-collection-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.card-collection-section + .card-collection-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-collection-section-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(245, 240, 232, 0.55);
+}
+
+.card-collection-section-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: rgba(245, 240, 232, 0.45);
+}
+
 .card-collection-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

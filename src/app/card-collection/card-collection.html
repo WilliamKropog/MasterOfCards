@@ -13,26 +13,51 @@
       </p>
     }
 
-    <div class="card-collection-grid" role="list">
-      @for (slot of slots(); track slot.catalogCardId) {
-        <div class="card-collection-slot" role="listitem">
-          <div
-            class="card-collection-box"
-            [class.card-collection-box--discovered]="slot.discovered"
-            [attr.aria-label]="
-              slot.discovered
-                ? slot.name + ', ' + slot.ownedCount + ' owned'
-                : slot.name + ', undiscovered'
-            "
-          ></div>
-          <p class="card-collection-label">
-            <span class="card-collection-name">{{ slot.name }}</span>
-            @if (slot.discovered) {
-              <span class="card-collection-count">{{ slot.ownedCount }}</span>
-            }
-          </p>
+    <section class="card-collection-section" aria-labelledby="card-collection-discovered-heading">
+      <h3 id="card-collection-discovered-heading" class="card-collection-section-title">
+        Discovered
+      </h3>
+      @if (discoveredSlots().length === 0) {
+        <p class="card-collection-section-empty">No cards discovered yet.</p>
+      } @else {
+        <div class="card-collection-grid" role="list">
+          @for (slot of discoveredSlots(); track slot.catalogCardId) {
+            <div class="card-collection-slot" role="listitem">
+              <div
+                class="card-collection-box card-collection-box--discovered"
+                [attr.aria-label]="slot.name + ', ' + slot.ownedCount + ' owned'"
+              ></div>
+              <p class="card-collection-label">
+                <span class="card-collection-name">{{ slot.name }}</span>
+                <span class="card-collection-count">{{ slot.ownedCount }}</span>
+              </p>
+            </div>
+          }
         </div>
       }
-    </div>
+    </section>
+
+    <section class="card-collection-section" aria-labelledby="card-collection-undiscovered-heading">
+      <h3 id="card-collection-undiscovered-heading" class="card-collection-section-title">
+        Undiscovered
+      </h3>
+      @if (undiscoveredSlots().length === 0) {
+        <p class="card-collection-section-empty">All catalog cards discovered.</p>
+      } @else {
+        <div class="card-collection-grid" role="list">
+          @for (slot of undiscoveredSlots(); track slot.catalogCardId) {
+            <div class="card-collection-slot" role="listitem">
+              <div
+                class="card-collection-box"
+                [attr.aria-label]="slot.name + ', undiscovered'"
+              ></div>
+              <p class="card-collection-label">
+                <span class="card-collection-name">{{ slot.name }}</span>
+              </p>
+            </div>
+          }
+        </div>
+      }
+    </section>
   </div>
 </section>
