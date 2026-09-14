@@ -1,8 +1,38 @@
 <section class="card-collection-panel" aria-label="Card collection">
   <header class="card-collection-panel-header">
-    <h2 class="card-collection-panel-title">Card Collection</h2>
+    <h2 class="card-collection-panel-title">
+      Card Collection ({{ discoveredCount() }}/{{ catalogTotal() }})
+    </h2>
   </header>
   <div class="card-collection-panel-body">
-    <p class="card-collection-panel-placeholder">Your owned cards will appear here.</p>
+    @if (loading()) {
+      <p class="card-collection-panel-status">Loading collection…</p>
+    } @else if (error(); as err) {
+      <p class="card-collection-panel-status card-collection-panel-status--error" role="alert">
+        {{ err }}
+      </p>
+    }
+
+    <div class="card-collection-grid" role="list">
+      @for (slot of slots(); track slot.catalogCardId) {
+        <div class="card-collection-slot" role="listitem">
+          <div
+            class="card-collection-box"
+            [class.card-collection-box--discovered]="slot.discovered"
+            [attr.aria-label]="
+              slot.discovered
+                ? slot.name + ', ' + slot.ownedCount + ' owned'
+                : slot.name + ', undiscovered'
+            "
+          ></div>
+          <p class="card-collection-label">
+            <span class="card-collection-name">{{ slot.name }}</span>
+            @if (slot.discovered) {
+              <span class="card-collection-count">{{ slot.ownedCount }}</span>
+            }
+          </p>
+        </div>
+      }
+    </div>
   </div>
 </section>

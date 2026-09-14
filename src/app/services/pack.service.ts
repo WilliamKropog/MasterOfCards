@@ -42,11 +42,13 @@ export class PackService {
       return;
     }
     if (!this.auth.currentUser) {
+      const message = 'Sign in to open a pack.';
+      console.warn('[Open Pack]', message);
       this.progress.set({
         phase: 'error',
-        message: 'Sign in to open a pack.',
+        message,
         cards: [],
-        error: 'Sign in to open a pack.',
+        error: message,
       });
       return;
     }
@@ -58,6 +60,7 @@ export class PackService {
       cards: [],
       error: null,
     });
+    console.log('[Open Pack] Pack requested…');
 
     try {
       this.progress.update((p) => ({
@@ -65,6 +68,7 @@ export class PackService {
         phase: 'generating',
         message: 'Waiting for cards to generate…',
       }));
+      console.log('[Open Pack] Waiting for cards to generate…');
 
       const callable = httpsCallable<Record<string, never>, OpenTestPackResponse>(
         this.functions,
@@ -79,6 +83,21 @@ export class PackService {
         cards,
         error: null,
       });
+
+      console.log(
+        `[Open Pack] Pack opened — ${cards.length} cards added to your collection.`,
+      );
+      console.table(
+        cards.map((card) => ({
+          ownedCardId: card.ownedCardId,
+          name: this.catalogDisplayName(card.catalogCardId),
+          catalogCardId: card.catalogCardId,
+          cardQuality: card.cardQuality,
+          specialty: card.specialty,
+          skin: card.skin,
+          source: card.source,
+        })),
+      );
     } catch (error) {
       const message =
         typeof error === 'object' &&
@@ -93,6 +112,7 @@ export class PackService {
         cards: [],
         error: message,
       });
+      console.error('[Open Pack] Pack open failed.', message, error);
     } finally {
       this.opening.set(false);
     }

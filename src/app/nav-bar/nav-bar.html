@@ -68,28 +68,6 @@
     </nav>
   </div>
   <div class="nav-bar-right">
-    @if (pack.progress(); as progress) {
-      @if (progress.phase !== 'idle') {
-        <div class="nav-bar-pack-status" role="status" aria-live="polite">
-          <p class="nav-bar-pack-message">{{ progress.message }}</p>
-          @if (progress.phase === 'success' && progress.cards.length) {
-            <ul class="nav-bar-pack-cards">
-              @for (card of progress.cards; track card.ownedCardId) {
-                <li>
-                  {{ pack.catalogDisplayName(card.catalogCardId) }}
-                  — Q{{ card.cardQuality.toFixed(1) }}
-                  · {{ card.specialty }}
-                  · {{ card.skin }}
-                </li>
-              }
-            </ul>
-          }
-          @if (progress.error) {
-            <p class="nav-bar-error" role="alert">{{ progress.error }}</p>
-          }
-        </div>
-      }
-    }
     @if (matchmaking.error()) {
       <p class="nav-bar-error" role="alert">{{ matchmaking.error() }}</p>
     }
