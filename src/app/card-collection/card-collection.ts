@@ -21,10 +21,10 @@ export class CardCollection {
   protected readonly loading = this.collection.loading;
   protected readonly error = this.collection.error;
 
-  /** One discovery slot per catalog card (3-across grid → 5 rows for 15 cards). */
+  /** One discovery slot per catalog card, default-sorted for the collection grid. */
   protected readonly slots = computed((): CollectionSlotView[] => {
     const counts = this.collection.ownedCounts();
-    return Object.values(CARD_CATALOG).map((def: CardDefinition) => {
+    const slots = Object.values(CARD_CATALOG).map((def: CardDefinition) => {
       const ownedCount = counts[def.id] ?? 0;
       return {
         catalogCardId: def.id,
@@ -32,6 +32,18 @@ export class CardCollection {
         ownedCount,
         discovered: ownedCount > 0,
       };
+    });
+
+    // Default sort: discovered first (by owned count desc, then name),
+    // then undiscovered (alphabetical by name).
+    return slots.sort((a, b) => {
+      if (a.discovered !== b.discovered) {
+        return a.discovered ? -1 : 1;
+      }
+      if (a.discovered && b.discovered && a.ownedCount !== b.ownedCount) {
+        return b.ownedCount - a.ownedCount;
+      }
+      return a.name.localeCompare(b.name);
     });
   });
 

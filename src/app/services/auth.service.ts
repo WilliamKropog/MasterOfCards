@@ -16,6 +16,7 @@ import {
   runTransaction,
   serverTimestamp,
 } from '@angular/fire/firestore';
+import { Router } from '@angular/router';
 import { Observable } from 'rxjs';
 import { MatchmakingService } from './matchmaking.service';
 
@@ -30,6 +31,7 @@ export class AuthService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
   private readonly matchmaking = inject(MatchmakingService);
+  private readonly router = inject(Router);
 
   readonly user$: Observable<User | null> = authState(this.auth);
 
@@ -37,6 +39,7 @@ export class AuthService {
     // Leave the queue while still authenticated so Firestore delete rules allow it.
     await this.matchmaking.cancelLiveSearch();
     await signOut(this.auth);
+    await this.router.navigateByUrl('/');
   }
 
   normalizeUsername(username: string): string {
