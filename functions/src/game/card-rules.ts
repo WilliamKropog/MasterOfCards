@@ -2,10 +2,13 @@
 
 export type ManaMap = Record<string, number>;
 export type TargetZone = 'land' | 'monster';
+export type CardRarity = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
 
 export interface LiveCardRules {
   id: string;
   cardType: 'Land' | 'Monster' | 'Spell';
+  /** Pack / collection rarity (matches client card-catalog). */
+  rarity: CardRarity;
   manaCost?: ManaMap;
   space?: number;
   generateMana?: ManaMap;
@@ -32,6 +35,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'rock-monster': {
     id: 'rock-monster',
     cardType: 'Monster',
+    rarity: 'Common',
     maxHealth: 80,
     attack: 10,
     cardElement: 'Rock',
@@ -41,6 +45,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'mighty-gopher': {
     id: 'mighty-gopher',
     cardType: 'Monster',
+    rarity: 'Common',
     maxHealth: 50,
     attack: 20,
     cardElement: 'Rock',
@@ -50,6 +55,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'boulder-toss': {
     id: 'boulder-toss',
     cardType: 'Spell',
+    rarity: 'Common',
     manaCost: { Rock: 4 },
     damage: 60,
     damageMultiplierAgainstZone: { land: 2 },
@@ -58,6 +64,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'mud-hut': {
     id: 'mud-hut',
     cardType: 'Land',
+    rarity: 'Common',
     maxHealth: 80,
     buildTime: 0,
     space: 1,
@@ -68,6 +75,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'mountain-range': {
     id: 'mountain-range',
     cardType: 'Land',
+    rarity: 'Uncommon',
     manaCost: { Rock: 4 },
     maxHealth: 400,
     buildTime: 3,
@@ -79,6 +87,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'temple-of-being': {
     id: 'temple-of-being',
     cardType: 'Land',
+    rarity: 'Uncommon',
     maxHealth: 100,
     buildTime: 2,
     space: 1,
@@ -90,6 +99,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   armoredillo: {
     id: 'armoredillo',
     cardType: 'Monster',
+    rarity: 'Common',
     maxHealth: 30,
     attack: 20,
     startingBlocks: 1,
@@ -100,6 +110,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   ruptar: {
     id: 'ruptar',
     cardType: 'Monster',
+    rarity: 'Uncommon',
     manaCost: { Rock: 4 },
     maxHealth: 120,
     attack: 30,
@@ -112,6 +123,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'elder-gopher-statue': {
     id: 'elder-gopher-statue',
     cardType: 'Land',
+    rarity: 'Uncommon',
     maxHealth: 200,
     buildTime: 1,
     space: 1,
@@ -122,6 +134,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   rockterrior: {
     id: 'rockterrior',
     cardType: 'Monster',
+    rarity: 'Rare',
     manaCost: { Rock: 8 },
     maxHealth: 180,
     attack: 30,
@@ -132,6 +145,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'rock-slide': {
     id: 'rock-slide',
     cardType: 'Spell',
+    rarity: 'Uncommon',
     manaCost: { Rock: 7 },
     damage: 100,
     allowedTargetZones: ['land'],
@@ -141,6 +155,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'excavation-site': {
     id: 'excavation-site',
     cardType: 'Land',
+    rarity: 'Rare',
     maxHealth: 160,
     buildTime: 2,
     space: 1,
@@ -151,6 +166,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'earth-shatter': {
     id: 'earth-shatter',
     cardType: 'Spell',
+    rarity: 'Epic',
     manaCost: { Rock: 12 },
     allowedTargetZones: ['land'],
     destroysTarget: true,
@@ -159,6 +175,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   '1000-mile-wall': {
     id: '1000-mile-wall',
     cardType: 'Land',
+    rarity: 'Epic',
     manaCost: { Rock: 7 },
     maxHealth: 500,
     buildTime: 4,
@@ -170,6 +187,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   'king-colossus': {
     id: 'king-colossus',
     cardType: 'Monster',
+    rarity: 'Legendary',
     manaCost: { Rock: 15 },
     maxHealth: 200,
     attack: 50,

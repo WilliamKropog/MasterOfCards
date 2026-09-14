@@ -17,6 +17,8 @@ import {
   type PlayCardIntent,
   type UseAbilityIntent,
 } from "./game/live-game-state";
+import { PACK_SIZE, generatePackCards } from "./game/pack-open";
+import { LIVE_CARD_RULES } from "./game/card-rules";
 
 initializeApp();
 
@@ -61,6 +63,61 @@ const callableOptions = {
   invoker: "public" as const,
   cors: true,
 };
+
+/**
+ * Prototype pack open: mints 5 random owned cards into users/{uid}/cardCollection.
+ * Clients may read the subcollection; only Admin/Cloud Functions may write.
+ */
+export const openTestPack = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to open a pack.");
+  }
+
+  const uid = request.auth.uid;
+  const drafts = generatePackCards(PACK_SIZE, "test-pack");
+
+  for (const draft of drafts) {
+    if (!LIVE_CARD_RULES[draft.catalogCardId]) {
+      throw new HttpsError(
+        "internal",
+        `Invalid catalog card id rolled: ${draft.catalogCardId}`,
+      );
+    }
+  }
+
+  const collectionRef = db.collection("users").doc(uid).collection("cardCollection");
+  const batch = db.batch();
+  const created = drafts.map((draft) => {
+    const docRef = collectionRef.doc();
+    const payload = {
+      ...draft,
+      acquiredAt: FieldValue.serverTimestamp(),
+    };
+    batch.set(docRef, payload);
+    return {
+      ownedCardId: docRef.id,
+      catalogCardId: draft.catalogCardId,
+      cardQuality: draft.cardQuality,
+      specialty: draft.specialty,
+      skin: draft.skin,
+      source: draft.source,
+    };
+  });
+
+  await batch.commit();
+
+  logger.info("openTestPack", {
+    uid,
+    count: created.length,
+    catalogCardIds: created.map((c) => c.catalogCardId),
+  });
+
+  return {
+    ok: true,
+    packSize: created.length,
+    cards: created,
+  };
+});
 
 /**
  * Creates the shared board once per match (idempotent).

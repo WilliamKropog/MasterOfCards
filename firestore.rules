@@ -44,6 +44,12 @@ service cloud.firestore {
         ]);
       allow update: if isOwner(userId);
       allow delete: if false;
+
+      // Owned card instances. Clients may read; only Cloud Functions (Admin) write.
+      match /cardCollection/{ownedCardId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
     }
 
     // Live matchmaking queue (doc id = uid).

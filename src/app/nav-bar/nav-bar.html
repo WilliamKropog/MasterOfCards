@@ -36,6 +36,16 @@
           Start Live Game
         </button>
       }
+      <button
+        matButton="filled"
+        type="button"
+        class="nav-bar-start-btn"
+        aria-label="Open a test pack"
+        [disabled]="!user() || pack.opening()"
+        (click)="onOpenPackClick()"
+      >
+        {{ pack.opening() ? 'Opening Pack…' : 'Open Pack' }}
+      </button>
       <ng-content select="[navStart]"></ng-content>
     </div>
     <nav class="nav-bar-links" aria-label="Main">
@@ -58,6 +68,28 @@
     </nav>
   </div>
   <div class="nav-bar-right">
+    @if (pack.progress(); as progress) {
+      @if (progress.phase !== 'idle') {
+        <div class="nav-bar-pack-status" role="status" aria-live="polite">
+          <p class="nav-bar-pack-message">{{ progress.message }}</p>
+          @if (progress.phase === 'success' && progress.cards.length) {
+            <ul class="nav-bar-pack-cards">
+              @for (card of progress.cards; track card.ownedCardId) {
+                <li>
+                  {{ pack.catalogDisplayName(card.catalogCardId) }}
+                  — Q{{ card.cardQuality.toFixed(1) }}
+                  · {{ card.specialty }}
+                  · {{ card.skin }}
+                </li>
+              }
+            </ul>
+          }
+          @if (progress.error) {
+            <p class="nav-bar-error" role="alert">{{ progress.error }}</p>
+          }
+        </div>
+      }
+    }
     @if (matchmaking.error()) {
       <p class="nav-bar-error" role="alert">{{ matchmaking.error() }}</p>
     }

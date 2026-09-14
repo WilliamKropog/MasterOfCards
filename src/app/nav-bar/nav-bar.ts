@@ -1,7 +1,10 @@
 import { Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../services/auth.service';
 import { MatchmakingService } from '../services/matchmaking.service';
+import { PackService } from '../services/pack.service';
 
 @Component({
   selector: 'app-nav-bar',
@@ -11,7 +14,11 @@ import { MatchmakingService } from '../services/matchmaking.service';
 })
 export class NavBar {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
   protected readonly matchmaking = inject(MatchmakingService);
+  protected readonly pack = inject(PackService);
+
+  protected readonly user = toSignal(this.auth.user$, { initialValue: null });
 
   protected onStartLocalGame(): void {
     if (this.matchmaking.searching()) {
@@ -26,5 +33,9 @@ export class NavBar {
 
   protected onCancelLiveSearch(): void {
     void this.matchmaking.cancelLiveSearch();
+  }
+
+  protected onOpenPackClick(): void {
+    void this.pack.openTestPack();
   }
 }
