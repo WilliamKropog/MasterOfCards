@@ -3,6 +3,9 @@
     <h2 class="card-collection-panel-title">
       Card Collection ({{ discoveredCount() }}/{{ catalogTotal() }})
     </h2>
+    <p class="card-collection-panel-total" aria-label="Total owned cards">
+      Total {{ totalOwned() }}
+    </p>
   </header>
   <div class="card-collection-panel-body">
     @if (loading()) {

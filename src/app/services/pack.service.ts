@@ -94,6 +94,7 @@ export class PackService {
           catalogCardId: card.catalogCardId,
           cardQuality: card.cardQuality,
           specialty: card.specialty,
+          foil: card.foil,
           skin: card.skin,
           source: card.source,
         })),

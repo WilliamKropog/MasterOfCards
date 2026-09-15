@@ -99,6 +99,7 @@ export const openTestPack = onCall(callableOptions, async (request) => {
       catalogCardId: draft.catalogCardId,
       cardQuality: draft.cardQuality,
       specialty: draft.specialty,
+      foil: draft.foil,
       skin: draft.skin,
       source: draft.source,
     };

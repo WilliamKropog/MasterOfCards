@@ -59,6 +59,11 @@ export class CardCollection {
   /** Unique catalog cards the user owns at least one of. */
   protected readonly discoveredCount = computed(() => this.discoveredSlots().length);
 
+  /** Total owned card instances (length of the user's cardCollection). */
+  protected readonly totalOwned = computed(() =>
+    Object.values(this.collection.ownedCounts()).reduce((sum, count) => sum + count, 0),
+  );
+
   /** Total cards defined in the catalog (grows as new cards are added). */
   protected readonly catalogTotal = computed(() => Object.keys(CARD_CATALOG).length);
 }

@@ -6,16 +6,26 @@ import { LIVE_CARD_RULES, type CardRarity } from "./card-rules";
 export const PACK_SIZE = 5;
 
 export type CardSpecialty =
-  | "Default"
-  | "Hollow"
-  | "Reverse Hollow"
+  | "none"
+  | "Full Art"
   | "IR"
   | "SIR";
 
+/** Foil finish rolled independently of catalog rarity / specialty. */
+export type CardFoil =
+  | "none"
+  | "holo"
+  | "reverse holo"
+  | "rainbow"
+  | "shattered"
+  | "galaxy";
+
 export type OwnedCardDoc = {
   catalogCardId: string;
+  /** Uniform quality in [0, 1] with 9 decimal places (e.g. 0.574837401). */
   cardQuality: number;
   specialty: CardSpecialty;
+  foil: CardFoil;
   skin: string;
   acquiredAt: Timestamp | FieldValue;
   source: string;
@@ -43,11 +53,19 @@ export const RARITY_WEIGHTS: ReadonlyArray<{ rarity: CardRarity; weight: number 
  * Weights sum to 100.
  */
 export const SPECIALTY_WEIGHTS: ReadonlyArray<{ specialty: CardSpecialty; weight: number }> = [
-  { specialty: "Default", weight: 70 },
-  { specialty: "Hollow", weight: 20 },
-  { specialty: "Reverse Hollow", weight: 5 },
-  { specialty: "IR", weight: 4 },
-  { specialty: "SIR", weight: 1 },
+  { specialty: "none", weight: 98.89 },
+  { specialty: "Full Art", weight: 1 },
+  { specialty: "IR", weight: 0.1 },
+  { specialty: "SIR", weight: 0.01 },
+];
+
+export const FOIL_WEIGHTS: ReadonlyArray<{ foil: CardFoil; weight: number }> = [
+  { foil: "none", weight: 95 },
+  { foil: "holo", weight: 2 },
+  { foil: "reverse holo", weight: 1.4 },
+  { foil: "rainbow", weight: 1 },
+  { foil: "shattered", weight: .5 },
+  { foil: "galaxy", weight: 0.1 },
 ];
 
 /** Catalog ids grouped by rarity for pack rolls. */
@@ -85,13 +103,22 @@ function pickWeighted<T extends string>(
   return fallback;
 }
 
-/** Uniform random card quality from 0.0 to 10.0 (one decimal place). */
+/**
+ * Uniform card quality from 0 to 1 (inclusive), quantized to 9 decimal places.
+ * Example: `0.574837401`
+ */
 export function rollCardQuality(): number {
-  return Math.round(randomUnit() * 100) / 10;
+  // 0 .. 1_000_000_000 inclusive → 0.000000000 .. 1.000000000
+  const scaled = Math.floor(randomUnit() * 1_000_000_001);
+  return scaled / 1_000_000_000;
 }
 
 export function rollSpecialty(): CardSpecialty {
-  return pickWeighted(SPECIALTY_WEIGHTS, "specialty", "Default");
+  return pickWeighted(SPECIALTY_WEIGHTS, "specialty", "none");
+}
+
+export function rollFoil(): CardFoil {
+  return pickWeighted(FOIL_WEIGHTS, "foil", "none");
 }
 
 /** Roll a rarity using {@link RARITY_WEIGHTS} (45 / 30 / 15 / 9 / 1). */
@@ -126,7 +153,8 @@ export function generateOwnedCard(source = "test-pack"): Omit<OwnedCardDoc, "acq
     catalogCardId: rollCatalogCardId(),
     cardQuality: rollCardQuality(),
     specialty: rollSpecialty(),
-    skin: "default",
+    foil: rollFoil(),
+    skin: "none",
     source,
   };
 }
