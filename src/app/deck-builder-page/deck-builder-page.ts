@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { CardCollection } from '../card-collection/card-collection';
 import { CardInfo } from '../card-info/card-info';
 import { DeckBuilder } from '../deck-builder/deck-builder';
@@ -7,7 +8,7 @@ import { SideNav } from '../side-nav/side-nav';
 
 @Component({
   selector: 'app-deck-builder-page',
-  imports: [NavBar, SideNav, DeckBuilder, CardCollection, CardInfo],
+  imports: [NavBar, SideNav, DeckBuilder, CardCollection, CardInfo, CdkDropListGroup],
   templateUrl: './deck-builder-page.html',
   styleUrl: './deck-builder-page.css',
 })

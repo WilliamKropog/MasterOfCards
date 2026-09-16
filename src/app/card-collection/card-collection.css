@@ -124,6 +124,37 @@
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  cursor: grab;
+}
+
+.card-collection-box--discovered:active {
+  cursor: grabbing;
+}
+
+.card-collection-box--depleted {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.card-collection-box--drag-preview {
+  width: 5.5rem;
+  max-width: 5.5rem;
+  box-sizing: border-box;
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.card-collection-grid.cdk-drop-list-receiving {
+  outline: 1px dashed rgba(74, 222, 128, 0.55);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+/* Keep discovered piles locked in place while a drag ghost moves. */
+.card-collection-grid.cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder) {
+  transform: none !important;
+  transition: none !important;
 }
 
 .card-collection-box--common,

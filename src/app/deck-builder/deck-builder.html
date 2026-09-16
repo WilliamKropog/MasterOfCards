@@ -1,8 +1,112 @@
 <section class="deck-builder-panel" aria-label="Deck builder">
   <header class="deck-builder-panel-header">
-    <h2 class="deck-builder-panel-title">Deck Builder</h2>
+    <h2 class="deck-builder-panel-title">
+      Deck Builder ({{ filledCount() }}/{{ slotCount }})
+    </h2>
   </header>
-  <div class="deck-builder-panel-body">
-    <p class="deck-builder-panel-placeholder">Your active deck will appear here.</p>
+
+  <div class="deck-builder-tabs" role="tablist" aria-label="Saved decks">
+    @for (tab of tabs; track tab.key) {
+      <button
+        type="button"
+        class="deck-builder-tab"
+        role="tab"
+        [class.deck-builder-tab--active]="activeDeckKey() === tab.key"
+        [class.deck-builder-tab--disabled]="!tab.enabled"
+        [attr.aria-selected]="activeDeckKey() === tab.key"
+        [attr.aria-disabled]="!tab.enabled"
+        [disabled]="!tab.enabled"
+      >
+        {{ tab.label }}
+      </button>
+    }
   </div>
+
+  <div
+    class="deck-builder-panel-body"
+    cdkDropList
+    [id]="dropListId"
+    [cdkDropListData]="dropListId"
+    [cdkDropListConnectedTo]="connectedTo"
+    [cdkDropListSortingDisabled]="true"
+    [cdkDropListEnterPredicate]="deckEnterPredicate"
+    (cdkDropListDropped)="onDeckDropped($event)"
+  >
+    <div class="deck-builder-grid" role="list" aria-label="Deck slots">
+      @for (card of visibleSlots(); track $index; let slotIndex = $index) {
+        <div class="deck-builder-slot" role="listitem">
+          @if (card; as filled) {
+            <div
+              cdkDrag
+              [cdkDragData]="dragDataFor(filled)"
+              (cdkDragStarted)="onDeckCardDragStart($event, filled)"
+              [class]="
+                'deck-builder-box deck-builder-box--filled ' + rarityClass(filled)
+              "
+              [attr.aria-label]="
+                filled.name +
+                ', ' +
+                filled.ownedCardIds.length +
+                ' in slot ' +
+                (slotIndex + 1)
+              "
+            >
+              <div
+                *cdkDragPlaceholder
+                [class]="
+                  'deck-builder-box deck-builder-box--filled ' + rarityClass(filled)
+                "
+              ></div>
+              <div
+                *cdkDragPreview
+                [class]="
+                  'deck-builder-box deck-builder-box--filled ' +
+                  rarityClass(filled) +
+                  ' deck-builder-box--drag-preview'
+                "
+              ></div>
+            </div>
+            <p class="deck-builder-label">
+              <span class="deck-builder-name">{{ filled.name }}</span>
+              <span class="deck-builder-count">{{ filled.ownedCardIds.length }}</span>
+            </p>
+          } @else {
+            <div
+              class="deck-builder-box"
+              [attr.aria-label]="'Empty deck slot ' + (slotIndex + 1)"
+            ></div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (isDirty()) {
+    <footer class="deck-builder-footer">
+      <p class="deck-builder-footer-prompt">Save changes?</p>
+      @if (saveError(); as err) {
+        <p class="deck-builder-footer-error" role="alert">{{ err }}</p>
+      }
+      <div class="deck-builder-footer-actions">
+        <button
+          type="button"
+          class="deck-builder-action deck-builder-action--confirm"
+          [disabled]="saving()"
+          (click)="confirmSave()"
+          aria-label="Save deck changes"
+        >
+          {{ saving() ? 'Saving…' : '✓' }}
+        </button>
+        <button
+          type="button"
+          class="deck-builder-action deck-builder-action--cancel"
+          [disabled]="saving()"
+          (click)="cancelEdits()"
+          aria-label="Cancel deck changes"
+        >
+          ✕
+        </button>
+      </div>
+    </footer>
+  }
 </section>

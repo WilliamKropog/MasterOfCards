@@ -7,17 +7,21 @@ import {
   type Unsubscribe,
 } from '@angular/fire/firestore';
 import { Subscription } from 'rxjs';
+import type { CardFoil, CardSpecialty, OwnedCard } from '../game/owned-card';
+import type { DeckKey } from '../game/user-deck';
 
 /**
- * Live ownership counts for the signed-in user's cardCollection,
- * keyed by catalogCardId (e.g. "rock-monster" → 3).
+ * Live owned-card instances for the signed-in user's cardCollection.
  */
 @Injectable({ providedIn: 'root' })
 export class CardCollectionService implements OnDestroy {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(Auth);
 
-  /** catalogCardId → number of owned instances. */
+  /** All owned card documents (including cards currently assigned to a deck). */
+  readonly ownedCards = signal<readonly OwnedCard[]>([]);
+
+  /** catalogCardId → number of owned instances (all decks included). */
   readonly ownedCounts = signal<Readonly<Record<string, number>>>({});
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -29,6 +33,7 @@ export class CardCollectionService implements OnDestroy {
     this.authSub = authState(this.auth).subscribe((user) => {
       this.detachCollection();
       if (!user) {
+        this.ownedCards.set([]);
         this.ownedCounts.set({});
         this.loading.set(false);
         this.error.set(null);
@@ -56,13 +61,26 @@ export class CardCollectionService implements OnDestroy {
       colRef,
       (snap) => {
         const counts: Record<string, number> = {};
+        const cards: OwnedCard[] = [];
         for (const docSnap of snap.docs) {
-          const catalogCardId = docSnap.data()['catalogCardId'];
+          const data = docSnap.data();
+          const catalogCardId = data['catalogCardId'];
           if (typeof catalogCardId !== 'string' || !catalogCardId) {
             continue;
           }
           counts[catalogCardId] = (counts[catalogCardId] ?? 0) + 1;
+          cards.push({
+            ownedCardId: docSnap.id,
+            catalogCardId,
+            cardQuality: typeof data['cardQuality'] === 'number' ? data['cardQuality'] : 0,
+            specialty: (data['specialty'] as CardSpecialty) ?? 'Default',
+            foil: (data['foil'] as CardFoil) ?? 'none',
+            skin: typeof data['skin'] === 'string' ? data['skin'] : 'none',
+            source: typeof data['source'] === 'string' ? data['source'] : '',
+            deckId: parseDeckId(data['deckId']),
+          });
         }
+        this.ownedCards.set(cards);
         this.ownedCounts.set(counts);
         this.loading.set(false);
       },
@@ -79,4 +97,11 @@ export class CardCollectionService implements OnDestroy {
       this.collectionUnsub = null;
     }
   }
+}
+
+function parseDeckId(value: unknown): DeckKey | null {
+  if (value === 'deck-1' || value === 'deck-2' || value === 'deck-3') {
+    return value;
+  }
+  return null;
 }

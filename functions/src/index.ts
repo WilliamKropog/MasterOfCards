@@ -120,6 +120,146 @@ export const openTestPack = onCall(callableOptions, async (request) => {
   };
 });
 
+const DECK_KEYS = new Set(["deck-1", "deck-2", "deck-3"]);
+const MAX_DECK_SIZE = 25;
+
+type DeckKey = "deck-1" | "deck-2" | "deck-3";
+
+/**
+ * Saves a user deck under users/{uid}/decks/{deckKey}.
+ * Assigns owned cards' deckId to this deck, clears deckId for cards removed,
+ * and when isActiveDeck is true, clears the flag on the user's other decks.
+ */
+export const saveUserDeck = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to save a deck.");
+  }
+
+  const uid = request.auth.uid;
+  const deckKey = request.data?.deckKey as string | undefined;
+  const ownedCardIdsRaw = request.data?.ownedCardIds;
+  const isActiveDeck = request.data?.isActiveDeck === true;
+
+  if (!deckKey || !DECK_KEYS.has(deckKey)) {
+    throw new HttpsError("invalid-argument", "deckKey must be deck-1, deck-2, or deck-3.");
+  }
+
+  if (!Array.isArray(ownedCardIdsRaw)) {
+    throw new HttpsError("invalid-argument", "ownedCardIds must be an array.");
+  }
+
+  if (ownedCardIdsRaw.length > MAX_DECK_SIZE) {
+    throw new HttpsError(
+      "invalid-argument",
+      `A deck may contain at most ${MAX_DECK_SIZE} cards.`,
+    );
+  }
+
+  const ownedCardIds: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ownedCardIdsRaw) {
+    if (typeof id !== "string" || !id) {
+      throw new HttpsError("invalid-argument", "ownedCardIds must be non-empty strings.");
+    }
+    if (seen.has(id)) {
+      throw new HttpsError("invalid-argument", "Duplicate ownedCardId in deck.");
+    }
+    seen.add(id);
+    ownedCardIds.push(id);
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const collectionRef = userRef.collection("cardCollection");
+  const decksRef = userRef.collection("decks");
+  const deckRef = decksRef.doc(deckKey);
+
+  const previousSnap = await deckRef.get();
+  const previousIds: string[] = Array.isArray(previousSnap.data()?.ownedCardIds)
+    ? (previousSnap.data()!.ownedCardIds as unknown[]).filter(
+        (id): id is string => typeof id === "string",
+      )
+    : [];
+
+  // Validate every requested card exists and is free or already on this deck.
+  for (const ownedCardId of ownedCardIds) {
+    const cardSnap = await collectionRef.doc(ownedCardId).get();
+    if (!cardSnap.exists) {
+      throw new HttpsError("failed-precondition", `Owned card not found: ${ownedCardId}`);
+    }
+    const cardDeckId = cardSnap.data()?.deckId;
+    if (
+      cardDeckId != null &&
+      cardDeckId !== "" &&
+      cardDeckId !== deckKey
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Card ${ownedCardId} is already assigned to ${cardDeckId}.`,
+      );
+    }
+  }
+
+  const batch = db.batch();
+  const nextSet = new Set(ownedCardIds);
+
+  for (const ownedCardId of ownedCardIds) {
+    batch.update(collectionRef.doc(ownedCardId), { deckId: deckKey });
+  }
+  for (const ownedCardId of previousIds) {
+    if (!nextSet.has(ownedCardId)) {
+      batch.update(collectionRef.doc(ownedCardId), { deckId: null });
+    }
+  }
+
+  const deckNames: Record<DeckKey, string> = {
+    "deck-1": "Deck 1",
+    "deck-2": "Deck 2",
+    "deck-3": "Deck 3",
+  };
+
+  batch.set(
+    deckRef,
+    {
+      deckKey,
+      name: deckNames[deckKey as DeckKey],
+      ownedCardIds,
+      isActiveDeck,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  if (isActiveDeck) {
+    for (const otherKey of DECK_KEYS) {
+      if (otherKey === deckKey) {
+        continue;
+      }
+      const otherRef = decksRef.doc(otherKey);
+      const otherSnap = await otherRef.get();
+      if (otherSnap.exists) {
+        batch.update(otherRef, { isActiveDeck: false });
+      }
+    }
+  }
+
+  await batch.commit();
+
+  logger.info("saveUserDeck", {
+    uid,
+    deckKey,
+    count: ownedCardIds.length,
+    removed: previousIds.filter((id) => !nextSet.has(id)).length,
+    isActiveDeck,
+  });
+
+  return {
+    ok: true,
+    deckKey,
+    ownedCardIds,
+    isActiveDeck,
+  };
+});
+
 /**
  * Creates the shared board once per match (idempotent).
  */

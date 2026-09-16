@@ -1,5 +1,7 @@
 /** Owned card instance stored under users/{uid}/cardCollection/{ownedCardId}. */
 
+import type { DeckKey } from './user-deck';
+
 export type CardSpecialty =
   | 'Default'
   | 'Hollow'
@@ -24,4 +26,9 @@ export interface OwnedCard {
   foil: CardFoil;
   skin: string;
   source: string;
+  /**
+   * When set, this instance is assigned to that user deck and is not available
+   * in the free collection pile (unless removed from the deck draft).
+   */
+  deckId?: DeckKey | null;
 }

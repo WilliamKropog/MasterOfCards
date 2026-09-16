@@ -50,6 +50,12 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow create, update, delete: if false;
       }
+
+      // Saved decks (deck-1 / deck-2 / deck-3). Clients may read; only Admin writes.
+      match /decks/{deckId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
     }
 
     // Live matchmaking queue (doc id = uid).
