@@ -7,7 +7,14 @@
       Total {{ totalOwned() }}
     </p>
   </header>
-  <div class="card-collection-panel-body">
+  <div
+    class="card-collection-panel-body"
+    [class.card-collection-panel-body--drop-target]="isDropTarget()"
+    (dragenter)="onPanelDragEnter($event)"
+    (dragover)="onPanelDragOver($event)"
+    (dragleave)="onPanelDragLeave($event)"
+    (drop)="onPanelDrop($event)"
+  >
     @if (loading()) {
       <p class="card-collection-panel-status">Loading collection…</p>
     } @else if (error(); as err) {
@@ -23,24 +30,16 @@
       @if (discoveredSlots().length === 0) {
         <p class="card-collection-section-empty">No cards discovered yet.</p>
       } @else {
-        <div
-          class="card-collection-grid"
-          cdkDropList
-          [id]="dropListId"
-          [cdkDropListData]="dropListId"
-          [cdkDropListConnectedTo]="connectedTo"
-          [cdkDropListSortingDisabled]="true"
-          [cdkDropListEnterPredicate]="collectionEnterPredicate"
-          (cdkDropListDropped)="onCollectionDropped($event)"
-          role="list"
-        >
+        <div class="card-collection-grid" role="list">
           @for (slot of discoveredSlots(); track slot.catalogCardId) {
-            <div class="card-collection-slot" role="listitem">
+            <div
+              class="card-collection-slot"
+              role="listitem"
+              [attr.draggable]="slot.availableCount > 0"
+              (dragstart)="onCollectionDragStart($event, slot)"
+              (dragend)="onCollectionDragEnd()"
+            >
               <div
-                cdkDrag
-                [cdkDragData]="dragDataFor(slot)"
-                [cdkDragDisabled]="slot.availableCount <= 0 || !dragDataFor(slot)"
-                (cdkDragStarted)="onCollectionDragStart($event, slot)"
                 [class]="
                   'card-collection-box card-collection-box--discovered card-collection-box--' +
                   slot.rarity.toLowerCase()
@@ -56,23 +55,7 @@
                   slot.ownedCount +
                   ' owned'
                 "
-              >
-                <div
-                  *cdkDragPlaceholder
-                  [class]="
-                    'card-collection-box card-collection-box--discovered card-collection-box--' +
-                    slot.rarity.toLowerCase()
-                  "
-                ></div>
-                <div
-                  *cdkDragPreview
-                  [class]="
-                    'card-collection-box card-collection-box--discovered card-collection-box--' +
-                    slot.rarity.toLowerCase() +
-                    ' card-collection-box--drag-preview'
-                  "
-                ></div>
-              </div>
+              ></div>
               <p class="card-collection-label">
                 <span class="card-collection-name">{{ slot.name }}</span>
                 <span class="card-collection-count">{{ slot.availableCount }}</span>

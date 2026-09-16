@@ -4,73 +4,40 @@
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
-/* CDK drag previews are attached to document.body (outside component encapsulation). */
-.card-collection-box--drag-preview {
+/* HTML5 drag ghost for Card Collection ↔ Deck Builder (appended to document.body). */
+.deck-card-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
   width: 5.5rem;
   height: 5.5rem;
-  max-width: 5.5rem;
-  aspect-ratio: 1 / 1;
   box-sizing: border-box;
   border-radius: 6px;
-  border-width: 2px;
-  border-style: solid;
+  border: 2px solid #94a3b8;
   background-color: #f8fafc;
   box-shadow:
     0 8px 20px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  z-index: 10000;
 }
 
-.card-collection-box--drag-preview.card-collection-box--common {
+.deck-card-drag-ghost--common {
   border-color: #94a3b8;
 }
 
-.card-collection-box--drag-preview.card-collection-box--uncommon {
+.deck-card-drag-ghost--uncommon {
   border-color: #22c55e;
 }
 
-.card-collection-box--drag-preview.card-collection-box--rare {
+.deck-card-drag-ghost--rare {
   border-color: #3b82f6;
 }
 
-.card-collection-box--drag-preview.card-collection-box--epic {
+.deck-card-drag-ghost--epic {
   border-color: #a855f7;
 }
 
-.card-collection-box--drag-preview.card-collection-box--legendary {
-  border-color: #eab308;
-}
-
-.deck-builder-box--drag-preview {
-  width: 5.5rem;
-  height: 5.5rem;
-  max-width: 5.5rem;
-  aspect-ratio: 1 / 1;
-  box-sizing: border-box;
-  border-radius: 6px;
-  border-width: 2px;
-  border-style: solid;
-  background-color: #f8fafc;
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.deck-builder-box--drag-preview.deck-builder-box--common {
-  border-color: #94a3b8;
-}
-
-.deck-builder-box--drag-preview.deck-builder-box--uncommon {
-  border-color: #22c55e;
-}
-
-.deck-builder-box--drag-preview.deck-builder-box--rare {
-  border-color: #3b82f6;
-}
-
-.deck-builder-box--drag-preview.deck-builder-box--epic {
-  border-color: #a855f7;
-}
-
-.deck-builder-box--drag-preview.deck-builder-box--legendary {
+.deck-card-drag-ghost--legendary {
   border-color: #eab308;
 }

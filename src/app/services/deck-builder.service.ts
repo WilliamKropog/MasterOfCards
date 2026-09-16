@@ -57,6 +57,12 @@ export class DeckBuilderService implements OnDestroy {
   readonly saving = signal(false);
   readonly saveError = signal<string | null>(null);
 
+  /**
+   * Active HTML5 drag payload (set on dragstart, cleared on dragend).
+   * More reliable than dataTransfer during dragover in some browsers.
+   */
+  readonly activeDragPayload = signal<DeckBuilderDragPayload | null>(null);
+
   /** Total card instances in the draft (stacked copies count individually). */
   readonly filledCount = computed(() =>
     this.draftStacks().reduce((sum, slot) => sum + slot.ownedCardIds.length, 0),

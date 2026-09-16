@@ -1,22 +1,16 @@
-import {
-  CdkDrag,
-  CdkDragDrop,
-  CdkDragPlaceholder,
-  CdkDragPreview,
-  CdkDragStart,
-  CdkDropList,
-} from '@angular/cdk/drag-drop';
-import { Component, inject } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import type { DeckBuilderDragPayload, DeckSlotCard } from '../game/user-deck';
 import {
-  CARD_COLLECTION_DROP_LIST_ID,
-  DECK_BUILDER_DROP_LIST_ID,
-} from '../game/user-deck';
+  attachDeckCardDragGhost,
+  hasDeckCardDragType,
+  readDeckCardDragData,
+  writeDeckCardDragData,
+} from '../game/deck-card-drag';
 import { DeckBuilderService } from '../services/deck-builder.service';
 
 @Component({
   selector: 'app-deck-builder',
-  imports: [CdkDropList, CdkDrag, CdkDragPreview, CdkDragPlaceholder],
+  imports: [],
   templateUrl: './deck-builder.html',
   styleUrl: './deck-builder.css',
 })
@@ -32,40 +26,72 @@ export class DeckBuilder {
   protected readonly saving = this.deck.saving;
   protected readonly saveError = this.deck.saveError;
 
-  protected readonly dropListId = DECK_BUILDER_DROP_LIST_ID;
-  protected readonly connectedTo = [CARD_COLLECTION_DROP_LIST_ID];
+  /** Visual highlight only — no placeholders / layout mutation. */
+  protected readonly isDropTarget = signal(false);
+  private dropDepth = 0;
+  private dragGhost: HTMLElement | null = null;
 
-  /** Accept any collection card while the deck still has capacity. */
-  protected readonly deckEnterPredicate = (drag: CdkDrag): boolean => {
-    const payload = drag.data as DeckBuilderDragPayload | null;
-    if (!payload || payload.source !== 'collection') {
-      return false;
-    }
-    return this.filledCount() < this.slotCount;
-  };
+  protected rarityClass(card: DeckSlotCard): string {
+    return 'deck-builder-box--' + (card.rarity || 'Common').toLowerCase();
+  }
 
-  protected onDeckDropped(event: CdkDragDrop<string>): void {
-    // Ignore reshuffles within the deck list.
-    if (event.previousContainer === event.container) {
+  protected onDeckCardDragStart(event: DragEvent, slot: DeckSlotCard): void {
+    const payload = this.deck.payloadFromDeckSlot(slot);
+    if (!payload) {
+      event.preventDefault();
       return;
     }
-    const payload = event.item.data as DeckBuilderDragPayload | null;
+    writeDeckCardDragData(event, payload);
+    this.deck.activeDragPayload.set(payload);
+    this.dragGhost = attachDeckCardDragGhost(event, slot.rarity);
+  }
+
+  protected onDeckCardDragEnd(): void {
+    this.clearGhost();
+    this.deck.activeDragPayload.set(null);
+  }
+
+  protected onPanelDragEnter(event: DragEvent): void {
+    if (!this.canAcceptCollectionDrag(event)) {
+      return;
+    }
+    event.preventDefault();
+    this.dropDepth += 1;
+    this.isDropTarget.set(true);
+  }
+
+  protected onPanelDragOver(event: DragEvent): void {
+    if (!this.canAcceptCollectionDrag(event)) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  protected onPanelDragLeave(event: DragEvent): void {
+    if (!this.canAcceptCollectionDrag(event)) {
+      return;
+    }
+    this.dropDepth = Math.max(0, this.dropDepth - 1);
+    if (this.dropDepth === 0) {
+      this.isDropTarget.set(false);
+    }
+  }
+
+  protected onPanelDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.dropDepth = 0;
+    this.isDropTarget.set(false);
+
+    const payload =
+      readDeckCardDragData(event) ?? this.deck.activeDragPayload();
+    this.deck.activeDragPayload.set(null);
     if (!payload || payload.source !== 'collection') {
       return;
     }
     this.deck.placeCardFromCollection(payload, 0);
-  }
-
-  protected onDeckCardDragStart(event: CdkDragStart, slot: DeckSlotCard): void {
-    event.source.data = this.deck.payloadFromDeckSlot(slot);
-  }
-
-  protected dragDataFor(slot: DeckSlotCard): DeckBuilderDragPayload | null {
-    return this.deck.payloadFromDeckSlot(slot);
-  }
-
-  protected rarityClass(card: DeckSlotCard): string {
-    return 'deck-builder-box--' + (card.rarity || 'Common').toLowerCase();
   }
 
   protected confirmSave(): void {
@@ -74,5 +100,23 @@ export class DeckBuilder {
 
   protected cancelEdits(): void {
     this.deck.discardChanges();
+  }
+
+  private canAcceptCollectionDrag(event: DragEvent): boolean {
+    if (this.filledCount() >= this.slotCount) {
+      return false;
+    }
+    const active = this.deck.activeDragPayload();
+    if (active) {
+      return active.source === 'collection';
+    }
+    return hasDeckCardDragType(event);
+  }
+
+  private clearGhost(): void {
+    if (this.dragGhost?.isConnected) {
+      this.dragGhost.remove();
+    }
+    this.dragGhost = null;
   }
 }

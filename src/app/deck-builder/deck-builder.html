@@ -24,22 +24,23 @@
 
   <div
     class="deck-builder-panel-body"
-    cdkDropList
-    [id]="dropListId"
-    [cdkDropListData]="dropListId"
-    [cdkDropListConnectedTo]="connectedTo"
-    [cdkDropListSortingDisabled]="true"
-    [cdkDropListEnterPredicate]="deckEnterPredicate"
-    (cdkDropListDropped)="onDeckDropped($event)"
+    [class.deck-builder-panel-body--drop-target]="isDropTarget()"
+    (dragenter)="onPanelDragEnter($event)"
+    (dragover)="onPanelDragOver($event)"
+    (dragleave)="onPanelDragLeave($event)"
+    (drop)="onPanelDrop($event)"
   >
     <div class="deck-builder-grid" role="list" aria-label="Deck slots">
       @for (card of visibleSlots(); track $index; let slotIndex = $index) {
-        <div class="deck-builder-slot" role="listitem">
-          @if (card; as filled) {
+        @if (card; as filled) {
+          <div
+            class="deck-builder-slot"
+            role="listitem"
+            draggable="true"
+            (dragstart)="onDeckCardDragStart($event, filled)"
+            (dragend)="onDeckCardDragEnd()"
+          >
             <div
-              cdkDrag
-              [cdkDragData]="dragDataFor(filled)"
-              (cdkDragStarted)="onDeckCardDragStart($event, filled)"
               [class]="
                 'deck-builder-box deck-builder-box--filled ' + rarityClass(filled)
               "
@@ -50,33 +51,20 @@
                 ' in slot ' +
                 (slotIndex + 1)
               "
-            >
-              <div
-                *cdkDragPlaceholder
-                [class]="
-                  'deck-builder-box deck-builder-box--filled ' + rarityClass(filled)
-                "
-              ></div>
-              <div
-                *cdkDragPreview
-                [class]="
-                  'deck-builder-box deck-builder-box--filled ' +
-                  rarityClass(filled) +
-                  ' deck-builder-box--drag-preview'
-                "
-              ></div>
-            </div>
+            ></div>
             <p class="deck-builder-label">
               <span class="deck-builder-name">{{ filled.name }}</span>
               <span class="deck-builder-count">{{ filled.ownedCardIds.length }}</span>
             </p>
-          } @else {
+          </div>
+        } @else {
+          <div class="deck-builder-slot" role="listitem">
             <div
               class="deck-builder-box"
               [attr.aria-label]="'Empty deck slot ' + (slotIndex + 1)"
             ></div>
-          }
-        </div>
+          </div>
+        }
       }
     </div>
   </div>
