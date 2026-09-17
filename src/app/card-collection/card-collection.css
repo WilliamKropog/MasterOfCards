@@ -52,8 +52,6 @@
 }
 
 .card-collection-panel-body--drop-target {
-  outline: 1px dashed rgba(74, 222, 128, 0.55);
-  outline-offset: -6px;
   border-radius: 6px;
   background-color: rgba(34, 197, 94, 0.06);
 }
