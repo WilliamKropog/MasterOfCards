@@ -7,6 +7,7 @@ import {
   writeDeckCardDragData,
 } from '../game/deck-card-drag';
 import { DeckBuilderService } from '../services/deck-builder.service';
+import { CardInfoService } from '../services/card-info.service';
 
 @Component({
   selector: 'app-deck-builder',
@@ -16,6 +17,7 @@ import { DeckBuilderService } from '../services/deck-builder.service';
 })
 export class DeckBuilder {
   protected readonly deck = inject(DeckBuilderService);
+  private readonly cardInfo = inject(CardInfoService);
 
   protected readonly weightCapacity = this.deck.weightCapacity;
   protected readonly tabs = this.deck.tabs;
@@ -34,6 +36,10 @@ export class DeckBuilder {
 
   protected rarityClass(card: DeckSlotCard): string {
     return 'deck-builder-box--' + (card.rarity || 'Common').toLowerCase();
+  }
+
+  protected onCardHover(catalogCardId: string): void {
+    this.cardInfo.setHoveredCard(catalogCardId);
   }
 
   protected onDeckCardDragStart(event: DragEvent, slot: DeckSlotCard): void {

@@ -32,7 +32,7 @@
 .card-info-panel-body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 1rem;
+  padding: 0.85rem;
   overflow: auto;
 }
 
@@ -41,4 +41,201 @@
   font-size: 0.9rem;
   line-height: 1.45;
   color: rgba(245, 240, 232, 0.55);
+}
+
+/* ── Card detail sheet ─────────────────────────────────────────────── */
+
+.card-detail {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  overflow: hidden;
+}
+
+.card-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-detail-element {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 1.5px solid rgba(245, 240, 232, 0.55);
+  background: rgba(245, 240, 232, 0.12);
+}
+
+.card-detail-name {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-detail-cost {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.card-detail-mana {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-detail-mana-amount {
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.card-detail-mana-glyph {
+  display: inline-block;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+  border: 1.5px solid rgba(230, 200, 74, 0.75);
+  background: rgba(230, 200, 74, 0.18);
+}
+
+.card-detail-art {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-detail-art-frame {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  background:
+    repeating-linear-gradient(
+      -12deg,
+      rgba(255, 255, 255, 0.03) 0 12px,
+      rgba(255, 255, 255, 0.015) 12px 24px
+    ),
+    rgba(0, 0, 0, 0.22);
+}
+
+.card-detail-art-caption {
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(245, 240, 232, 0.72);
+  background: rgba(0, 0, 0, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card-detail-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  min-height: 4.5rem;
+}
+
+.card-detail-description {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(245, 240, 232, 0.82);
+}
+
+.card-detail-abilities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.card-detail-ability {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card-detail-ability-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.card-detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.4rem;
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.card-detail-footer-mana {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-left: auto;
+}
+
+.card-detail-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-detail-stat--attack {
+  margin-left: auto;
+}
+
+.card-detail-stat-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card-detail-stat-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.card-detail-stat-icon--heart {
+  color: rgba(248, 113, 113, 0.95);
+}
+
+.card-detail-stat-icon--sword {
+  color: rgba(186, 230, 253, 0.95);
 }

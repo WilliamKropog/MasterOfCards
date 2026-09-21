@@ -3,6 +3,9 @@
     <h2 class="deck-builder-panel-title">
       Deck Builder ({{ filledWeight() }}/{{ weightCapacity }})
     </h2>
+    <p class="deck-builder-panel-total" aria-label="Total cards in deck">
+      Cards {{ filledCount() }}
+    </p>
   </header>
 
   <div class="deck-builder-tabs" role="tablist" aria-label="Saved decks">
@@ -37,6 +40,7 @@
             class="deck-builder-slot"
             role="listitem"
             draggable="true"
+            (mouseenter)="onCardHover(filled.catalogCardId)"
             (dragstart)="onDeckCardDragStart($event, filled)"
             (dragend)="onDeckCardDragEnd()"
           >

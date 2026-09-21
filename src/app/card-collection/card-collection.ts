@@ -8,6 +8,7 @@ import {
 } from '../game/deck-card-drag';
 import type { DeckBuilderDragPayload } from '../game/user-deck';
 import { CardCollectionService } from '../services/card-collection.service';
+import { CardInfoService } from '../services/card-info.service';
 import { DeckBuilderService } from '../services/deck-builder.service';
 
 export interface CollectionSlotView {
@@ -28,6 +29,7 @@ export interface CollectionSlotView {
 export class CardCollection {
   private readonly collection = inject(CardCollectionService);
   private readonly deckBuilder = inject(DeckBuilderService);
+  private readonly cardInfo = inject(CardInfoService);
 
   protected readonly loading = this.collection.loading;
   protected readonly error = this.collection.error;
@@ -75,6 +77,10 @@ export class CardCollection {
   protected readonly discoveredCount = computed(() => this.discoveredSlots().length);
   protected readonly totalOwned = computed(() => this.collection.ownedCards().length);
   protected readonly catalogTotal = computed(() => Object.keys(CARD_CATALOG).length);
+
+  protected onCardHover(catalogCardId: string): void {
+    this.cardInfo.setHoveredCard(catalogCardId);
+  }
 
   protected onCollectionDragStart(event: DragEvent, slot: CollectionSlotView): void {
     const payload = this.payloadFor(slot);
