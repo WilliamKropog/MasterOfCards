@@ -8,7 +8,7 @@ import {
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Subscription } from 'rxjs';
-import { DECK_SIZE, getCardDefinition } from '../game/card-catalog';
+import { DECK_WEIGHT_CAPACITY, getCardDefinition } from '../game/card-catalog';
 import type { OwnedCard } from '../game/owned-card';
 import {
   DECK_TABS,
@@ -40,7 +40,8 @@ export class DeckBuilderService implements OnDestroy {
   private readonly collection = inject(CardCollectionService);
 
   readonly tabs = DECK_TABS;
-  readonly slotCount = DECK_SIZE;
+  /** Constructed-deck weight budget (header + placement limit). */
+  readonly weightCapacity = DECK_WEIGHT_CAPACITY;
 
   /** Only Deck 1 is selectable for now. */
   readonly activeDeckKey = signal<DeckKey>('deck-1');
@@ -68,15 +69,23 @@ export class DeckBuilderService implements OnDestroy {
     this.draftStacks().reduce((sum, slot) => sum + slot.ownedCardIds.length, 0),
   );
 
+  /** Total catalog weight currently in the draft (copies × per-card weight). */
+  readonly filledWeight = computed(() =>
+    this.draftStacks().reduce(
+      (sum, slot) => sum + slot.weight * slot.ownedCardIds.length,
+      0,
+    ),
+  );
+
   readonly isDirty = computed(() => !stacksEqual(this.draftStacks(), this.savedStacks()));
 
   /**
-   * UI slots: filled stacks + one trailing empty slot while under capacity.
+   * UI slots: filled stacks + one trailing empty slot while under weight capacity.
    * Starts as a single empty slot when the deck has no cards.
    */
   readonly visibleSlots = computed((): Array<DeckSlotCard | null> => {
     const stacks = this.draftStacks();
-    if (this.filledCount() >= this.slotCount) {
+    if (this.filledWeight() >= this.weightCapacity) {
       return stacks;
     }
     return [...stacks, null];
@@ -147,6 +156,7 @@ export class DeckBuilderService implements OnDestroy {
       catalogCardId: card.catalogCardId,
       name: def?.name ?? card.catalogCardId,
       rarity: def?.rarity ?? 'Common',
+      weight: def?.weight ?? 1,
       source: 'collection',
     };
   }
@@ -161,13 +171,21 @@ export class DeckBuilderService implements OnDestroy {
       catalogCardId: slot.catalogCardId,
       name: slot.name,
       rarity: slot.rarity,
+      weight: slot.weight,
       source: 'deck',
     };
   }
 
+  /** True if adding a card of this weight would stay within capacity. */
+  canFitCardWeight(weight: number): boolean {
+    return this.filledWeight() + weight <= this.weightCapacity;
+  }
+
   /** Whether a drag from collection can land on this visible slot (highlight). */
   canReceiveCollectionCard(catalogCardId: string, slotIndex: number): boolean {
-    if (this.filledCount() >= this.slotCount) {
+    const def = getCardDefinition(catalogCardId);
+    const weight = def?.weight ?? 1;
+    if (!this.canFitCardWeight(weight)) {
       return false;
     }
     const visible = this.visibleSlots();
@@ -189,7 +207,8 @@ export class DeckBuilderService implements OnDestroy {
     if (payload.source !== 'collection') {
       return false;
     }
-    if (this.filledCount() >= this.slotCount) {
+    const weight = payload.weight > 0 ? payload.weight : (getCardDefinition(payload.catalogCardId)?.weight ?? 1);
+    if (!this.canFitCardWeight(weight)) {
       return false;
     }
     if (this.draftOwnedIdSet().has(payload.ownedCardId)) {
@@ -213,6 +232,7 @@ export class DeckBuilderService implements OnDestroy {
       catalogCardId: payload.catalogCardId,
       name: payload.name,
       rarity: payload.rarity,
+      weight,
       ownedCardIds: [payload.ownedCardId],
     });
     this.draftStacks.set(stacks);
@@ -350,13 +370,21 @@ export class DeckBuilderService implements OnDestroy {
   private stacksFromIds(ids: string[], owned: readonly OwnedCard[]): DeckSlotCard[] {
     const stacks: DeckSlotCard[] = [];
     const stackIndexByCatalog = new Map<string, number>();
+    let totalWeight = 0;
 
-    for (const ownedCardId of ids.slice(0, DECK_SIZE)) {
+    for (const ownedCardId of ids) {
       const card = owned.find((c) => c.ownedCardId === ownedCardId);
       const catalogCardId = card?.catalogCardId ?? '';
       const def = catalogCardId ? getCardDefinition(catalogCardId) : undefined;
       const name = def?.name ?? (catalogCardId || '…');
       const rarity = def?.rarity ?? 'Common';
+      const weight = def?.weight ?? 1;
+
+      // Soft-cap when hydrating: skip cards that would exceed capacity (legacy oversized decks).
+      if (totalWeight + weight > this.weightCapacity) {
+        continue;
+      }
+      totalWeight += weight;
 
       const existing = catalogCardId ? stackIndexByCatalog.get(catalogCardId) : undefined;
       if (existing !== undefined && stacks[existing]) {
@@ -367,6 +395,7 @@ export class DeckBuilderService implements OnDestroy {
         catalogCardId: catalogCardId || ownedCardId,
         name,
         rarity,
+        weight,
         ownedCardIds: [ownedCardId],
       });
       if (catalogCardId) {

@@ -17,10 +17,11 @@ import { DeckBuilderService } from '../services/deck-builder.service';
 export class DeckBuilder {
   protected readonly deck = inject(DeckBuilderService);
 
-  protected readonly slotCount = this.deck.slotCount;
+  protected readonly weightCapacity = this.deck.weightCapacity;
   protected readonly tabs = this.deck.tabs;
   protected readonly activeDeckKey = this.deck.activeDeckKey;
   protected readonly visibleSlots = this.deck.visibleSlots;
+  protected readonly filledWeight = this.deck.filledWeight;
   protected readonly filledCount = this.deck.filledCount;
   protected readonly isDirty = this.deck.isDirty;
   protected readonly saving = this.deck.saving;
@@ -103,14 +104,18 @@ export class DeckBuilder {
   }
 
   private canAcceptCollectionDrag(event: DragEvent): boolean {
-    if (this.filledCount() >= this.slotCount) {
-      return false;
-    }
     const active = this.deck.activeDragPayload();
     if (active) {
-      return active.source === 'collection';
+      if (active.source !== 'collection') {
+        return false;
+      }
+      return this.deck.canFitCardWeight(active.weight);
     }
-    return hasDeckCardDragType(event);
+    if (!hasDeckCardDragType(event)) {
+      return false;
+    }
+    // Without payload weight yet, allow highlight if any capacity remains.
+    return this.filledWeight() < this.weightCapacity;
   }
 
   private clearGhost(): void {

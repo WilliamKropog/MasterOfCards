@@ -19,6 +19,8 @@ export interface DeckSlotCard {
   catalogCardId: string;
   name: string;
   rarity: string;
+  /** Per-copy catalog weight (stack total = weight × ownedCardIds.length). */
+  weight: number;
   ownedCardIds: string[];
 }
 
@@ -36,6 +38,7 @@ export type DeckBuilderDragPayload = {
   catalogCardId: string;
   name: string;
   rarity: string;
+  weight: number;
   /** Where the drag started. */
   source: 'collection' | 'deck';
 };

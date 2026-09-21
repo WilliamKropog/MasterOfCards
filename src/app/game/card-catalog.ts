@@ -25,6 +25,11 @@ export interface CardDefinition {
   cardElement: string;
   /** Every card has a rarity, regardless of cardType. */
   rarity: string;
+  /**
+   * Deck-construction cost: how much of the deck's weight capacity this card uses.
+   * Constructed decks may hold up to {@link DECK_WEIGHT_CAPACITY} total weight.
+   */
+  weight: number;
   /** Rules / flavor text. Use `''` when there is nothing special to say. */
   description: string;
   /** Monster subtype (e.g. Elemental, Beast). Only meaningful for `cardType: 'Monster'`. */
@@ -239,6 +244,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardType: 'Monster',
     maxHealth: 80,
     attack: 10,
+    weight: 2,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Elemental',
@@ -253,6 +259,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Common',
     damage: 60,
+    weight: 2,
     damageMultiplierAgainstZone: { land: 2 },
     description: 'Deals 60 damage to a target. If the target is a Land card, the damage is doubled.',
   },
@@ -266,6 +273,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     buildTime: 0,
     generateMana: {Rock: 1},
     maxMana: {Rock: 5},
+    weight: 2,
     space: 1,
     description: 'A building that gets built and generates Rock mana instantly.',
   },
@@ -275,6 +283,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardType: 'Monster',
     maxHealth: 50,
     attack: 20,
+    weight: 1,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -292,6 +301,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Uncommon',
     buildTime: 3,
     space: 3,
+    weight: 5,
     generateMana: {Rock: 4, Ice: 3, Wind: 3, Mystic: 2, Grass: 2, Lightning: 2},
     maxMana: {Rock: 15, Ice: 10, Wind: 10, Mystic: 5, Grass: 5, Lightning: 5},
     description: 'A mountainous region that generates lots of mana.',
@@ -305,6 +315,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Uncommon',
     buildTime: 2,
     space: 1,
+    weight: 3,
     generateMana: {Rock: 2},
     maxMana: {Rock: 6},
     placeOnOpponentLandRow: true,
@@ -316,6 +327,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardType: 'Monster',
     maxHealth: 30,
     attack: 20,
+    weight: 1,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
@@ -331,6 +343,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxHealth: 120,
     attack: 30,
     multiAttack: 2,
+    weight: 3,
     cardElement: 'Rock',
     rarity: 'Uncommon',
     monsterClass: 'Dinosaur',
@@ -346,6 +359,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Uncommon',
     buildTime: 1,
     space: 1,
+    weight: 3,
     generateMana: {Rock: 1},
     maxMana: {Rock: 10},
     landAbilities: [{ id: 'praise', name: 'Praise', manaCost: 0, manaElement: 'Rock' }],
@@ -358,6 +372,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     manaCost: { Rock: 8 },
     maxHealth: 180,
     attack: 30,
+    weight: 4,
     cardElement: 'Rock',
     rarity: 'Rare',
     monsterClass: 'Dinosaur',
@@ -373,6 +388,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     cardElement: 'Rock',
     rarity: 'Uncommon',
     damage: 100,
+    weight: 4,
     allowedTargetZones: ['land'],
     scaleDamageByTargetLandSpace: true,
     description: 'Deal 100 damage to any one land card. Deals multiplied damage for each space the target land card takes.',
@@ -386,6 +402,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Rare',
     buildTime: 2,
     space: 1,
+    weight: 3,
     generateMana: {Rock: 2, Sand: 2},
     maxMana: {Rock: 7, Sand: 7},
     description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard. One time use only.',
@@ -397,6 +414,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     manaCost: { Rock: 12 },
     cardElement: 'Rock',
     rarity: 'Epic',
+    weight: 7,
     allowedTargetZones: ['land'],
     destroysTarget: true,
     description: 'Select any one land card on your opponent\'s field and destroy it.',
@@ -411,6 +429,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     rarity: 'Epic',
     buildTime: 4,
     space: 5,
+    weight: 8,
     generateMana: {Rock: 9},
     maxMana: {Rock: 20},
     description:
@@ -423,6 +442,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     manaCost: { Rock: 15 },
     maxHealth: 200,
     attack: 50,
+    weight: 10,
     cardElement: 'Rock',
     rarity: 'Legendary',
     monsterClass: 'Elemental',
@@ -695,6 +715,12 @@ export const DECK_CARD_POOL: readonly string[] = [
 ];
 
 export const DECK_SIZE = 25;
+
+/**
+ * Maximum total {@link CardDefinition.weight} for a constructed player deck
+ * (Deck Builder). Independent of {@link DECK_SIZE} used for live/prototype draws.
+ */
+export const DECK_WEIGHT_CAPACITY = 100;
 
 function shuffleInPlace<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {

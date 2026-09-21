@@ -121,7 +121,10 @@ export const openTestPack = onCall(callableOptions, async (request) => {
 });
 
 const DECK_KEYS = new Set(["deck-1", "deck-2", "deck-3"]);
-const MAX_DECK_SIZE = 25;
+/** Max total catalog weight for a constructed deck (matches client DECK_WEIGHT_CAPACITY). */
+const MAX_DECK_WEIGHT = 100;
+/** Absolute ceiling on card instances (all weight-1 cards). */
+const MAX_DECK_CARD_COUNT = MAX_DECK_WEIGHT;
 
 type DeckKey = "deck-1" | "deck-2" | "deck-3";
 
@@ -148,10 +151,10 @@ export const saveUserDeck = onCall(callableOptions, async (request) => {
     throw new HttpsError("invalid-argument", "ownedCardIds must be an array.");
   }
 
-  if (ownedCardIdsRaw.length > MAX_DECK_SIZE) {
+  if (ownedCardIdsRaw.length > MAX_DECK_CARD_COUNT) {
     throw new HttpsError(
       "invalid-argument",
-      `A deck may contain at most ${MAX_DECK_SIZE} cards.`,
+      `A deck may contain at most ${MAX_DECK_CARD_COUNT} cards.`,
     );
   }
 
@@ -180,13 +183,15 @@ export const saveUserDeck = onCall(callableOptions, async (request) => {
       )
     : [];
 
-  // Validate every requested card exists and is free or already on this deck.
+  // Validate every requested card exists, is free or already on this deck, and sum weight.
+  let totalWeight = 0;
   for (const ownedCardId of ownedCardIds) {
     const cardSnap = await collectionRef.doc(ownedCardId).get();
     if (!cardSnap.exists) {
       throw new HttpsError("failed-precondition", `Owned card not found: ${ownedCardId}`);
     }
-    const cardDeckId = cardSnap.data()?.deckId;
+    const data = cardSnap.data()!;
+    const cardDeckId = data.deckId;
     if (
       cardDeckId != null &&
       cardDeckId !== "" &&
@@ -197,6 +202,22 @@ export const saveUserDeck = onCall(callableOptions, async (request) => {
         `Card ${ownedCardId} is already assigned to ${cardDeckId}.`,
       );
     }
+    const catalogCardId = data.catalogCardId;
+    if (typeof catalogCardId !== "string" || !catalogCardId) {
+      throw new HttpsError("failed-precondition", `Card ${ownedCardId} has no catalogCardId.`);
+    }
+    const rules = LIVE_CARD_RULES[catalogCardId];
+    if (!rules) {
+      throw new HttpsError("failed-precondition", `Unknown catalog card: ${catalogCardId}`);
+    }
+    totalWeight += rules.weight;
+  }
+
+  if (totalWeight > MAX_DECK_WEIGHT) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Deck weight ${totalWeight} exceeds the maximum of ${MAX_DECK_WEIGHT}.`,
+    );
   }
 
   const batch = db.batch();
