@@ -720,7 +720,12 @@ export const DECK_SIZE = 25;
  * Maximum total {@link CardDefinition.weight} for a constructed player deck
  * (Deck Builder). Independent of {@link DECK_SIZE} used for live/prototype draws.
  */
-export const DECK_WEIGHT_CAPACITY = 100;
+export const DECK_WEIGHT_CAPACITY = 200;
+
+/**
+ * Minimum saved/active deck weight required to enter a live match.
+ */
+export const DECK_WEIGHT_MIN_PLAYABLE = 100;
 
 function shuffleInPlace<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {

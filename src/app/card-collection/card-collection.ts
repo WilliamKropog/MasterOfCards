@@ -20,6 +20,25 @@ export interface CollectionSlotView {
   discovered: boolean;
 }
 
+/** Lower index = higher sort priority (Common → Legendary). */
+const RARITY_ORDER: Record<string, number> = {
+  Common: 0,
+  Uncommon: 1,
+  Rare: 2,
+  Epic: 3,
+  Legendary: 4,
+};
+
+function compareCollectionSlots(a: CollectionSlotView, b: CollectionSlotView): number {
+  const rarityDiff =
+    (RARITY_ORDER[a.rarity] ?? Number.MAX_SAFE_INTEGER) -
+    (RARITY_ORDER[b.rarity] ?? Number.MAX_SAFE_INTEGER);
+  if (rarityDiff !== 0) {
+    return rarityDiff;
+  }
+  return a.name.localeCompare(b.name);
+}
+
 @Component({
   selector: 'app-card-collection',
   imports: [],
@@ -57,21 +76,13 @@ export class CardCollection {
   protected readonly discoveredSlots = computed((): CollectionSlotView[] => {
     return this.allSlots()
       .filter((slot) => slot.discovered)
-      .sort((a, b) => {
-        if (a.availableCount !== b.availableCount) {
-          return b.availableCount - a.availableCount;
-        }
-        if (a.ownedCount !== b.ownedCount) {
-          return b.ownedCount - a.ownedCount;
-        }
-        return a.name.localeCompare(b.name);
-      });
+      .sort(compareCollectionSlots);
   });
 
   protected readonly undiscoveredSlots = computed((): CollectionSlotView[] => {
     return this.allSlots()
       .filter((slot) => !slot.discovered)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort(compareCollectionSlots);
   });
 
   protected readonly discoveredCount = computed(() => this.discoveredSlots().length);

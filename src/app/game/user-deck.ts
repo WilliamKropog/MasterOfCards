@@ -29,6 +29,8 @@ export interface UserDeckDoc {
   name: string;
   /** Flat owned-card ids (stacks are expanded in slot / catalog order). */
   ownedCardIds: string[];
+  /** Sum of catalog weights for `ownedCardIds` (written on save). */
+  totalWeight?: number;
   isActiveDeck: boolean;
 }
 

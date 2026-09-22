@@ -56,6 +56,93 @@ function seatToSlot(seat: 1 | 2): "player1" | "player2" {
   return seat === 1 ? "player1" : "player2";
 }
 
+/**
+ * Loads a user's active constructed deck as catalog card ids (match draw order source).
+ * Validates min weight and that every owned instance resolves to known rules.
+ */
+async function loadActiveCatalogDeck(uid: string): Promise<string[]> {
+  const decksSnap = await db.collection("users").doc(uid).collection("decks").get();
+  const activeDoc = decksSnap.docs.find((snap) => snap.data()?.isActiveDeck === true);
+  if (!activeDoc) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Both players need a saved active deck to start a live match.",
+    );
+  }
+
+  const ownedCardIdsRaw = activeDoc.data()?.ownedCardIds;
+  if (!Array.isArray(ownedCardIdsRaw) || ownedCardIdsRaw.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Active deck is empty. Save a deck with at least 100 weight.",
+    );
+  }
+
+  const ownedCardIds = ownedCardIdsRaw.filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  if (ownedCardIds.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Active deck is empty. Save a deck with at least 100 weight.",
+    );
+  }
+
+  const collectionRef = db.collection("users").doc(uid).collection("cardCollection");
+  const catalogIds: string[] = [];
+  let totalWeight = 0;
+
+  // Firestore getAll is safest in chunks.
+  const chunkSize = 100;
+  for (let i = 0; i < ownedCardIds.length; i += chunkSize) {
+    const chunk = ownedCardIds.slice(i, i + chunkSize);
+    const refs = chunk.map((id) => collectionRef.doc(id));
+    const snaps = await db.getAll(...refs);
+    for (let j = 0; j < snaps.length; j++) {
+      const cardSnap = snaps[j]!;
+      const ownedCardId = chunk[j]!;
+      if (!cardSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Owned card missing from collection: ${ownedCardId}`,
+        );
+      }
+      const catalogCardId = cardSnap.data()?.catalogCardId;
+      if (typeof catalogCardId !== "string" || !catalogCardId) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Owned card ${ownedCardId} has no catalogCardId.`,
+        );
+      }
+      const rules = LIVE_CARD_RULES[catalogCardId];
+      if (!rules) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Unknown catalog card in deck: ${catalogCardId}`,
+        );
+      }
+      catalogIds.push(catalogCardId);
+      totalWeight += rules.weight;
+    }
+  }
+
+  if (totalWeight < MIN_LIVE_DECK_WEIGHT) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Active deck needs at least ${MIN_LIVE_DECK_WEIGHT} weight (currently ${totalWeight}).`,
+    );
+  }
+
+  if (totalWeight > MAX_DECK_WEIGHT) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Active deck exceeds the maximum of ${MAX_DECK_WEIGHT} weight.`,
+    );
+  }
+
+  return catalogIds;
+}
+
 /** Shared options for Gen2 callables used by the web client. */
 const callableOptions = {
   region: "us-central1",
@@ -122,9 +209,11 @@ export const openTestPack = onCall(callableOptions, async (request) => {
 
 const DECK_KEYS = new Set(["deck-1", "deck-2", "deck-3"]);
 /** Max total catalog weight for a constructed deck (matches client DECK_WEIGHT_CAPACITY). */
-const MAX_DECK_WEIGHT = 100;
+const MAX_DECK_WEIGHT = 200;
 /** Absolute ceiling on card instances (all weight-1 cards). */
 const MAX_DECK_CARD_COUNT = MAX_DECK_WEIGHT;
+/** Minimum active-deck weight required to enter / start a live match. */
+const MIN_LIVE_DECK_WEIGHT = 100;
 
 type DeckKey = "deck-1" | "deck-2" | "deck-3";
 
@@ -244,6 +333,7 @@ export const saveUserDeck = onCall(callableOptions, async (request) => {
       deckKey,
       name: deckNames[deckKey as DeckKey],
       ownedCardIds,
+      totalWeight,
       isActiveDeck,
       updatedAt: FieldValue.serverTimestamp(),
     },
@@ -269,6 +359,7 @@ export const saveUserDeck = onCall(callableOptions, async (request) => {
     uid,
     deckKey,
     count: ownedCardIds.length,
+    totalWeight,
     removed: previousIds.filter((id) => !nextSet.has(id)).length,
     isActiveDeck,
   });
@@ -277,12 +368,14 @@ export const saveUserDeck = onCall(callableOptions, async (request) => {
     ok: true,
     deckKey,
     ownedCardIds,
+    totalWeight,
     isActiveDeck,
   };
 });
 
 /**
  * Creates the shared board once per match (idempotent).
+ * Uses each participant's saved active constructed deck (catalog card ids).
  */
 export const initializeLiveMatch = onCall(callableOptions, async (request) => {
   if (!request.auth?.uid) {
@@ -297,21 +390,43 @@ export const initializeLiveMatch = onCall(callableOptions, async (request) => {
   }
 
   const matchRef = db.collection("matches").doc(matchId);
+  const matchSnap = await matchRef.get();
+  if (!matchSnap.exists) {
+    throw new HttpsError("not-found", "Match not found.");
+  }
+
+  const matchPreview = matchSnap.data() as MatchDoc;
+  assertParticipant(matchPreview, uid);
+
+  if (matchPreview.gameState?.gameStarted) {
+    return { ok: true, version: matchPreview.gameState.version };
+  }
+
+  const player1Uid = matchPreview.player1?.uid;
+  const player2Uid = matchPreview.player2?.uid;
+  if (!player1Uid || !player2Uid) {
+    throw new HttpsError("failed-precondition", "Match is missing player seats.");
+  }
+
+  const [deck1, deck2] = await Promise.all([
+    loadActiveCatalogDeck(player1Uid),
+    loadActiveCatalogDeck(player2Uid),
+  ]);
 
   const gameState = await db.runTransaction(async (tx) => {
-    const matchSnap = await tx.get(matchRef);
-    if (!matchSnap.exists) {
+    const matchInTx = await tx.get(matchRef);
+    if (!matchInTx.exists) {
       throw new HttpsError("not-found", "Match not found.");
     }
 
-    const match = matchSnap.data() as MatchDoc;
+    const match = matchInTx.data() as MatchDoc;
     assertParticipant(match, uid);
 
     if (match.gameState?.gameStarted) {
       return match.gameState;
     }
 
-    const initial = stripUndefinedDeep(createInitialLiveGameState());
+    const initial = stripUndefinedDeep(createInitialLiveGameState(deck1, deck2));
     tx.update(matchRef, {
       gameState: initial,
       currentTurn: initial.currentTurn,
@@ -320,7 +435,13 @@ export const initializeLiveMatch = onCall(callableOptions, async (request) => {
     return initial;
   });
 
-  logger.info("initializeLiveMatch", { matchId, uid, version: gameState.version });
+  logger.info("initializeLiveMatch", {
+    matchId,
+    uid,
+    version: gameState.version,
+    player1DeckSize: deck1.length,
+    player2DeckSize: deck2.length,
+  });
   return { ok: true, version: gameState.version };
 });
 

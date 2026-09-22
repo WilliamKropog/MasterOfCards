@@ -1,4 +1,4 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, computed, signal, inject } from '@angular/core';
 import type { DeckBuilderDragPayload, DeckSlotCard } from '../game/user-deck';
 import {
   attachDeckCardDragGhost,
@@ -6,6 +6,7 @@ import {
   readDeckCardDragData,
   writeDeckCardDragData,
 } from '../game/deck-card-drag';
+import { DECK_WEIGHT_MIN_PLAYABLE } from '../game/card-catalog';
 import { DeckBuilderService } from '../services/deck-builder.service';
 import { CardInfoService } from '../services/card-info.service';
 
@@ -28,6 +29,18 @@ export class DeckBuilder {
   protected readonly isDirty = this.deck.isDirty;
   protected readonly saving = this.deck.saving;
   protected readonly saveError = this.deck.saveError;
+
+  /** Header weight color: default / ready (≥100) / full (at capacity). */
+  protected readonly weightTone = computed((): 'default' | 'ready' | 'full' => {
+    const weight = this.filledWeight();
+    if (weight >= this.weightCapacity) {
+      return 'full';
+    }
+    if (weight >= DECK_WEIGHT_MIN_PLAYABLE) {
+      return 'ready';
+    }
+    return 'default';
+  });
 
   /** Visual highlight only — no placeholders / layout mutation. */
   protected readonly isDropTarget = signal(false);

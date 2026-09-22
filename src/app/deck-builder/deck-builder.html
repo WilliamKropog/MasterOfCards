@@ -1,6 +1,10 @@
 <section class="deck-builder-panel" aria-label="Deck builder">
   <header class="deck-builder-panel-header">
-    <h2 class="deck-builder-panel-title">
+    <h2
+      class="deck-builder-panel-title"
+      [class.deck-builder-panel-title--ready]="weightTone() === 'ready'"
+      [class.deck-builder-panel-title--full]="weightTone() === 'full'"
+    >
       Deck Builder ({{ filledWeight() }}/{{ weightCapacity }})
     </h2>
     <p class="deck-builder-panel-total" aria-label="Total cards in deck">
