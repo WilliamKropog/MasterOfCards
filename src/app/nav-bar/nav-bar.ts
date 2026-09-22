@@ -35,7 +35,7 @@ export class NavBar {
     void this.matchmaking.cancelLiveSearch();
   }
 
-  protected onOpenPackClick(): void {
-    void this.pack.openTestPack();
+  protected onGrantRockBoosterClick(): void {
+    void this.pack.grantRockBoosterPack();
   }
 }

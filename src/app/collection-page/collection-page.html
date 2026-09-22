@@ -3,10 +3,53 @@
 
   <div class="collection-body">
     <main class="collection-main" aria-label="Collection">
-      <h1 class="collection-title">Collection</h1>
-      <p class="collection-subtitle">
-        Packs you collect will show up here. More coming soon.
-      </p>
+      <header class="collection-header">
+        <h1 class="collection-title">Collection</h1>
+        <p class="collection-subtitle">Packs and collectables you own.</p>
+      </header>
+
+      @if (openProgress().phase === 'success' || openProgress().phase === 'error') {
+        <p
+          class="collection-status"
+          [class.collection-status--error]="openProgress().phase === 'error'"
+          role="status"
+        >
+          {{ openProgress().error ?? openProgress().message }}
+        </p>
+      }
+
+      <section class="collection-section" aria-labelledby="collection-packs-heading">
+        <h2 id="collection-packs-heading" class="collection-section-title">Packs</h2>
+
+        @if (loading()) {
+          <p class="collection-empty">Loading packs…</p>
+        } @else if (error(); as err) {
+          <p class="collection-empty collection-empty--error" role="alert">{{ err }}</p>
+        } @else if (packStacks().length === 0) {
+          <p class="collection-empty">No packs yet. Use Add Rock Booster Pack to get one.</p>
+        } @else {
+          <div class="collection-pack-grid" role="list">
+            @for (stack of packStacks(); track stack.packId) {
+              <button
+                type="button"
+                class="collection-pack-slot"
+                role="listitem"
+                [disabled]="opening()"
+                [attr.aria-label]="
+                  'Open ' + stack.name + ', ' + stack.count + ' owned'
+                "
+                (click)="onOpenPack(stack)"
+              >
+                <div class="collection-pack-box" aria-hidden="true"></div>
+                <p class="collection-pack-label">
+                  <span class="collection-pack-name">{{ stack.name }}</span>
+                  <span class="collection-pack-count">{{ stack.count }}</span>
+                </p>
+              </button>
+            }
+          </div>
+        }
+      </section>
     </main>
     <app-side-nav class="collection-side-nav" />
   </div>

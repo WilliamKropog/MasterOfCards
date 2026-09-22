@@ -18,6 +18,12 @@ import {
   type UseAbilityIntent,
 } from "./game/live-game-state";
 import { PACK_SIZE, generatePackCards } from "./game/pack-open";
+import {
+  generateCardsForPack,
+  isPackId,
+  PACK_CATALOG,
+  type PackId,
+} from "./game/pack-catalog";
 import { LIVE_CARD_RULES } from "./game/card-rules";
 
 initializeApp();
@@ -202,6 +208,135 @@ export const openTestPack = onCall(callableOptions, async (request) => {
 
   return {
     ok: true,
+    packSize: created.length,
+    cards: created,
+  };
+});
+
+/**
+ * Grants one sealed pack into users/{uid}/packInventory.
+ * Dev / prototype grant — Store purchases can reuse the same write shape later.
+ */
+export const grantPack = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to receive a pack.");
+  }
+
+  const uid = request.auth.uid;
+  const packIdRaw = request.data?.packId;
+  if (!isPackId(packIdRaw)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "packId must be a known pack catalog id.",
+    );
+  }
+  const packId: PackId = packIdRaw;
+  const def = PACK_CATALOG[packId];
+
+  const packRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("packInventory")
+    .doc();
+
+  await packRef.set({
+    packId,
+    status: "sealed",
+    source: "dev-grant",
+    acquiredAt: FieldValue.serverTimestamp(),
+  });
+
+  logger.info("grantPack", { uid, packId, ownedPackId: packRef.id });
+
+  return {
+    ok: true,
+    ownedPackId: packRef.id,
+    packId,
+    name: def.name,
+  };
+});
+
+/**
+ * Opens one sealed pack from packInventory: consumes the pack and mints cards.
+ */
+export const openOwnedPack = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to open a pack.");
+  }
+
+  const uid = request.auth.uid;
+  const ownedPackId =
+    typeof request.data?.ownedPackId === "string"
+      ? request.data.ownedPackId.trim()
+      : "";
+  if (!ownedPackId) {
+    throw new HttpsError("invalid-argument", "ownedPackId is required.");
+  }
+
+  const packRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("packInventory")
+    .doc(ownedPackId);
+  const packSnap = await packRef.get();
+  if (!packSnap.exists) {
+    throw new HttpsError("not-found", "Pack not found in your inventory.");
+  }
+
+  const packData = packSnap.data()!;
+  if (packData.status !== "sealed") {
+    throw new HttpsError("failed-precondition", "This pack is not sealed.");
+  }
+  if (!isPackId(packData.packId)) {
+    throw new HttpsError("failed-precondition", "Pack has an unknown packId.");
+  }
+
+  const packId: PackId = packData.packId;
+  const drafts = generateCardsForPack(packId, `${packId}-open`);
+
+  for (const draft of drafts) {
+    if (!LIVE_CARD_RULES[draft.catalogCardId]) {
+      throw new HttpsError(
+        "internal",
+        `Invalid catalog card id rolled: ${draft.catalogCardId}`,
+      );
+    }
+  }
+
+  const collectionRef = db.collection("users").doc(uid).collection("cardCollection");
+  const batch = db.batch();
+  batch.delete(packRef);
+
+  const created = drafts.map((draft) => {
+    const docRef = collectionRef.doc();
+    batch.set(docRef, {
+      ...draft,
+      acquiredAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      ownedCardId: docRef.id,
+      catalogCardId: draft.catalogCardId,
+      cardQuality: draft.cardQuality,
+      specialty: draft.specialty,
+      foil: draft.foil,
+      skin: draft.skin,
+      source: draft.source,
+    };
+  });
+
+  await batch.commit();
+
+  logger.info("openOwnedPack", {
+    uid,
+    ownedPackId,
+    packId,
+    count: created.length,
+    catalogCardIds: created.map((c) => c.catalogCardId),
+  });
+
+  return {
+    ok: true,
+    packId,
     packSize: created.length,
     cards: created,
   };

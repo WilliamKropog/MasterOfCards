@@ -149,8 +149,16 @@ export function rollCatalogCardId(): string {
  * Builds one owned-card payload (without acquiredAt — caller sets timestamp).
  */
 export function generateOwnedCard(source = "test-pack"): Omit<OwnedCardDoc, "acquiredAt"> {
+  return generateOwnedCardFromCatalogId(rollCatalogCardId(), source);
+}
+
+/** Builds an owned-card payload for a known catalog id. */
+export function generateOwnedCardFromCatalogId(
+  catalogCardId: string,
+  source = "test-pack",
+): Omit<OwnedCardDoc, "acquiredAt"> {
   return {
-    catalogCardId: rollCatalogCardId(),
+    catalogCardId,
     cardQuality: rollCardQuality(),
     specialty: rollSpecialty(),
     foil: rollFoil(),

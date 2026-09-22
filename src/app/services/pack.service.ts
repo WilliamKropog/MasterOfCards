@@ -3,6 +3,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Auth } from '@angular/fire/auth';
 import type { OwnedCard } from '../game/owned-card';
 import { getCardDefinition } from '../game/card-catalog';
+import { getPackDefinition, type PackId } from '../game/pack-catalog';
 
 export type PackOpenPhase = 'idle' | 'pressed' | 'generating' | 'success' | 'error';
 
@@ -13,8 +14,16 @@ export interface PackOpenProgress {
   error: string | null;
 }
 
-type OpenTestPackResponse = {
+type GrantPackResponse = {
   ok: boolean;
+  ownedPackId: string;
+  packId: PackId;
+  name: string;
+};
+
+type OpenOwnedPackResponse = {
+  ok: boolean;
+  packId: PackId;
   packSize: number;
   cards: OwnedCard[];
 };
@@ -32,18 +41,63 @@ export class PackService {
   });
 
   readonly opening = signal(false);
+  readonly granting = signal(false);
+  readonly grantError = signal<string | null>(null);
 
   /**
-   * Opens a prototype pack: server mints 5 random owned cards into the user's
-   * cardCollection subcollection and returns their data.
+   * Grants one sealed Rock Booster Pack into the user's packInventory.
    */
-  async openTestPack(): Promise<void> {
+  async grantRockBoosterPack(): Promise<void> {
+    return this.grantPack('rock-booster');
+  }
+
+  async grantPack(packId: PackId): Promise<void> {
+    if (this.granting()) {
+      return;
+    }
+    if (!this.auth.currentUser) {
+      this.grantError.set('Sign in to receive a pack.');
+      return;
+    }
+
+    this.granting.set(true);
+    this.grantError.set(null);
+    const label = getPackDefinition(packId)?.name ?? packId;
+    console.log(`[Pack] Granting ${label}…`);
+
+    try {
+      const callable = httpsCallable<{ packId: PackId }, GrantPackResponse>(
+        this.functions,
+        'grantPack',
+      );
+      const result = await callable({ packId });
+      console.log(
+        `[Pack] Granted ${result.data?.name ?? label} (${result.data?.ownedPackId}).`,
+      );
+    } catch (error) {
+      const message =
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error &&
+        typeof (error as { message: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'Could not grant pack.';
+      this.grantError.set(message);
+      console.error('[Pack] Grant failed.', message, error);
+    } finally {
+      this.granting.set(false);
+    }
+  }
+
+  /**
+   * Opens one sealed pack from inventory: server consumes it and mints cards.
+   */
+  async openOwnedPack(ownedPackId: string): Promise<void> {
     if (this.opening()) {
       return;
     }
     if (!this.auth.currentUser) {
       const message = 'Sign in to open a pack.';
-      console.warn('[Open Pack]', message);
       this.progress.set({
         phase: 'error',
         message,
@@ -56,11 +110,10 @@ export class PackService {
     this.opening.set(true);
     this.progress.set({
       phase: 'pressed',
-      message: 'Pack requested…',
+      message: 'Opening pack…',
       cards: [],
       error: null,
     });
-    console.log('[Open Pack] Pack requested…');
 
     try {
       this.progress.update((p) => ({
@@ -68,24 +121,25 @@ export class PackService {
         phase: 'generating',
         message: 'Waiting for cards to generate…',
       }));
-      console.log('[Open Pack] Waiting for cards to generate…');
 
-      const callable = httpsCallable<Record<string, never>, OpenTestPackResponse>(
+      const callable = httpsCallable<{ ownedPackId: string }, OpenOwnedPackResponse>(
         this.functions,
-        'openTestPack',
+        'openOwnedPack',
       );
-      const result = await callable({});
+      const result = await callable({ ownedPackId });
       const cards = result.data?.cards ?? [];
+      const packName =
+        getPackDefinition(result.data?.packId ?? '')?.name ?? 'Pack';
 
       this.progress.set({
         phase: 'success',
-        message: `Pack opened — ${cards.length} cards added to your collection.`,
+        message: `${packName} opened — ${cards.length} cards added to your collection.`,
         cards,
         error: null,
       });
 
       console.log(
-        `[Open Pack] Pack opened — ${cards.length} cards added to your collection.`,
+        `[Pack] ${packName} opened — ${cards.length} cards added to your collection.`,
       );
       console.table(
         cards.map((card) => ({
@@ -113,7 +167,7 @@ export class PackService {
         cards: [],
         error: message,
       });
-      console.error('[Open Pack] Pack open failed.', message, error);
+      console.error('[Pack] Open failed.', message, error);
     } finally {
       this.opening.set(false);
     }

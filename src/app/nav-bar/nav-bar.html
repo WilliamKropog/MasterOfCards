@@ -40,11 +40,11 @@
         matButton="filled"
         type="button"
         class="nav-bar-start-btn"
-        aria-label="Open a test pack"
-        [disabled]="!user() || pack.opening()"
-        (click)="onOpenPackClick()"
+        aria-label="Add a Rock Booster Pack to inventory"
+        [disabled]="!user() || pack.granting()"
+        (click)="onGrantRockBoosterClick()"
       >
-        {{ pack.opening() ? 'Opening Pack…' : 'Open Pack' }}
+        {{ pack.granting() ? 'Adding Pack…' : 'Add Rock Booster Pack' }}
       </button>
       <ng-content select="[navStart]"></ng-content>
     </div>
@@ -75,6 +75,9 @@
   <div class="nav-bar-right">
     @if (matchmaking.error()) {
       <p class="nav-bar-error" role="alert">{{ matchmaking.error() }}</p>
+    }
+    @if (pack.grantError(); as grantErr) {
+      <p class="nav-bar-error" role="alert">{{ grantErr }}</p>
     }
     <ng-content select="[navEnd]"></ng-content>
   </div>

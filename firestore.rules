@@ -51,6 +51,12 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
+      // Sealed pack instances. Clients may read; only Cloud Functions (Admin) write.
+      match /packInventory/{ownedPackId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
       // Saved decks (deck-1 / deck-2 / deck-3). Clients may read; only Admin writes.
       match /decks/{deckId} {
         allow read: if isOwner(userId);
