@@ -91,10 +91,11 @@ export class PackService {
 
   /**
    * Opens one sealed pack from inventory: server consumes it and mints cards.
+   * Returns the minted cards on success; throws on failure.
    */
-  async openOwnedPack(ownedPackId: string): Promise<void> {
+  async openOwnedPack(ownedPackId: string): Promise<OwnedCard[]> {
     if (this.opening()) {
-      return;
+      throw new Error('A pack is already opening.');
     }
     if (!this.auth.currentUser) {
       const message = 'Sign in to open a pack.';
@@ -104,7 +105,7 @@ export class PackService {
         cards: [],
         error: message,
       });
-      return;
+      throw new Error(message);
     }
 
     this.opening.set(true);
@@ -153,6 +154,7 @@ export class PackService {
           source: card.source,
         })),
       );
+      return cards;
     } catch (error) {
       const message =
         typeof error === 'object' &&
@@ -168,6 +170,7 @@ export class PackService {
         error: message,
       });
       console.error('[Pack] Open failed.', message, error);
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       this.opening.set(false);
     }
