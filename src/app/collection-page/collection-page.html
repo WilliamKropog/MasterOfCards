@@ -16,7 +16,13 @@
         } @else if (error(); as err) {
           <p class="collection-empty collection-empty--error" role="alert">{{ err }}</p>
         } @else if (packStacks().length === 0) {
-          <p class="collection-empty">No packs yet. Use Add Rock Booster Pack or Add Rock Starter Tin to get one.</p>
+          <p class="collection-empty">
+            @if (showDevPackGrants) {
+              No packs yet. Use Add Rock Booster Pack or Add Rock Starter Tin to get one.
+            } @else {
+              No packs yet.
+            }
+          </p>
         } @else {
           <div class="collection-pack-grid" role="list">
             @for (stack of packStacks(); track stack.packId) {

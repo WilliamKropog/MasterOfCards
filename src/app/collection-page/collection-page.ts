@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { environment } from '../../environments/environment';
 import { getCardDefinition } from '../game/card-catalog';
 import type { OwnedCard } from '../game/owned-card';
 import {
@@ -50,6 +51,9 @@ type RevealedItemView = RevealedCardView | RevealedPackView;
 export class CollectionPage {
   private readonly inventory = inject(PackInventoryService);
   private readonly pack = inject(PackService);
+
+  /** Matches nav-bar: only mention grant buttons when they are available. */
+  protected readonly showDevPackGrants = environment.useEmulators;
 
   protected readonly loading = this.inventory.loading;
   protected readonly error = this.inventory.error;

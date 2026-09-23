@@ -43,8 +43,8 @@ export const PACK_CATALOG: Record<PackId, PackDefinition> = {
     contents: [
       { count: 3, label: 'Common', tone: 'common' },
       { count: 3, label: 'Uncommon', tone: 'uncommon' },
-      { count: 2, label: 'Rare', tone: 'rare' },
-      { count: 1, label: 'Random', tone: 'random' },
+      { count: 1, label: 'Rare', tone: 'rare' },
+      { count: 2, label: 'Random', tone: 'random' },
     ],
   },
   'rock-starter-tin': {
@@ -54,7 +54,7 @@ export const PACK_CATALOG: Record<PackId, PackDefinition> = {
     kind: 'tin',
     shape: 'pentagon',
     contents: [
-      { count: 4, label: 'Rock Booster Pack', tone: 'pack' },
+      { count: 5, label: 'Rock Booster Pack', tone: 'pack' },
       { count: 1, label: 'Foil Random', tone: 'foil' },
     ],
   },

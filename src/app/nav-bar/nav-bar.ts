@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../services/auth.service';
 import { MatchmakingService } from '../services/matchmaking.service';
 import { PackInventoryService } from '../services/pack-inventory.service';
@@ -19,6 +20,9 @@ export class NavBar {
   protected readonly matchmaking = inject(MatchmakingService);
   protected readonly pack = inject(PackService);
   protected readonly packInventory = inject(PackInventoryService);
+
+  /** Dev-only grant buttons (emulator / local testing). Hidden in production builds. */
+  protected readonly showDevPackGrants = environment.useEmulators;
 
   protected readonly user = toSignal(this.auth.user$, { initialValue: null });
 

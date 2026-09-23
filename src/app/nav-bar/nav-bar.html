@@ -36,26 +36,28 @@
           Start Live Game
         </button>
       }
-      <button
-        matButton="filled"
-        type="button"
-        class="nav-bar-start-btn"
-        aria-label="Add a Rock Booster Pack to inventory"
-        [disabled]="!user() || pack.granting()"
-        (click)="onGrantRockBoosterClick()"
-      >
-        {{ pack.granting() ? 'Adding…' : 'Add Rock Booster Pack' }}
-      </button>
-      <button
-        matButton="filled"
-        type="button"
-        class="nav-bar-start-btn"
-        aria-label="Add a Rock Starter Tin to inventory"
-        [disabled]="!user() || pack.granting()"
-        (click)="onGrantRockStarterTinClick()"
-      >
-        {{ pack.granting() ? 'Adding…' : 'Add Rock Starter Tin' }}
-      </button>
+      @if (showDevPackGrants) {
+        <button
+          matButton="filled"
+          type="button"
+          class="nav-bar-start-btn"
+          aria-label="Add a Rock Booster Pack to inventory"
+          [disabled]="!user() || pack.granting()"
+          (click)="onGrantRockBoosterClick()"
+        >
+          {{ pack.granting() ? 'Adding…' : 'Add Rock Booster Pack' }}
+        </button>
+        <button
+          matButton="filled"
+          type="button"
+          class="nav-bar-start-btn"
+          aria-label="Add a Rock Starter Tin to inventory"
+          [disabled]="!user() || pack.granting()"
+          (click)="onGrantRockStarterTinClick()"
+        >
+          {{ pack.granting() ? 'Adding…' : 'Add Rock Starter Tin' }}
+        </button>
+      }
       <ng-content select="[navStart]"></ng-content>
     </div>
     <nav class="nav-bar-links" aria-label="Main">
