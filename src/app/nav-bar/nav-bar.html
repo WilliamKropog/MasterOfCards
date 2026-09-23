@@ -36,6 +36,28 @@
           Start Live Game
         </button>
       }
+      @if (showDevPackGrants) {
+        <button
+          matButton="filled"
+          type="button"
+          class="nav-bar-start-btn"
+          aria-label="Add a Rock Booster Pack to inventory"
+          [disabled]="!user() || pack.granting()"
+          (click)="onGrantRockBoosterClick()"
+        >
+          {{ pack.granting() ? 'Adding…' : 'Add Rock Booster Pack' }}
+        </button>
+        <button
+          matButton="filled"
+          type="button"
+          class="nav-bar-start-btn"
+          aria-label="Add a Rock Starter Tin to inventory"
+          [disabled]="!user() || pack.granting()"
+          (click)="onGrantRockStarterTinClick()"
+        >
+          {{ pack.granting() ? 'Adding…' : 'Add Rock Starter Tin' }}
+        </button>
+      }
       <ng-content select="[navStart]"></ng-content>
     </div>
     <nav class="nav-bar-links" aria-label="Main">
@@ -51,6 +73,18 @@
         class="nav-bar-link"
       >Store</a>
       <a
+        routerLink="/collection"
+        routerLinkActive="nav-bar-link--active"
+        class="nav-bar-link"
+        [class.nav-bar-link--notify]="packInventory.hasUnseenPacks()"
+        (click)="onCollectionNavClick()"
+      >
+        Collection
+        @if (packInventory.hasUnseenPacks()) {
+          <span class="nav-bar-link-dot" aria-hidden="true"></span>
+        }
+      </a>
+      <a
         routerLink="/deck-builder"
         routerLinkActive="nav-bar-link--active"
         class="nav-bar-link"
@@ -60,6 +94,9 @@
   <div class="nav-bar-right">
     @if (matchmaking.error()) {
       <p class="nav-bar-error" role="alert">{{ matchmaking.error() }}</p>
+    }
+    @if (pack.grantError(); as grantErr) {
+      <p class="nav-bar-error" role="alert">{{ grantErr }}</p>
     }
     <ng-content select="[navEnd]"></ng-content>
   </div>

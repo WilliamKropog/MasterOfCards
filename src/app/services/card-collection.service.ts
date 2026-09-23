@@ -1,0 +1,135 @@
+import { Injectable, OnDestroy, inject, signal } from '@angular/core';
+import { Auth, authState } from '@angular/fire/auth';
+import {
+  Firestore,
+  collection,
+  onSnapshot,
+  type Unsubscribe,
+} from '@angular/fire/firestore';
+import { Subscription } from 'rxjs';
+import type { CardArt, CardFoil, OwnedCard } from '../game/owned-card';
+import type { DeckKey } from '../game/user-deck';
+
+/**
+ * Live owned-card instances for the signed-in user's cardCollection.
+ */
+@Injectable({ providedIn: 'root' })
+export class CardCollectionService implements OnDestroy {
+  private readonly firestore = inject(Firestore);
+  private readonly auth = inject(Auth);
+
+  /** All owned card documents (including cards currently assigned to a deck). */
+  readonly ownedCards = signal<readonly OwnedCard[]>([]);
+
+  /** catalogCardId → number of owned instances (all decks included). */
+  readonly ownedCounts = signal<Readonly<Record<string, number>>>({});
+  readonly loading = signal(false);
+  readonly error = signal<string | null>(null);
+
+  private authSub: Subscription | null = null;
+  private collectionUnsub: Unsubscribe | null = null;
+
+  constructor() {
+    this.authSub = authState(this.auth).subscribe((user) => {
+      this.detachCollection();
+      if (!user) {
+        this.ownedCards.set([]);
+        this.ownedCounts.set({});
+        this.loading.set(false);
+        this.error.set(null);
+        return;
+      }
+      this.attachCollection(user.uid);
+    });
+  }
+
+  ownedCount(catalogCardId: string): number {
+    return this.ownedCounts()[catalogCardId] ?? 0;
+  }
+
+  ngOnDestroy(): void {
+    this.authSub?.unsubscribe();
+    this.authSub = null;
+    this.detachCollection();
+  }
+
+  private attachCollection(uid: string): void {
+    this.loading.set(true);
+    this.error.set(null);
+    const colRef = collection(this.firestore, 'users', uid, 'cardCollection');
+    this.collectionUnsub = onSnapshot(
+      colRef,
+      (snap) => {
+        const counts: Record<string, number> = {};
+        const cards: OwnedCard[] = [];
+        for (const docSnap of snap.docs) {
+          const data = docSnap.data();
+          const catalogCardId = data['catalogCardId'];
+          if (typeof catalogCardId !== 'string' || !catalogCardId) {
+            continue;
+          }
+          counts[catalogCardId] = (counts[catalogCardId] ?? 0) + 1;
+          cards.push({
+            ownedCardId: docSnap.id,
+            catalogCardId,
+            cardQuality: typeof data['cardQuality'] === 'number' ? data['cardQuality'] : 0,
+            art: parseArt(data['art'] ?? data['specialty']),
+            foil: parseFoil(data['foil']),
+            skin: parseSkin(data['skin']),
+            source: typeof data['source'] === 'string' ? data['source'] : '',
+            deckId: parseDeckId(data['deckId']),
+          });
+        }
+        this.ownedCards.set(cards);
+        this.ownedCounts.set(counts);
+        this.loading.set(false);
+      },
+      (err) => {
+        this.error.set(err.message || 'Could not load card collection.');
+        this.loading.set(false);
+      },
+    );
+  }
+
+  private detachCollection(): void {
+    if (this.collectionUnsub) {
+      this.collectionUnsub();
+      this.collectionUnsub = null;
+    }
+  }
+}
+
+function parseDeckId(value: unknown): DeckKey | null {
+  if (value === 'deck-1' || value === 'deck-2' || value === 'deck-3') {
+    return value;
+  }
+  return null;
+}
+
+function parseArt(value: unknown): CardArt {
+  if (value === 'Full Art' || value === 'IR' || value === 'SIR' || value === 'default') {
+    return value;
+  }
+  // Legacy specialty values.
+  if (value === 'none' || value === 'Default' || value === 'Hollow' || value === 'Reverse Hollow') {
+    return 'default';
+  }
+  return 'default';
+}
+
+function parseFoil(value: unknown): CardFoil {
+  if (typeof value === 'string' && value) {
+    if (value === 'none') {
+      return 'default';
+    }
+    return value as CardFoil;
+  }
+  return 'default';
+}
+
+function parseSkin(value: unknown): string {
+  if (typeof value !== 'string' || !value || value === 'none') {
+    return 'default';
+  }
+  return value;
+}

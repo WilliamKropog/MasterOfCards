@@ -20,6 +20,11 @@ import {
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
+import {
+  DECK_WEIGHT_MIN_PLAYABLE,
+  getCardDefinition,
+} from '../game/card-catalog';
+import type { UserDeckDoc } from '../game/user-deck';
 
 export interface LiveMatchPlayer {
   uid: string;
@@ -79,6 +84,12 @@ export class MatchmakingService {
       return;
     }
 
+    const deckError = await this.validateActiveDeckForLivePlay(uid);
+    if (deckError) {
+      this.error.set(deckError);
+      return;
+    }
+
     const username = await this.resolveUsername(uid, displayName);
     const queueRef = doc(this.firestore, 'matchmakingQueue', uid);
 
@@ -104,6 +115,58 @@ export class MatchmakingService {
     this.pairTimer = setInterval(() => {
       void this.tryPair(uid, username);
     }, 2000);
+  }
+
+  /**
+   * Requires a saved active deck with at least {@link DECK_WEIGHT_MIN_PLAYABLE} weight.
+   * Returns an error message, or `null` when the player may queue.
+   */
+  private async validateActiveDeckForLivePlay(uid: string): Promise<string | null> {
+    const decksSnap = await getDocs(collection(this.firestore, 'users', uid, 'decks'));
+    const activeDoc = decksSnap.docs.find((snap) => snap.data()?.['isActiveDeck'] === true);
+    if (!activeDoc) {
+      return `Save a deck of at least ${DECK_WEIGHT_MIN_PLAYABLE} weight before starting a live game.`;
+    }
+
+    const data = activeDoc.data() as Partial<UserDeckDoc>;
+    let totalWeight =
+      typeof data.totalWeight === 'number' && Number.isFinite(data.totalWeight)
+        ? data.totalWeight
+        : null;
+
+    if (totalWeight == null) {
+      totalWeight = await this.computeDeckWeightFromOwnedIds(uid, data.ownedCardIds ?? []);
+    }
+
+    if (totalWeight < DECK_WEIGHT_MIN_PLAYABLE) {
+      return `Your active deck needs at least ${DECK_WEIGHT_MIN_PLAYABLE} weight to start a live game (currently ${totalWeight}).`;
+    }
+
+    return null;
+  }
+
+  private async computeDeckWeightFromOwnedIds(
+    uid: string,
+    ownedCardIds: string[],
+  ): Promise<number> {
+    let total = 0;
+    for (const ownedCardId of ownedCardIds) {
+      if (typeof ownedCardId !== 'string' || !ownedCardId) {
+        continue;
+      }
+      const cardSnap = await getDoc(
+        doc(this.firestore, 'users', uid, 'cardCollection', ownedCardId),
+      );
+      if (!cardSnap.exists()) {
+        continue;
+      }
+      const catalogCardId = cardSnap.data()?.['catalogCardId'];
+      if (typeof catalogCardId !== 'string' || !catalogCardId) {
+        continue;
+      }
+      total += getCardDefinition(catalogCardId)?.weight ?? 1;
+    }
+    return total;
   }
 
   async cancelLiveSearch(): Promise<void> {

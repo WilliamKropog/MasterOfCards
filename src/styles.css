@@ -3,3 +3,41 @@
 
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+/* HTML5 drag ghost for Card Collection ↔ Deck Builder (appended to document.body). */
+.deck-card-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  width: 5.5rem;
+  height: 5.5rem;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 2px solid #94a3b8;
+  background-color: #f8fafc;
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  z-index: 10000;
+}
+
+.deck-card-drag-ghost--common {
+  border-color: #94a3b8;
+}
+
+.deck-card-drag-ghost--uncommon {
+  border-color: #22c55e;
+}
+
+.deck-card-drag-ghost--rare {
+  border-color: #3b82f6;
+}
+
+.deck-card-drag-ghost--epic {
+  border-color: #a855f7;
+}
+
+.deck-card-drag-ghost--legendary {
+  border-color: #eab308;
+}

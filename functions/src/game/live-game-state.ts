@@ -59,26 +59,6 @@ export interface LiveGameState {
 
 export const LIVE_STARTING_LIFE_POINTS = 1000;
 export const LIVE_OPENING_HAND_SIZE = 5;
-export const LIVE_DECK_SIZE = 25;
-
-export const LIVE_DECK_CARD_POOL: readonly string[] = [
-  "rock-monster",
-  "mighty-gopher",
-  "boulder-toss",
-  "mud-hut",
-  "mountain-range",
-  "temple-of-being",
-  "armoredillo",
-  "ruptar",
-  "mighty-gopher",
-  "elder-gopher-statue",
-  "rockterrior",
-  "rock-slide",
-  "excavation-site",
-  "earth-shatter",
-  "1000-mile-wall",
-  "king-colossus",
-];
 
 function shuffleInPlace<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -87,17 +67,6 @@ function shuffleInPlace<T>(arr: T[]): void {
     arr[i] = arr[j]!;
     arr[j] = t;
   }
-}
-
-function buildShuffledDeck(): string[] {
-  const deck: string[] = [];
-  for (let i = 0; i < LIVE_DECK_SIZE; i++) {
-    deck.push(
-      LIVE_DECK_CARD_POOL[Math.floor(Math.random() * LIVE_DECK_CARD_POOL.length)]!,
-    );
-  }
-  shuffleInPlace(deck);
-  return deck;
 }
 
 function clearActedFlags(cards: LiveFieldCard[]): LiveFieldCard[] {
@@ -136,11 +105,25 @@ export function stripUndefinedDeep<T>(value: T): T {
   return value;
 }
 
-export function createInitialLiveGameState(): LiveGameState {
-  const deck1 = buildShuffledDeck();
-  const deck2 = buildShuffledDeck();
-  const hand1 = deck1.splice(0, LIVE_OPENING_HAND_SIZE);
-  const hand2 = deck2.splice(0, LIVE_OPENING_HAND_SIZE);
+/**
+ * Builds the opening live board from each player's constructed catalog deck.
+ * Decks are shuffled independently; opening hands are drawn from the top.
+ */
+export function createInitialLiveGameState(
+  player1CatalogDeck: readonly string[],
+  player2CatalogDeck: readonly string[],
+): LiveGameState {
+  if (player1CatalogDeck.length === 0 || player2CatalogDeck.length === 0) {
+    throw new Error("Both players need a non-empty active deck.");
+  }
+
+  const deck1 = [...player1CatalogDeck];
+  const deck2 = [...player2CatalogDeck];
+  shuffleInPlace(deck1);
+  shuffleInPlace(deck2);
+
+  const hand1 = deck1.splice(0, Math.min(LIVE_OPENING_HAND_SIZE, deck1.length));
+  const hand2 = deck2.splice(0, Math.min(LIVE_OPENING_HAND_SIZE, deck2.length));
 
   return {
     version: 1,

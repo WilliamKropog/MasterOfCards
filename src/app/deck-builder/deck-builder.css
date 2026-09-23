@@ -1,0 +1,273 @@
+:host {
+  display: block;
+  min-height: 0;
+  height: 100%;
+}
+
+.deck-builder-panel {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.deck-builder-panel-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 0.5rem;
+}
+
+.deck-builder-panel-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(248, 250, 252, 0.98);
+  transition: color 0.15s ease;
+}
+
+.deck-builder-panel-title--ready {
+  color: rgba(74, 222, 128, 0.98);
+}
+
+.deck-builder-panel-title--full {
+  color: rgba(250, 204, 21, 0.98);
+}
+
+.deck-builder-panel-total {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: rgba(245, 240, 232, 0.7);
+  white-space: nowrap;
+}
+
+.deck-builder-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 0.75rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.deck-builder-tab {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 240, 232, 0.88);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.deck-builder-tab--active {
+  border-color: rgba(230, 200, 74, 0.65);
+  background: rgba(230, 200, 74, 0.14);
+  color: rgba(248, 250, 252, 0.98);
+}
+
+.deck-builder-tab--disabled,
+.deck-builder-tab:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  color: rgba(245, 240, 232, 0.45);
+}
+
+.deck-builder-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.deck-builder-panel-body--drop-target {
+  border-radius: 6px;
+  background-color: rgba(34, 197, 94, 0.06);
+}
+
+.deck-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem 0.65rem;
+}
+
+.deck-builder-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.deck-builder-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 8rem;
+  border-radius: 6px;
+  border: 1px dashed rgba(148, 163, 184, 0.55);
+  background-color: rgba(100, 116, 139, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.deck-builder-box-plus {
+  font-size: 1.75rem;
+  font-weight: 300;
+  line-height: 1;
+  color: rgba(148, 163, 184, 0.7);
+  pointer-events: none;
+  user-select: none;
+}
+
+.deck-builder-box--filled {
+  border-style: solid;
+  border-width: 2px;
+  background-color: #f8fafc;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.deck-builder-slot[draggable='true'] {
+  cursor: grab;
+}
+
+.deck-builder-slot[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.deck-builder-box--common {
+  border-color: #94a3b8;
+}
+
+.deck-builder-box--uncommon {
+  border-color: #22c55e;
+}
+
+.deck-builder-box--rare {
+  border-color: #3b82f6;
+}
+
+.deck-builder-box--epic {
+  border-color: #a855f7;
+}
+
+.deck-builder-box--legendary {
+  border-color: #eab308;
+}
+
+.deck-builder-label {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.25rem 0.35rem;
+  max-width: 100%;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.deck-builder-name {
+  color: rgba(248, 250, 252, 0.95);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.deck-builder-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(230, 200, 74, 0.95);
+}
+
+.deck-builder-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.deck-builder-footer-prompt {
+  margin: 0;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgba(230, 200, 74, 0.95);
+}
+
+.deck-builder-footer-error {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #f0a0a0;
+}
+
+.deck-builder-footer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.deck-builder-action {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0.7rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.deck-builder-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.deck-builder-action--confirm {
+  background: #16a34a;
+  color: #f8fafc;
+}
+
+.deck-builder-action--confirm:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.deck-builder-action--cancel {
+  background: #dc2626;
+  color: #f8fafc;
+}
+
+.deck-builder-action--cancel:hover:not(:disabled) {
+  background: #b91c1c;
+}

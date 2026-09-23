@@ -2,6 +2,7 @@ import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { auth as authV1 } from "firebase-functions/v1";
 import {
   applyAttackToLiveGameState,
   applyCastSpellToLiveGameState,
@@ -17,11 +18,55 @@ import {
   type PlayCardIntent,
   type UseAbilityIntent,
 } from "./game/live-game-state";
+import { PACK_SIZE, generatePackCards } from "./game/pack-open";
+import {
+  generateOpenLoot,
+  isPackId,
+  PACK_CATALOG,
+  type PackId,
+} from "./game/pack-catalog";
+import { LIVE_CARD_RULES } from "./game/card-rules";
 
 initializeApp();
 
 const db = getFirestore();
 db.settings({ ignoreUndefinedProperties: true });
+
+/** Deterministic inventory doc so each new account gets exactly one starter tin. */
+const STARTER_TIN_DOC_ID = "starter-rock-tin";
+const STARTER_TIN_PACK_ID: PackId = "rock-starter-tin";
+
+/**
+ * Every new Auth account receives one sealed Rock Starter Tin.
+ * Uses a fixed doc id so duplicate trigger deliveries do not stack extras.
+ */
+export const onAuthUserCreated = authV1.user().onCreate(async (user) => {
+  const uid = user.uid;
+  const packRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("packInventory")
+    .doc(STARTER_TIN_DOC_ID);
+
+  try {
+    await packRef.create({
+      packId: STARTER_TIN_PACK_ID,
+      status: "sealed",
+      source: "starter-grant",
+      acquiredAt: FieldValue.serverTimestamp(),
+    });
+    logger.info("onAuthUserCreated", {
+      uid,
+      packId: STARTER_TIN_PACK_ID,
+      ownedPackId: STARTER_TIN_DOC_ID,
+    });
+  } catch (error) {
+    logger.info("onAuthUserCreated starter tin already present or skipped", {
+      uid,
+      error,
+    });
+  }
+});
 
 type MatchPlayer = {
   uid: string;
@@ -54,6 +99,93 @@ function seatToSlot(seat: 1 | 2): "player1" | "player2" {
   return seat === 1 ? "player1" : "player2";
 }
 
+/**
+ * Loads a user's active constructed deck as catalog card ids (match draw order source).
+ * Validates min weight and that every owned instance resolves to known rules.
+ */
+async function loadActiveCatalogDeck(uid: string): Promise<string[]> {
+  const decksSnap = await db.collection("users").doc(uid).collection("decks").get();
+  const activeDoc = decksSnap.docs.find((snap) => snap.data()?.isActiveDeck === true);
+  if (!activeDoc) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Both players need a saved active deck to start a live match.",
+    );
+  }
+
+  const ownedCardIdsRaw = activeDoc.data()?.ownedCardIds;
+  if (!Array.isArray(ownedCardIdsRaw) || ownedCardIdsRaw.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Active deck is empty. Save a deck with at least 100 weight.",
+    );
+  }
+
+  const ownedCardIds = ownedCardIdsRaw.filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  if (ownedCardIds.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Active deck is empty. Save a deck with at least 100 weight.",
+    );
+  }
+
+  const collectionRef = db.collection("users").doc(uid).collection("cardCollection");
+  const catalogIds: string[] = [];
+  let totalWeight = 0;
+
+  // Firestore getAll is safest in chunks.
+  const chunkSize = 100;
+  for (let i = 0; i < ownedCardIds.length; i += chunkSize) {
+    const chunk = ownedCardIds.slice(i, i + chunkSize);
+    const refs = chunk.map((id) => collectionRef.doc(id));
+    const snaps = await db.getAll(...refs);
+    for (let j = 0; j < snaps.length; j++) {
+      const cardSnap = snaps[j]!;
+      const ownedCardId = chunk[j]!;
+      if (!cardSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Owned card missing from collection: ${ownedCardId}`,
+        );
+      }
+      const catalogCardId = cardSnap.data()?.catalogCardId;
+      if (typeof catalogCardId !== "string" || !catalogCardId) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Owned card ${ownedCardId} has no catalogCardId.`,
+        );
+      }
+      const rules = LIVE_CARD_RULES[catalogCardId];
+      if (!rules) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Unknown catalog card in deck: ${catalogCardId}`,
+        );
+      }
+      catalogIds.push(catalogCardId);
+      totalWeight += rules.weight;
+    }
+  }
+
+  if (totalWeight < MIN_LIVE_DECK_WEIGHT) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Active deck needs at least ${MIN_LIVE_DECK_WEIGHT} weight (currently ${totalWeight}).`,
+    );
+  }
+
+  if (totalWeight > MAX_DECK_WEIGHT) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Active deck exceeds the maximum of ${MAX_DECK_WEIGHT} weight.`,
+    );
+  }
+
+  return catalogIds;
+}
+
 /** Shared options for Gen2 callables used by the web client. */
 const callableOptions = {
   region: "us-central1",
@@ -63,7 +195,387 @@ const callableOptions = {
 };
 
 /**
+ * Prototype pack open: mints 5 random owned cards into users/{uid}/cardCollection.
+ * Clients may read the subcollection; only Admin/Cloud Functions may write.
+ */
+export const openTestPack = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to open a pack.");
+  }
+
+  const uid = request.auth.uid;
+  const drafts = generatePackCards(PACK_SIZE, "test-pack");
+
+  for (const draft of drafts) {
+    if (!LIVE_CARD_RULES[draft.catalogCardId]) {
+      throw new HttpsError(
+        "internal",
+        `Invalid catalog card id rolled: ${draft.catalogCardId}`,
+      );
+    }
+  }
+
+  const collectionRef = db.collection("users").doc(uid).collection("cardCollection");
+  const batch = db.batch();
+  const created = drafts.map((draft) => {
+    const docRef = collectionRef.doc();
+    const payload = {
+      ...draft,
+      acquiredAt: FieldValue.serverTimestamp(),
+    };
+    batch.set(docRef, payload);
+    return {
+      ownedCardId: docRef.id,
+      catalogCardId: draft.catalogCardId,
+      cardQuality: draft.cardQuality,
+      art: draft.art,
+      foil: draft.foil,
+      skin: draft.skin,
+      source: draft.source,
+    };
+  });
+
+  await batch.commit();
+
+  logger.info("openTestPack", {
+    uid,
+    count: created.length,
+    catalogCardIds: created.map((c) => c.catalogCardId),
+  });
+
+  return {
+    ok: true,
+    packSize: created.length,
+    cards: created,
+  };
+});
+
+/**
+ * Grants one sealed pack into users/{uid}/packInventory.
+ * Dev / prototype grant — Store purchases can reuse the same write shape later.
+ */
+export const grantPack = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to receive a pack.");
+  }
+
+  const uid = request.auth.uid;
+  const packIdRaw = request.data?.packId;
+  if (!isPackId(packIdRaw)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "packId must be a known pack catalog id.",
+    );
+  }
+  const packId: PackId = packIdRaw;
+  const def = PACK_CATALOG[packId];
+
+  const packRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("packInventory")
+    .doc();
+
+  await packRef.set({
+    packId,
+    status: "sealed",
+    source: "dev-grant",
+    acquiredAt: FieldValue.serverTimestamp(),
+  });
+
+  logger.info("grantPack", { uid, packId, ownedPackId: packRef.id });
+
+  return {
+    ok: true,
+    ownedPackId: packRef.id,
+    packId,
+    name: def.name,
+  };
+});
+
+/**
+ * Opens one sealed pack from packInventory: consumes the pack and mints loot
+ * (cards and/or nested sealed packs, e.g. a tin).
+ */
+export const openOwnedPack = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to open a pack.");
+  }
+
+  const uid = request.auth.uid;
+  const ownedPackId =
+    typeof request.data?.ownedPackId === "string"
+      ? request.data.ownedPackId.trim()
+      : "";
+  if (!ownedPackId) {
+    throw new HttpsError("invalid-argument", "ownedPackId is required.");
+  }
+
+  const packRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("packInventory")
+    .doc(ownedPackId);
+  const packSnap = await packRef.get();
+  if (!packSnap.exists) {
+    throw new HttpsError("not-found", "Pack not found in your inventory.");
+  }
+
+  const packData = packSnap.data()!;
+  if (packData.status !== "sealed") {
+    throw new HttpsError("failed-precondition", "This pack is not sealed.");
+  }
+  if (!isPackId(packData.packId)) {
+    throw new HttpsError("failed-precondition", "Pack has an unknown packId.");
+  }
+
+  const packId: PackId = packData.packId;
+  const loot = generateOpenLoot(packId, `${packId}-open`);
+
+  for (const draft of loot.cards) {
+    if (!LIVE_CARD_RULES[draft.catalogCardId]) {
+      throw new HttpsError(
+        "internal",
+        `Invalid catalog card id rolled: ${draft.catalogCardId}`,
+      );
+    }
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const collectionRef = userRef.collection("cardCollection");
+  const inventoryRef = userRef.collection("packInventory");
+  const batch = db.batch();
+  batch.delete(packRef);
+
+  const createdCards = loot.cards.map((draft) => {
+    const docRef = collectionRef.doc();
+    batch.set(docRef, {
+      ...draft,
+      acquiredAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      ownedCardId: docRef.id,
+      catalogCardId: draft.catalogCardId,
+      cardQuality: draft.cardQuality,
+      art: draft.art,
+      foil: draft.foil,
+      skin: draft.skin,
+      source: draft.source,
+    };
+  });
+
+  const grantedPacks: Array<{
+    ownedPackId: string;
+    packId: PackId;
+    name: string;
+  }> = [];
+
+  for (const nested of loot.packs) {
+    for (let i = 0; i < nested.count; i++) {
+      const nestedRef = inventoryRef.doc();
+      batch.set(nestedRef, {
+        packId: nested.packId,
+        status: "sealed",
+        source: `${packId}-open`,
+        acquiredAt: FieldValue.serverTimestamp(),
+      });
+      grantedPacks.push({
+        ownedPackId: nestedRef.id,
+        packId: nested.packId,
+        name: PACK_CATALOG[nested.packId].name,
+      });
+    }
+  }
+
+  await batch.commit();
+
+  logger.info("openOwnedPack", {
+    uid,
+    ownedPackId,
+    packId,
+    cardCount: createdCards.length,
+    grantedPackCount: grantedPacks.length,
+    catalogCardIds: createdCards.map((c) => c.catalogCardId),
+  });
+
+  return {
+    ok: true,
+    packId,
+    packSize: createdCards.length + grantedPacks.length,
+    cards: createdCards,
+    grantedPacks,
+  };
+});
+
+const DECK_KEYS = new Set(["deck-1", "deck-2", "deck-3"]);
+/** Max total catalog weight for a constructed deck (matches client DECK_WEIGHT_CAPACITY). */
+const MAX_DECK_WEIGHT = 200;
+/** Absolute ceiling on card instances (all weight-1 cards). */
+const MAX_DECK_CARD_COUNT = MAX_DECK_WEIGHT;
+/** Minimum active-deck weight required to enter / start a live match. */
+const MIN_LIVE_DECK_WEIGHT = 100;
+
+type DeckKey = "deck-1" | "deck-2" | "deck-3";
+
+/**
+ * Saves a user deck under users/{uid}/decks/{deckKey}.
+ * Assigns owned cards' deckId to this deck, clears deckId for cards removed,
+ * and when isActiveDeck is true, clears the flag on the user's other decks.
+ */
+export const saveUserDeck = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to save a deck.");
+  }
+
+  const uid = request.auth.uid;
+  const deckKey = request.data?.deckKey as string | undefined;
+  const ownedCardIdsRaw = request.data?.ownedCardIds;
+  const isActiveDeck = request.data?.isActiveDeck === true;
+
+  if (!deckKey || !DECK_KEYS.has(deckKey)) {
+    throw new HttpsError("invalid-argument", "deckKey must be deck-1, deck-2, or deck-3.");
+  }
+
+  if (!Array.isArray(ownedCardIdsRaw)) {
+    throw new HttpsError("invalid-argument", "ownedCardIds must be an array.");
+  }
+
+  if (ownedCardIdsRaw.length > MAX_DECK_CARD_COUNT) {
+    throw new HttpsError(
+      "invalid-argument",
+      `A deck may contain at most ${MAX_DECK_CARD_COUNT} cards.`,
+    );
+  }
+
+  const ownedCardIds: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ownedCardIdsRaw) {
+    if (typeof id !== "string" || !id) {
+      throw new HttpsError("invalid-argument", "ownedCardIds must be non-empty strings.");
+    }
+    if (seen.has(id)) {
+      throw new HttpsError("invalid-argument", "Duplicate ownedCardId in deck.");
+    }
+    seen.add(id);
+    ownedCardIds.push(id);
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const collectionRef = userRef.collection("cardCollection");
+  const decksRef = userRef.collection("decks");
+  const deckRef = decksRef.doc(deckKey);
+
+  const previousSnap = await deckRef.get();
+  const previousIds: string[] = Array.isArray(previousSnap.data()?.ownedCardIds)
+    ? (previousSnap.data()!.ownedCardIds as unknown[]).filter(
+        (id): id is string => typeof id === "string",
+      )
+    : [];
+
+  // Validate every requested card exists, is free or already on this deck, and sum weight.
+  let totalWeight = 0;
+  for (const ownedCardId of ownedCardIds) {
+    const cardSnap = await collectionRef.doc(ownedCardId).get();
+    if (!cardSnap.exists) {
+      throw new HttpsError("failed-precondition", `Owned card not found: ${ownedCardId}`);
+    }
+    const data = cardSnap.data()!;
+    const cardDeckId = data.deckId;
+    if (
+      cardDeckId != null &&
+      cardDeckId !== "" &&
+      cardDeckId !== deckKey
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Card ${ownedCardId} is already assigned to ${cardDeckId}.`,
+      );
+    }
+    const catalogCardId = data.catalogCardId;
+    if (typeof catalogCardId !== "string" || !catalogCardId) {
+      throw new HttpsError("failed-precondition", `Card ${ownedCardId} has no catalogCardId.`);
+    }
+    const rules = LIVE_CARD_RULES[catalogCardId];
+    if (!rules) {
+      throw new HttpsError("failed-precondition", `Unknown catalog card: ${catalogCardId}`);
+    }
+    totalWeight += rules.weight;
+  }
+
+  if (totalWeight > MAX_DECK_WEIGHT) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Deck weight ${totalWeight} exceeds the maximum of ${MAX_DECK_WEIGHT}.`,
+    );
+  }
+
+  const batch = db.batch();
+  const nextSet = new Set(ownedCardIds);
+
+  for (const ownedCardId of ownedCardIds) {
+    batch.update(collectionRef.doc(ownedCardId), { deckId: deckKey });
+  }
+  for (const ownedCardId of previousIds) {
+    if (!nextSet.has(ownedCardId)) {
+      batch.update(collectionRef.doc(ownedCardId), { deckId: null });
+    }
+  }
+
+  const deckNames: Record<DeckKey, string> = {
+    "deck-1": "Deck 1",
+    "deck-2": "Deck 2",
+    "deck-3": "Deck 3",
+  };
+
+  batch.set(
+    deckRef,
+    {
+      deckKey,
+      name: deckNames[deckKey as DeckKey],
+      ownedCardIds,
+      totalWeight,
+      isActiveDeck,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  if (isActiveDeck) {
+    for (const otherKey of DECK_KEYS) {
+      if (otherKey === deckKey) {
+        continue;
+      }
+      const otherRef = decksRef.doc(otherKey);
+      const otherSnap = await otherRef.get();
+      if (otherSnap.exists) {
+        batch.update(otherRef, { isActiveDeck: false });
+      }
+    }
+  }
+
+  await batch.commit();
+
+  logger.info("saveUserDeck", {
+    uid,
+    deckKey,
+    count: ownedCardIds.length,
+    totalWeight,
+    removed: previousIds.filter((id) => !nextSet.has(id)).length,
+    isActiveDeck,
+  });
+
+  return {
+    ok: true,
+    deckKey,
+    ownedCardIds,
+    totalWeight,
+    isActiveDeck,
+  };
+});
+
+/**
  * Creates the shared board once per match (idempotent).
+ * Uses each participant's saved active constructed deck (catalog card ids).
  */
 export const initializeLiveMatch = onCall(callableOptions, async (request) => {
   if (!request.auth?.uid) {
@@ -78,21 +590,43 @@ export const initializeLiveMatch = onCall(callableOptions, async (request) => {
   }
 
   const matchRef = db.collection("matches").doc(matchId);
+  const matchSnap = await matchRef.get();
+  if (!matchSnap.exists) {
+    throw new HttpsError("not-found", "Match not found.");
+  }
+
+  const matchPreview = matchSnap.data() as MatchDoc;
+  assertParticipant(matchPreview, uid);
+
+  if (matchPreview.gameState?.gameStarted) {
+    return { ok: true, version: matchPreview.gameState.version };
+  }
+
+  const player1Uid = matchPreview.player1?.uid;
+  const player2Uid = matchPreview.player2?.uid;
+  if (!player1Uid || !player2Uid) {
+    throw new HttpsError("failed-precondition", "Match is missing player seats.");
+  }
+
+  const [deck1, deck2] = await Promise.all([
+    loadActiveCatalogDeck(player1Uid),
+    loadActiveCatalogDeck(player2Uid),
+  ]);
 
   const gameState = await db.runTransaction(async (tx) => {
-    const matchSnap = await tx.get(matchRef);
-    if (!matchSnap.exists) {
+    const matchInTx = await tx.get(matchRef);
+    if (!matchInTx.exists) {
       throw new HttpsError("not-found", "Match not found.");
     }
 
-    const match = matchSnap.data() as MatchDoc;
+    const match = matchInTx.data() as MatchDoc;
     assertParticipant(match, uid);
 
     if (match.gameState?.gameStarted) {
       return match.gameState;
     }
 
-    const initial = stripUndefinedDeep(createInitialLiveGameState());
+    const initial = stripUndefinedDeep(createInitialLiveGameState(deck1, deck2));
     tx.update(matchRef, {
       gameState: initial,
       currentTurn: initial.currentTurn,
@@ -101,7 +635,13 @@ export const initializeLiveMatch = onCall(callableOptions, async (request) => {
     return initial;
   });
 
-  logger.info("initializeLiveMatch", { matchId, uid, version: gameState.version });
+  logger.info("initializeLiveMatch", {
+    matchId,
+    uid,
+    version: gameState.version,
+    player1DeckSize: deck1.length,
+    player2DeckSize: deck2.length,
+  });
   return { ok: true, version: gameState.version };
 });
 

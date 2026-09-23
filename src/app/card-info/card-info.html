@@ -1,0 +1,87 @@
+<section class="card-info-panel" aria-label="Card info">
+  <header class="card-info-panel-header">
+    <h2 class="card-info-panel-title">Card Info</h2>
+  </header>
+
+  <div class="card-info-panel-body">
+    @if (card(); as c) {
+      <article class="card-detail" [attr.aria-label]="c.name">
+        <header class="card-detail-header">
+          <span
+            class="card-detail-element"
+            [attr.title]="c.cardElement"
+            [attr.aria-label]="c.cardElement + ' element'"
+          ></span>
+          <h3 class="card-detail-name">{{ c.name }}</h3>
+          <div class="card-detail-cost" aria-label="Mana cost to play">
+            @for (chip of playCostChips(); track chip.element) {
+              <span class="card-detail-mana" [attr.title]="chip.element">
+                <span class="card-detail-mana-amount">{{ chip.amount }}</span>
+                <span class="card-detail-mana-glyph" aria-hidden="true"></span>
+              </span>
+            }
+          </div>
+        </header>
+
+        <div class="card-detail-art" role="img" [attr.aria-label]="c.name + ' art placeholder'">
+          <div class="card-detail-art-frame"></div>
+          @if (classAttrLine(); as line) {
+            <p class="card-detail-art-caption">{{ line }}</p>
+          }
+        </div>
+
+        <div class="card-detail-body">
+          @if (c.description) {
+            <p class="card-detail-description">{{ c.description }}</p>
+          }
+
+          @if (abilities().length > 0) {
+            <ul class="card-detail-abilities" aria-label="Abilities">
+              @for (ability of abilities(); track ability.id) {
+                <li class="card-detail-ability">
+                  <span class="card-detail-ability-name">{{ ability.name }}</span>
+                  <span
+                    class="card-detail-mana"
+                    [attr.title]="ability.manaElement"
+                    [attr.aria-label]="ability.manaCost + ' ' + ability.manaElement"
+                  >
+                    <span class="card-detail-mana-amount">{{ ability.manaCost }}</span>
+                    <span class="card-detail-mana-glyph" aria-hidden="true"></span>
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <footer class="card-detail-footer">
+          @if (showLandManaFooter()) {
+            <div class="card-detail-footer-mana" aria-label="Mana generated">
+              @for (chip of generateManaChips(); track chip.element) {
+                <span class="card-detail-mana" [attr.title]="chip.element">
+                  <span class="card-detail-mana-amount">{{ chip.amount }}</span>
+                  <span class="card-detail-mana-glyph" aria-hidden="true"></span>
+                </span>
+              }
+            </div>
+          } @else {
+            <div class="card-detail-stat card-detail-stat--health">
+              @if (showHealth()) {
+                <span class="card-detail-stat-icon card-detail-stat-icon--heart" aria-hidden="true">♥</span>
+                <span class="card-detail-stat-value">{{ c.maxHealth }}</span>
+              }
+            </div>
+            <div class="card-detail-stat card-detail-stat--attack">
+              @if (showAttack()) {
+                <span class="card-detail-stat-value">{{ c.attack }}</span>
+                <span class="card-detail-stat-icon card-detail-stat-icon--sword" aria-hidden="true">⚔</span>
+              }
+            </div>
+          }
+        </footer>
+      </article>
+    } @else {
+      <p class="card-info-panel-placeholder">Hover a card to view its details.</p>
+    }
+  </div>
+</section>

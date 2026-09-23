@@ -1,0 +1,97 @@
+<section class="card-collection-panel" aria-label="Card collection">
+  <header class="card-collection-panel-header">
+    <h2 class="card-collection-panel-title">
+      Card Collection ({{ discoveredCount() }}/{{ catalogTotal() }})
+    </h2>
+    <p class="card-collection-panel-total" aria-label="Total owned cards">
+      Total {{ totalOwned() }}
+    </p>
+  </header>
+  <div
+    class="card-collection-panel-body"
+    [class.card-collection-panel-body--drop-target]="isDropTarget()"
+    (dragenter)="onPanelDragEnter($event)"
+    (dragover)="onPanelDragOver($event)"
+    (dragleave)="onPanelDragLeave($event)"
+    (drop)="onPanelDrop($event)"
+  >
+    @if (loading()) {
+      <p class="card-collection-panel-status">Loading collection…</p>
+    } @else if (error(); as err) {
+      <p class="card-collection-panel-status card-collection-panel-status--error" role="alert">
+        {{ err }}
+      </p>
+    }
+
+    <section class="card-collection-section" aria-labelledby="card-collection-discovered-heading">
+      <h3 id="card-collection-discovered-heading" class="card-collection-section-title">
+        Discovered
+      </h3>
+      @if (discoveredSlots().length === 0) {
+        <p class="card-collection-section-empty">No cards discovered yet.</p>
+      } @else {
+        <div class="card-collection-grid" role="list">
+          @for (slot of discoveredSlots(); track slot.catalogCardId) {
+            <div
+              class="card-collection-slot"
+              role="listitem"
+              [attr.draggable]="slot.availableCount > 0"
+              (mouseenter)="onCardHover(slot.catalogCardId)"
+              (dragstart)="onCollectionDragStart($event, slot)"
+              (dragend)="onCollectionDragEnd()"
+            >
+              <div
+                [class]="
+                  'card-collection-box card-collection-box--discovered card-collection-box--' +
+                  slot.rarity.toLowerCase()
+                "
+                [class.card-collection-box--depleted]="slot.availableCount <= 0"
+                [attr.aria-label]="
+                  slot.name +
+                  ', ' +
+                  slot.rarity +
+                  ', ' +
+                  slot.availableCount +
+                  ' available of ' +
+                  slot.ownedCount +
+                  ' owned'
+                "
+              ></div>
+              <p class="card-collection-label">
+                <span class="card-collection-name">{{ slot.name }}</span>
+                <span class="card-collection-count">{{ slot.availableCount }}</span>
+              </p>
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="card-collection-section" aria-labelledby="card-collection-undiscovered-heading">
+      <h3 id="card-collection-undiscovered-heading" class="card-collection-section-title">
+        Undiscovered
+      </h3>
+      @if (undiscoveredSlots().length === 0) {
+        <p class="card-collection-section-empty">All catalog cards discovered.</p>
+      } @else {
+        <div class="card-collection-grid" role="list">
+          @for (slot of undiscoveredSlots(); track slot.catalogCardId) {
+            <div
+              class="card-collection-slot"
+              role="listitem"
+              (mouseenter)="onCardHover(slot.catalogCardId)"
+            >
+              <div
+                [class]="'card-collection-box card-collection-box--' + slot.rarity.toLowerCase()"
+                [attr.aria-label]="slot.name + ', ' + slot.rarity + ', undiscovered'"
+              ></div>
+              <p class="card-collection-label">
+                <span class="card-collection-name">{{ slot.name }}</span>
+              </p>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</section>
