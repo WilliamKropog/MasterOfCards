@@ -7,10 +7,23 @@ import { getPackDefinition, type PackId } from '../game/pack-catalog';
 
 export type PackOpenPhase = 'idle' | 'pressed' | 'generating' | 'success' | 'error';
 
+export interface GrantedPackView {
+  ownedPackId: string;
+  packId: PackId;
+  name: string;
+}
+
+export interface PackOpenResult {
+  packId: PackId;
+  cards: OwnedCard[];
+  grantedPacks: GrantedPackView[];
+}
+
 export interface PackOpenProgress {
   phase: PackOpenPhase;
   message: string;
   cards: OwnedCard[];
+  grantedPacks: GrantedPackView[];
   error: string | null;
 }
 
@@ -26,6 +39,7 @@ type OpenOwnedPackResponse = {
   packId: PackId;
   packSize: number;
   cards: OwnedCard[];
+  grantedPacks?: GrantedPackView[];
 };
 
 @Injectable({ providedIn: 'root' })
@@ -37,6 +51,7 @@ export class PackService {
     phase: 'idle',
     message: '',
     cards: [],
+    grantedPacks: [],
     error: null,
   });
 
@@ -49,6 +64,11 @@ export class PackService {
    */
   async grantRockBoosterPack(): Promise<void> {
     return this.grantPack('rock-booster');
+  }
+
+  /** Grants one sealed Rock Starter Tin into the user's packInventory. */
+  async grantRockStarterTin(): Promise<void> {
+    return this.grantPack('rock-starter-tin');
   }
 
   async grantPack(packId: PackId): Promise<void> {
@@ -90,10 +110,9 @@ export class PackService {
   }
 
   /**
-   * Opens one sealed pack from inventory: server consumes it and mints cards.
-   * Returns the minted cards on success; throws on failure.
+   * Opens one sealed pack from inventory: server consumes it and mints loot.
    */
-  async openOwnedPack(ownedPackId: string): Promise<OwnedCard[]> {
+  async openOwnedPack(ownedPackId: string): Promise<PackOpenResult> {
     if (this.opening()) {
       throw new Error('A pack is already opening.');
     }
@@ -103,6 +122,7 @@ export class PackService {
         phase: 'error',
         message,
         cards: [],
+        grantedPacks: [],
         error: message,
       });
       throw new Error(message);
@@ -113,6 +133,7 @@ export class PackService {
       phase: 'pressed',
       message: 'Opening pack…',
       cards: [],
+      grantedPacks: [],
       error: null,
     });
 
@@ -129,32 +150,36 @@ export class PackService {
       );
       const result = await callable({ ownedPackId });
       const cards = result.data?.cards ?? [];
-      const packName =
-        getPackDefinition(result.data?.packId ?? '')?.name ?? 'Pack';
+      const grantedPacks = result.data?.grantedPacks ?? [];
+      const packId = result.data?.packId ?? ('rock-booster' as PackId);
+      const packName = getPackDefinition(packId)?.name ?? 'Pack';
 
       this.progress.set({
         phase: 'success',
-        message: `${packName} opened — ${cards.length} cards added to your collection.`,
+        message: `${packName} opened — ${cards.length} cards, ${grantedPacks.length} packs.`,
         cards,
+        grantedPacks,
         error: null,
       });
 
       console.log(
-        `[Pack] ${packName} opened — ${cards.length} cards added to your collection.`,
+        `[Pack] ${packName} opened — ${cards.length} cards, ${grantedPacks.length} packs.`,
       );
-      console.table(
-        cards.map((card) => ({
-          ownedCardId: card.ownedCardId,
-          name: this.catalogDisplayName(card.catalogCardId),
-          catalogCardId: card.catalogCardId,
-          cardQuality: card.cardQuality,
-          specialty: card.specialty,
-          foil: card.foil,
-          skin: card.skin,
-          source: card.source,
-        })),
-      );
-      return cards;
+      if (cards.length) {
+        console.table(
+          cards.map((card) => ({
+            ownedCardId: card.ownedCardId,
+            name: this.catalogDisplayName(card.catalogCardId),
+            catalogCardId: card.catalogCardId,
+            cardQuality: card.cardQuality,
+            art: card.art,
+            foil: card.foil,
+            skin: card.skin,
+            source: card.source,
+          })),
+        );
+      }
+      return { packId, cards, grantedPacks };
     } catch (error) {
       const message =
         typeof error === 'object' &&
@@ -167,6 +192,7 @@ export class PackService {
         phase: 'error',
         message: 'Pack open failed.',
         cards: [],
+        grantedPacks: [],
         error: message,
       });
       console.error('[Pack] Open failed.', message, error);
@@ -181,6 +207,7 @@ export class PackService {
       phase: 'idle',
       message: '',
       cards: [],
+      grantedPacks: [],
       error: null,
     });
   }

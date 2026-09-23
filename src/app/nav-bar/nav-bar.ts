@@ -4,6 +4,7 @@ import { MatButton } from '@angular/material/button';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { MatchmakingService } from '../services/matchmaking.service';
+import { PackInventoryService } from '../services/pack-inventory.service';
 import { PackService } from '../services/pack.service';
 
 @Component({
@@ -17,6 +18,7 @@ export class NavBar {
   private readonly auth = inject(AuthService);
   protected readonly matchmaking = inject(MatchmakingService);
   protected readonly pack = inject(PackService);
+  protected readonly packInventory = inject(PackInventoryService);
 
   protected readonly user = toSignal(this.auth.user$, { initialValue: null });
 
@@ -37,5 +39,13 @@ export class NavBar {
 
   protected onGrantRockBoosterClick(): void {
     void this.pack.grantRockBoosterPack();
+  }
+
+  protected onGrantRockStarterTinClick(): void {
+    void this.pack.grantRockStarterTin();
+  }
+
+  protected onCollectionNavClick(): void {
+    this.packInventory.markPacksSeen();
   }
 }

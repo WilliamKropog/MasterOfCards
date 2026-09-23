@@ -7,7 +7,7 @@ import {
   type Unsubscribe,
 } from '@angular/fire/firestore';
 import { Subscription } from 'rxjs';
-import type { CardFoil, CardSpecialty, OwnedCard } from '../game/owned-card';
+import type { CardArt, CardFoil, OwnedCard } from '../game/owned-card';
 import type { DeckKey } from '../game/user-deck';
 
 /**
@@ -73,9 +73,9 @@ export class CardCollectionService implements OnDestroy {
             ownedCardId: docSnap.id,
             catalogCardId,
             cardQuality: typeof data['cardQuality'] === 'number' ? data['cardQuality'] : 0,
-            specialty: (data['specialty'] as CardSpecialty) ?? 'Default',
-            foil: (data['foil'] as CardFoil) ?? 'none',
-            skin: typeof data['skin'] === 'string' ? data['skin'] : 'none',
+            art: parseArt(data['art'] ?? data['specialty']),
+            foil: parseFoil(data['foil']),
+            skin: parseSkin(data['skin']),
             source: typeof data['source'] === 'string' ? data['source'] : '',
             deckId: parseDeckId(data['deckId']),
           });
@@ -104,4 +104,32 @@ function parseDeckId(value: unknown): DeckKey | null {
     return value;
   }
   return null;
+}
+
+function parseArt(value: unknown): CardArt {
+  if (value === 'Full Art' || value === 'IR' || value === 'SIR' || value === 'default') {
+    return value;
+  }
+  // Legacy specialty values.
+  if (value === 'none' || value === 'Default' || value === 'Hollow' || value === 'Reverse Hollow') {
+    return 'default';
+  }
+  return 'default';
+}
+
+function parseFoil(value: unknown): CardFoil {
+  if (typeof value === 'string' && value) {
+    if (value === 'none') {
+      return 'default';
+    }
+    return value as CardFoil;
+  }
+  return 'default';
+}
+
+function parseSkin(value: unknown): string {
+  if (typeof value !== 'string' || !value || value === 'none') {
+    return 'default';
+  }
+  return value;
 }

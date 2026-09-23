@@ -2,6 +2,7 @@ import { initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { auth as authV1 } from "firebase-functions/v1";
 import {
   applyAttackToLiveGameState,
   applyCastSpellToLiveGameState,
@@ -19,7 +20,7 @@ import {
 } from "./game/live-game-state";
 import { PACK_SIZE, generatePackCards } from "./game/pack-open";
 import {
-  generateCardsForPack,
+  generateOpenLoot,
   isPackId,
   PACK_CATALOG,
   type PackId,
@@ -30,6 +31,42 @@ initializeApp();
 
 const db = getFirestore();
 db.settings({ ignoreUndefinedProperties: true });
+
+/** Deterministic inventory doc so each new account gets exactly one starter tin. */
+const STARTER_TIN_DOC_ID = "starter-rock-tin";
+const STARTER_TIN_PACK_ID: PackId = "rock-starter-tin";
+
+/**
+ * Every new Auth account receives one sealed Rock Starter Tin.
+ * Uses a fixed doc id so duplicate trigger deliveries do not stack extras.
+ */
+export const onAuthUserCreated = authV1.user().onCreate(async (user) => {
+  const uid = user.uid;
+  const packRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("packInventory")
+    .doc(STARTER_TIN_DOC_ID);
+
+  try {
+    await packRef.create({
+      packId: STARTER_TIN_PACK_ID,
+      status: "sealed",
+      source: "starter-grant",
+      acquiredAt: FieldValue.serverTimestamp(),
+    });
+    logger.info("onAuthUserCreated", {
+      uid,
+      packId: STARTER_TIN_PACK_ID,
+      ownedPackId: STARTER_TIN_DOC_ID,
+    });
+  } catch (error) {
+    logger.info("onAuthUserCreated starter tin already present or skipped", {
+      uid,
+      error,
+    });
+  }
+});
 
 type MatchPlayer = {
   uid: string;
@@ -191,7 +228,7 @@ export const openTestPack = onCall(callableOptions, async (request) => {
       ownedCardId: docRef.id,
       catalogCardId: draft.catalogCardId,
       cardQuality: draft.cardQuality,
-      specialty: draft.specialty,
+      art: draft.art,
       foil: draft.foil,
       skin: draft.skin,
       source: draft.source,
@@ -257,7 +294,8 @@ export const grantPack = onCall(callableOptions, async (request) => {
 });
 
 /**
- * Opens one sealed pack from packInventory: consumes the pack and mints cards.
+ * Opens one sealed pack from packInventory: consumes the pack and mints loot
+ * (cards and/or nested sealed packs, e.g. a tin).
  */
 export const openOwnedPack = onCall(callableOptions, async (request) => {
   if (!request.auth?.uid) {
@@ -292,9 +330,9 @@ export const openOwnedPack = onCall(callableOptions, async (request) => {
   }
 
   const packId: PackId = packData.packId;
-  const drafts = generateCardsForPack(packId, `${packId}-open`);
+  const loot = generateOpenLoot(packId, `${packId}-open`);
 
-  for (const draft of drafts) {
+  for (const draft of loot.cards) {
     if (!LIVE_CARD_RULES[draft.catalogCardId]) {
       throw new HttpsError(
         "internal",
@@ -303,11 +341,13 @@ export const openOwnedPack = onCall(callableOptions, async (request) => {
     }
   }
 
-  const collectionRef = db.collection("users").doc(uid).collection("cardCollection");
+  const userRef = db.collection("users").doc(uid);
+  const collectionRef = userRef.collection("cardCollection");
+  const inventoryRef = userRef.collection("packInventory");
   const batch = db.batch();
   batch.delete(packRef);
 
-  const created = drafts.map((draft) => {
+  const createdCards = loot.cards.map((draft) => {
     const docRef = collectionRef.doc();
     batch.set(docRef, {
       ...draft,
@@ -317,12 +357,35 @@ export const openOwnedPack = onCall(callableOptions, async (request) => {
       ownedCardId: docRef.id,
       catalogCardId: draft.catalogCardId,
       cardQuality: draft.cardQuality,
-      specialty: draft.specialty,
+      art: draft.art,
       foil: draft.foil,
       skin: draft.skin,
       source: draft.source,
     };
   });
+
+  const grantedPacks: Array<{
+    ownedPackId: string;
+    packId: PackId;
+    name: string;
+  }> = [];
+
+  for (const nested of loot.packs) {
+    for (let i = 0; i < nested.count; i++) {
+      const nestedRef = inventoryRef.doc();
+      batch.set(nestedRef, {
+        packId: nested.packId,
+        status: "sealed",
+        source: `${packId}-open`,
+        acquiredAt: FieldValue.serverTimestamp(),
+      });
+      grantedPacks.push({
+        ownedPackId: nestedRef.id,
+        packId: nested.packId,
+        name: PACK_CATALOG[nested.packId].name,
+      });
+    }
+  }
 
   await batch.commit();
 
@@ -330,15 +393,17 @@ export const openOwnedPack = onCall(callableOptions, async (request) => {
     uid,
     ownedPackId,
     packId,
-    count: created.length,
-    catalogCardIds: created.map((c) => c.catalogCardId),
+    cardCount: createdCards.length,
+    grantedPackCount: grantedPacks.length,
+    catalogCardIds: createdCards.map((c) => c.catalogCardId),
   });
 
   return {
     ok: true,
     packId,
-    packSize: created.length,
-    cards: created,
+    packSize: createdCards.length + grantedPacks.length,
+    cards: createdCards,
+    grantedPacks,
   };
 });
 

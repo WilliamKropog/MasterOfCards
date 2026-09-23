@@ -16,26 +16,47 @@
         } @else if (error(); as err) {
           <p class="collection-empty collection-empty--error" role="alert">{{ err }}</p>
         } @else if (packStacks().length === 0) {
-          <p class="collection-empty">No packs yet. Use Add Rock Booster Pack to get one.</p>
+          <p class="collection-empty">No packs yet. Use Add Rock Booster Pack or Add Rock Starter Tin to get one.</p>
         } @else {
           <div class="collection-pack-grid" role="list">
             @for (stack of packStacks(); track stack.packId) {
-              <button
-                type="button"
-                class="collection-pack-slot"
-                role="listitem"
-                [disabled]="opening() || modalOpen()"
-                [attr.aria-label]="
-                  'Open ' + stack.name + ', ' + stack.count + ' owned'
-                "
-                (click)="onPackClick(stack)"
-              >
-                <div class="collection-pack-box" aria-hidden="true"></div>
-                <p class="collection-pack-label">
-                  <span class="collection-pack-name">{{ stack.name }}</span>
-                  <span class="collection-pack-count">{{ stack.count }}</span>
-                </p>
-              </button>
+              <div class="collection-pack-item" role="listitem">
+                <button
+                  type="button"
+                  class="collection-pack-slot"
+                  [disabled]="opening() || modalOpen()"
+                  [attr.aria-label]="
+                    'Open ' + stack.name + ', ' + stack.count + ' owned'
+                  "
+                  [attr.aria-describedby]="'pack-info-' + stack.packId"
+                  (click)="onPackClick(stack)"
+                >
+                  <div
+                    class="collection-pack-box"
+                    [class.collection-pack-box--pentagon]="stack.shape === 'pentagon'"
+                    aria-hidden="true"
+                  ></div>
+                  <p class="collection-pack-label">
+                    <span class="collection-pack-name">{{ stack.name }}</span>
+                    <span class="collection-pack-count">{{ stack.count }}</span>
+                  </p>
+                </button>
+
+                <aside
+                  class="pack-info-box"
+                  [id]="'pack-info-' + stack.packId"
+                  aria-label="What's included"
+                >
+                  <p class="pack-info-title">What's included:</p>
+                  <ul class="pack-info-list">
+                    @for (line of contentsFor(stack.packId); track line.label) {
+                      <li [class]="'pack-info-line pack-info-line--' + line.tone">
+                        {{ line.count }} {{ line.label }}
+                      </li>
+                    }
+                  </ul>
+                </aside>
+              </div>
             }
           </div>
         }
@@ -63,9 +84,25 @@
       >
         @if (modalPhase() === 'confirm' && modalPack(); as pack) {
           <div class="pack-modal-confirm">
-            <div class="pack-modal-pack">
-              <div class="collection-pack-box pack-modal-pack-box" aria-hidden="true"></div>
-              <p class="pack-modal-pack-name">{{ pack.name }}</p>
+            <div class="pack-modal-confirm-row">
+              <div class="pack-modal-pack">
+                <div
+                  class="collection-pack-box pack-modal-pack-box"
+                  [class.collection-pack-box--pentagon]="pack.shape === 'pentagon'"
+                  aria-hidden="true"
+                ></div>
+                <p class="pack-modal-pack-name">{{ pack.name }}</p>
+              </div>
+              <aside class="pack-modal-contents" aria-label="What's included">
+                <p class="pack-info-title">What's included:</p>
+                <ul class="pack-info-list">
+                  @for (line of contentsFor(pack.packId); track line.label) {
+                    <li [class]="'pack-info-line pack-info-line--' + line.tone">
+                      {{ line.count }} {{ line.label }}
+                    </li>
+                  }
+                </ul>
+              </aside>
             </div>
             <p class="pack-modal-prompt">Are you sure you want to open this pack?</p>
             <div class="pack-modal-actions">
@@ -94,10 +131,16 @@
             <div class="pack-modal-pack pack-modal-pack--ripping">
               <div class="pack-rip-shell" aria-hidden="true">
                 <div class="pack-rip-half pack-rip-half--left">
-                  <div class="collection-pack-box pack-modal-pack-box"></div>
+                  <div
+                    class="collection-pack-box pack-modal-pack-box"
+                    [class.collection-pack-box--pentagon]="pack.shape === 'pentagon'"
+                  ></div>
                 </div>
                 <div class="pack-rip-half pack-rip-half--right">
-                  <div class="collection-pack-box pack-modal-pack-box"></div>
+                  <div
+                    class="collection-pack-box pack-modal-pack-box"
+                    [class.collection-pack-box--pentagon]="pack.shape === 'pentagon'"
+                  ></div>
                 </div>
               </div>
               <p class="pack-modal-pack-name pack-modal-pack-name--fade">{{ pack.name }}</p>
@@ -109,17 +152,50 @@
           <div class="pack-modal-reveal">
             <p class="pack-modal-reveal-title">You received</p>
             <div class="pack-modal-card-row" role="list">
-              @for (card of revealedCards(); track card.ownedCardId) {
-                <div class="pack-modal-card-slot" role="listitem">
-                  <div
-                    [class]="
-                      'pack-modal-card-box pack-modal-card-box--' +
-                      card.rarity.toLowerCase()
-                    "
-                    [attr.aria-hidden]="true"
-                  ></div>
-                  <p class="pack-modal-card-name">{{ card.name }}</p>
-                </div>
+              @for (item of revealedItems(); track trackRevealItem(item)) {
+                @if (item.kind === 'pack') {
+                  <div class="pack-modal-card-slot" role="listitem">
+                    <div
+                      class="collection-pack-box pack-modal-reveal-pack-box"
+                      [class.collection-pack-box--pentagon]="item.shape === 'pentagon'"
+                      aria-hidden="true"
+                    ></div>
+                    <p class="pack-modal-card-name">{{ item.name }}</p>
+                  </div>
+                } @else {
+                  <div class="pack-modal-card-slot" role="listitem">
+                    <div
+                      [class]="
+                        'pack-modal-card-box pack-modal-card-box--' +
+                        item.rarity.toLowerCase()
+                      "
+                    >
+                      @if (item.starCount > 0) {
+                        <div
+                          class="pack-modal-card-stars"
+                          [attr.aria-label]="item.starCount + ' special features'"
+                        >
+                          @for (star of starMarks(item.starCount); track star) {
+                            <span class="pack-modal-card-star">★</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                    <p class="pack-modal-card-name">{{ item.name }}</p>
+                    <aside
+                      class="pack-card-specs"
+                      [attr.aria-label]="'Card specs for ' + item.name"
+                    >
+                      <p class="pack-card-specs-title">Card Specs:</p>
+                      <ul class="pack-card-specs-list">
+                        <li><span class="pack-card-specs-key">Float:</span> {{ item.floatLabel }}</li>
+                        <li><span class="pack-card-specs-key">Foil:</span> {{ item.foilLabel }}</li>
+                        <li><span class="pack-card-specs-key">Art:</span> {{ item.artLabel }}</li>
+                        <li><span class="pack-card-specs-key">Skin:</span> {{ item.skinLabel }}</li>
+                      </ul>
+                    </aside>
+                  </div>
+                }
               }
             </div>
             <div class="pack-modal-actions">

@@ -90,12 +90,21 @@
   max-width: 40rem;
 }
 
+.collection-pack-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
 .collection-pack-slot {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
+  width: 100%;
   margin: 0;
   padding: 0;
   border: none;
@@ -120,6 +129,14 @@
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.collection-pack-box--pentagon {
+  border-radius: 0;
+  border: none;
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+  box-shadow: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 
 .collection-pack-label {
@@ -153,6 +170,128 @@
   color: rgba(245, 240, 232, 0.7);
 }
 
+/* Pack contents hover card */
+.pack-info-box {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  top: 0.35rem;
+  z-index: 8;
+  min-width: 8.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #252a32;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-0.25rem);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+}
+
+.collection-pack-item:hover .pack-info-box,
+.collection-pack-item:focus-within .pack-info-box {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.pack-info-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgba(245, 240, 232, 0.7);
+}
+
+.pack-info-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pack-info-line {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.pack-info-line--common {
+  color: #94a3b8;
+}
+
+.pack-info-line--uncommon {
+  color: #22c55e;
+}
+
+.pack-info-line--rare {
+  color: #3b82f6;
+}
+
+.pack-info-line--epic {
+  color: #a855f7;
+}
+
+.pack-info-line--legendary {
+  color: #eab308;
+}
+
+.pack-info-line--pack {
+  color: #fb923c;
+}
+
+.pack-info-line--foil {
+  background-image: linear-gradient(
+    90deg,
+    #f8fafc,
+    #eab308,
+    #38bdf8,
+    #a855f7,
+    #f8fafc
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: pack-info-rainbow 2.4s linear infinite;
+}
+
+.pack-info-line--random {
+  background-image: linear-gradient(
+    90deg,
+    #ef4444,
+    #eab308,
+    #22c55e,
+    #3b82f6,
+    #a855f7,
+    #ef4444
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: pack-info-rainbow 2.4s linear infinite;
+}
+
+@keyframes pack-info-rainbow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
 .collection-side-nav {
   min-height: 0;
   height: 100%;
@@ -177,7 +316,7 @@
 .pack-modal {
   width: min(56rem, 100%);
   max-height: min(90dvh, 40rem);
-  overflow: auto;
+  overflow: visible;
   padding: 1.5rem 1.25rem 1.25rem;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -196,11 +335,30 @@
   gap: 1rem;
 }
 
+.pack-modal-confirm-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  column-gap: 1.25rem;
+}
+
 .pack-modal-pack {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.45rem;
+}
+
+.pack-modal-contents {
+  grid-column: 3;
+  justify-self: start;
+  min-width: 8.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .pack-modal-pack-box {
@@ -360,6 +518,8 @@
 }
 
 .pack-modal-card-slot {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -367,6 +527,11 @@
   width: 5.5rem;
   min-width: 0;
   animation: pack-card-in 0.35s ease-out both;
+}
+
+.pack-modal-card-slot:hover,
+.pack-modal-card-slot:focus-within {
+  z-index: 30;
 }
 
 .pack-modal-card-slot:nth-child(1) { animation-delay: 0.02s; }
@@ -378,6 +543,72 @@
 .pack-modal-card-slot:nth-child(7) { animation-delay: 0.26s; }
 .pack-modal-card-slot:nth-child(8) { animation-delay: 0.3s; }
 .pack-modal-card-slot:nth-child(9) { animation-delay: 0.34s; }
+
+.pack-card-specs {
+  position: absolute;
+  left: calc(100% + 0.45rem);
+  top: 0;
+  z-index: 40;
+  min-width: 9.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #252a32;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-0.25rem);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+  text-align: left;
+}
+
+.pack-modal-card-slot:hover .pack-card-specs,
+.pack-modal-card-slot:focus-within .pack-card-specs {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+/* Keep tips on-screen for cards near the right edge of the row. */
+.pack-modal-card-slot:nth-last-child(-n+3) .pack-card-specs {
+  left: auto;
+  right: calc(100% + 0.45rem);
+  transform: translateX(0.25rem);
+}
+
+.pack-modal-card-slot:nth-last-child(-n+3):hover .pack-card-specs,
+.pack-modal-card-slot:nth-last-child(-n+3):focus-within .pack-card-specs {
+  transform: translateX(0);
+}
+
+.pack-card-specs-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgba(245, 240, 232, 0.7);
+}
+
+.pack-card-specs-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: rgba(245, 240, 232, 0.9);
+}
+
+.pack-card-specs-key {
+  font-weight: 600;
+  color: rgba(245, 240, 232, 0.62);
+}
 
 @keyframes pack-card-in {
   from {
@@ -391,6 +622,7 @@
 }
 
 .pack-modal-card-box {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 6px;
@@ -399,6 +631,26 @@
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.pack-modal-card-stars {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.pack-modal-card-star {
+  font-size: 1.24rem;
+  color: #eab308;
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, 0.45),
+    0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 .pack-modal-card-box--common {
@@ -419,6 +671,11 @@
 
 .pack-modal-card-box--legendary {
   border-color: #eab308;
+}
+
+.pack-modal-reveal-pack-box {
+  width: 100%;
+  max-width: none;
 }
 
 .pack-modal-card-name {

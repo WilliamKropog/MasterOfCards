@@ -44,7 +44,17 @@
         [disabled]="!user() || pack.granting()"
         (click)="onGrantRockBoosterClick()"
       >
-        {{ pack.granting() ? 'Adding Pack…' : 'Add Rock Booster Pack' }}
+        {{ pack.granting() ? 'Adding…' : 'Add Rock Booster Pack' }}
+      </button>
+      <button
+        matButton="filled"
+        type="button"
+        class="nav-bar-start-btn"
+        aria-label="Add a Rock Starter Tin to inventory"
+        [disabled]="!user() || pack.granting()"
+        (click)="onGrantRockStarterTinClick()"
+      >
+        {{ pack.granting() ? 'Adding…' : 'Add Rock Starter Tin' }}
       </button>
       <ng-content select="[navStart]"></ng-content>
     </div>
@@ -64,7 +74,14 @@
         routerLink="/collection"
         routerLinkActive="nav-bar-link--active"
         class="nav-bar-link"
-      >Collection</a>
+        [class.nav-bar-link--notify]="packInventory.hasUnseenPacks()"
+        (click)="onCollectionNavClick()"
+      >
+        Collection
+        @if (packInventory.hasUnseenPacks()) {
+          <span class="nav-bar-link-dot" aria-hidden="true"></span>
+        }
+      </a>
       <a
         routerLink="/deck-builder"
         routerLinkActive="nav-bar-link--active"
