@@ -63,9 +63,9 @@ export const PACK_CATALOG: Record<PackId, PackDefinition> = {
     guaranteed: [
       { rarity: "Common", count: 3 },
       { rarity: "Uncommon", count: 3 },
-      { rarity: "Rare", count: 2 },
+      { rarity: "Rare", count: 1 },
     ],
-    wildCount: 1,
+    wildCount: 2,
     nestedPacks: [],
     guaranteedFoilCards: 0,
   },
@@ -76,7 +76,7 @@ export const PACK_CATALOG: Record<PackId, PackDefinition> = {
     kind: "tin",
     guaranteed: [],
     wildCount: 0,
-    nestedPacks: [{ packId: "rock-booster", count: 4 }],
+    nestedPacks: [{ packId: "rock-booster", count: 5 }],
     guaranteedFoilCards: 1,
   },
 };

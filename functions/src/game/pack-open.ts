@@ -66,7 +66,7 @@ export const ART_WEIGHTS: ReadonlyArray<{ art: CardArt; weight: number }> = [
 ];
 
 export const FOIL_WEIGHTS: ReadonlyArray<{ foil: CardFoil; weight: number }> = [
-  { foil: "default", weight: 115 },
+  { foil: "default", weight: 300 },
   { foil: "holo rainbow", weight: 3 },
   { foil: "holo sparkle", weight: 2 },
   { foil: "holo diamond", weight: 2 },
