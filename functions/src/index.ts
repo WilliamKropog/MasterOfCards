@@ -36,12 +36,10 @@ db.settings({ ignoreUndefinedProperties: true });
 const STARTER_TIN_DOC_ID = "starter-rock-tin";
 const STARTER_TIN_PACK_ID: PackId = "rock-starter-tin";
 
-/**
- * Every new Auth account receives one sealed Rock Starter Tin.
- * Uses a fixed doc id so duplicate trigger deliveries do not stack extras.
- */
-export const onAuthUserCreated = authV1.user().onCreate(async (user) => {
-  const uid = user.uid;
+async function createStarterTinIfMissing(
+  uid: string,
+  source: string,
+): Promise<"granted" | "skipped"> {
   const packRef = db
     .collection("users")
     .doc(uid)
@@ -52,22 +50,40 @@ export const onAuthUserCreated = authV1.user().onCreate(async (user) => {
     await packRef.create({
       packId: STARTER_TIN_PACK_ID,
       status: "sealed",
-      source: "starter-grant",
+      source,
       acquiredAt: FieldValue.serverTimestamp(),
     });
+    return "granted";
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { code: unknown }).code
+        : undefined;
+    if (code === 6 || code === "already-exists") {
+      return "skipped";
+    }
+    throw error;
+  }
+}
+
+/**
+ * Every new Auth account receives one sealed Rock Starter Tin.
+ * Uses a fixed doc id so duplicate trigger deliveries do not stack extras.
+ */
+export const onAuthUserCreated = authV1.user().onCreate(async (user) => {
+  const uid = user.uid;
+  try {
+    const outcome = await createStarterTinIfMissing(uid, "starter-grant");
     logger.info("onAuthUserCreated", {
       uid,
       packId: STARTER_TIN_PACK_ID,
       ownedPackId: STARTER_TIN_DOC_ID,
+      outcome,
     });
   } catch (error) {
-    logger.info("onAuthUserCreated starter tin already present or skipped", {
-      uid,
-      error,
-    });
+    logger.error("onAuthUserCreated failed", { uid, error });
   }
 });
-
 type MatchPlayer = {
   uid: string;
   username: string;
