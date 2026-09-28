@@ -1,5 +1,5 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Auth, authState } from '@angular/fire/auth';
 import { MatButton } from '@angular/material/button';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -30,6 +30,22 @@ export class GamePage implements OnInit, OnDestroy {
 
   protected readonly title = signal('masterofcards');
   protected readonly liveMatchError = signal('');
+  /** True from the moment a live match route starts until hands are applied or setup fails. */
+  private readonly joiningLiveMatch = signal(false);
+  /** Centered loader while the live match is building each player's opening hand. */
+  protected readonly matchLoading = computed(
+    () => this.joiningLiveMatch() && !this.liveSync.handsReady(),
+  );
+  /** Centered loader text, or null when the table is ready to play. */
+  protected readonly loadingLabel = computed(() => {
+    if (this.matchLoading()) {
+      return 'Loading match';
+    }
+    if (this.liveSync.moveLoading()) {
+      return 'Loading move';
+    }
+    return null;
+  });
 
   private fragmentSub: Subscription | null = null;
 
@@ -49,11 +65,13 @@ export class GamePage implements OnInit, OnDestroy {
     this.liveSync.detach();
 
     if (fragment) {
+      this.joiningLiveMatch.set(true);
       const match = await this.matchmaking.loadMatch(fragment);
       if (!match) {
         this.liveMatchError.set('Live match not found.');
         this.engine.resetMatch();
         this.engine.startGame();
+        this.joiningLiveMatch.set(false);
         return;
       }
 
@@ -93,10 +111,12 @@ export class GamePage implements OnInit, OnDestroy {
             : 'Could not initialize live match.';
         this.liveMatchError.set(message);
         this.engine.startGame();
+        this.joiningLiveMatch.set(false);
       }
       return;
     }
 
+    this.joiningLiveMatch.set(false);
     if (!this.engine.gameStarted()) {
       this.engine.setLivePlayerNames(null, null, null, null);
       this.engine.startGame();

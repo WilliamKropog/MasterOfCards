@@ -43,6 +43,15 @@
   </div>
 </header>
 
+@if (loadingLabel(); as label) {
+  <div class="match-loading" role="status" aria-live="polite" aria-busy="true">
+    <div class="match-loading-box">
+      <span class="match-loading-spinner" aria-hidden="true"></span>
+      <p class="match-loading-text">{{ label }}</p>
+    </div>
+  </div>
+}
+
 <section
   class="battle-layout"
   cdkDropListGroup

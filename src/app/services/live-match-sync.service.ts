@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import {
   Firestore,
   doc,
@@ -77,6 +77,12 @@ export class LiveMatchSyncService {
   private activeMatchId: string | null = null;
   private lastAppliedVersion = -1;
   private submitting = false;
+  private moveLoadingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** True after the first authoritative game state (hands included) is applied. */
+  readonly handsReady = signal(false);
+  /** True while a live card play has been waiting on the server for at least 1s. */
+  readonly moveLoading = signal(false);
 
   /**
    * Ensure shared gameState exists (server-side, idempotent), then listen for updates.
@@ -87,6 +93,7 @@ export class LiveMatchSyncService {
     }
 
     this.detach();
+    this.handsReady.set(false);
     this.activeMatchId = matchId;
     this.lastAppliedVersion = -1;
 
@@ -105,6 +112,7 @@ export class LiveMatchSyncService {
       }
       this.engine.applyLiveGameState(gameState);
       this.lastAppliedVersion = gameState.version ?? 0;
+      this.handsReady.set(true);
     });
   }
 
@@ -115,6 +123,7 @@ export class LiveMatchSyncService {
     }
     this.activeMatchId = null;
     this.lastAppliedVersion = -1;
+    this.handsReady.set(false);
   }
 
   async submitEndTurn(matchId: string): Promise<void> {
@@ -122,7 +131,7 @@ export class LiveMatchSyncService {
   }
 
   async submitPlayCard(matchId: string, play: PlayCardRequest): Promise<void> {
-    await this.submitAction({ matchId, type: 'playCard', ...play });
+    await this.submitAction({ matchId, type: 'playCard', ...play }, { loadingMove: true });
   }
 
   async submitDefend(matchId: string, monsterFieldSlot: number): Promise<void> {
@@ -134,23 +143,44 @@ export class LiveMatchSyncService {
   }
 
   async submitCastSpell(matchId: string, spell: CastSpellRequest): Promise<void> {
-    await this.submitAction({ matchId, type: 'castSpell', ...spell });
+    await this.submitAction({ matchId, type: 'castSpell', ...spell }, { loadingMove: true });
   }
 
   async submitUseAbility(matchId: string, ability: UseAbilityRequest): Promise<void> {
     await this.submitAction({ matchId, type: 'useAbility', ...ability });
   }
 
-  private async submitAction(payload: Record<string, unknown>): Promise<void> {
+  private async submitAction(
+    payload: Record<string, unknown>,
+    options?: { loadingMove?: boolean },
+  ): Promise<void> {
     if (this.submitting) {
       return;
     }
     this.submitting = true;
+    if (options?.loadingMove) {
+      this.clearMoveLoadingTimer();
+      this.moveLoadingTimer = setTimeout(() => {
+        this.moveLoadingTimer = null;
+        this.moveLoading.set(true);
+      }, 1000);
+    }
     try {
       const callable = httpsCallable(this.functions, 'submitMatchAction');
       await callable(payload);
     } finally {
       this.submitting = false;
+      if (options?.loadingMove) {
+        this.clearMoveLoadingTimer();
+        this.moveLoading.set(false);
+      }
+    }
+  }
+
+  private clearMoveLoadingTimer(): void {
+    if (this.moveLoadingTimer !== null) {
+      clearTimeout(this.moveLoadingTimer);
+      this.moveLoadingTimer = null;
     }
   }
 }

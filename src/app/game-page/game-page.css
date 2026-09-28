@@ -115,6 +115,57 @@
   }
 }
 
+.match-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.match-loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 11rem;
+  padding: 1.5rem 1.75rem;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+}
+
+.match-loading-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 3px solid #e2e8f0;
+  border-top-color: #b8860b;
+  animation: match-loading-spin 0.8s linear infinite;
+}
+
+.match-loading-text {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+@keyframes match-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-loading-spinner {
+    animation: none;
+    border-top-color: #b8860b;
+  }
+}
+
 .battle-layout {
   --play-field-height: 32rem;
   --field-row-height: calc(var(--play-field-height) / 4);
