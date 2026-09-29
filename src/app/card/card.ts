@@ -92,6 +92,9 @@ export class Card {
     return this.engine.getFieldEntry(rowSlot, zone, idx) ?? null;
   });
 
+  /** True while this field card is held for the destruction shatter. */
+  protected readonly isBreaking = computed(() => this.fieldEntry()?.pendingDestruction === true);
+
   /** Floating damage text shown on this card (slides up, then cleared). */
   protected readonly floatingDamage = signal<{ amount: number; blocked: boolean } | null>(null);
   private floatingDamageTimer: ReturnType<typeof setTimeout> | null = null;

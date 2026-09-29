@@ -57,7 +57,7 @@ export interface LiveGameState {
   nextFieldInstanceId: number;
 }
 
-export const LIVE_STARTING_LIFE_POINTS = 1000;
+export const LIVE_STARTING_LIFE_POINTS = 500;
 export const LIVE_OPENING_HAND_SIZE = 5;
 
 function shuffleInPlace<T>(arr: T[]): void {
@@ -1264,6 +1264,11 @@ export type UseAbilityIntent =
       defenderIdentifier: number;
     }
   | {
+      abilityId: 'tail-smash';
+      casterMonsterSlot: number;
+      defenderPlayerSlot: FieldPlayerSlot;
+    }
+  | {
       abilityId: 'praise';
       landRowSlot: FieldPlayerSlot;
       landIndex: number;
@@ -1323,6 +1328,43 @@ export function applyUseAbilityToLiveGameState(
       return null;
     }
 
+    const pool =
+      controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
+    const spent = spendMana(pool, { Rock: 3 });
+    if (spent === null) {
+      return null;
+    }
+
+    const next = cloneBoard(state);
+    if (controllerSlot === 'player1') {
+      next.player1ManaPool = spent;
+    } else {
+      next.player2ManaPool = spent;
+    }
+
+    const liveCaster = getMonsterBySlot(next, controllerSlot, intent.casterMonsterSlot);
+    if (!liveCaster) {
+      return null;
+    }
+    setFieldEntry(next, controllerSlot, 'monster', intent.casterMonsterSlot, {
+      ...liveCaster,
+      hasActedThisTurn: true,
+      usedAbilities: [...(liveCaster.usedAbilities ?? []), 'tail-smash'],
+    });
+
+    if ('defenderPlayerSlot' in intent) {
+      const enemy: FieldPlayerSlot = controllerSlot === 'player1' ? 'player2' : 'player1';
+      if (intent.defenderPlayerSlot !== enemy) {
+        return null;
+      }
+      if (intent.defenderPlayerSlot === 'player1') {
+        next.player1LifePoints = Math.max(0, next.player1LifePoints - 80);
+      } else {
+        next.player2LifePoints = Math.max(0, next.player2LifePoints - 80);
+      }
+      return next;
+    }
+
     const defenderEntry = getFieldEntry(
       state,
       intent.defenderRowSlot,
@@ -1340,23 +1382,9 @@ export function applyUseAbilityToLiveGameState(
       return null;
     }
 
-    const pool =
-      controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
-    const spent = spendMana(pool, { Rock: 3 });
-    if (spent === null) {
-      return null;
-    }
-
     const defenderRules = getLiveCardRules(defenderEntry.cardId);
     if (!defenderRules) {
       return null;
-    }
-
-    const next = cloneBoard(state);
-    if (controllerSlot === 'player1') {
-      next.player1ManaPool = spent;
-    } else {
-      next.player2ManaPool = spent;
     }
 
     const liveDefender = getFieldEntry(
@@ -1365,18 +1393,12 @@ export function applyUseAbilityToLiveGameState(
       intent.defenderZone,
       intent.defenderIdentifier,
     );
-    const liveCaster = getMonsterBySlot(next, controllerSlot, intent.casterMonsterSlot);
-    if (!liveDefender || !liveCaster) {
+    if (!liveDefender) {
       return null;
     }
 
     const amount = defenderRules.cardElement === 'Ice' ? 160 : 80;
     const defenderAfter = applyIncomingFieldDamage(liveDefender, amount, defenderRules);
-    setFieldEntry(next, controllerSlot, 'monster', intent.casterMonsterSlot, {
-      ...liveCaster,
-      hasActedThisTurn: true,
-      usedAbilities: [...(liveCaster.usedAbilities ?? []), 'tail-smash'],
-    });
     setFieldEntry(
       next,
       intent.defenderRowSlot,

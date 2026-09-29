@@ -35,6 +35,11 @@
   white-space: nowrap;
 }
 
+.player-hand-info:has(.player-hand-lp-damage) {
+  position: relative;
+  z-index: 2000;
+}
+
 .player-hand-title {
   margin: 0;
   font-size: 1rem;
@@ -56,8 +61,9 @@
   left: 100%;
   top: 0;
   margin-left: 0.5rem;
+  z-index: 2000;
   color: rgba(220, 38, 38, 1);
-  font-size: 0.85rem;
+  font-size: 1.275rem;
   font-weight: 800;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   pointer-events: none;

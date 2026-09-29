@@ -116,13 +116,19 @@ export class PlayerHand {
   );
 
   /**
-   * Red border: this hand (life points) can be attacked by the opponent’s monster whenever the
-   * enemy has **no defending monsters**. If any defending monster exists, attacks must target
-   * those monsters first.
+   * Red border: this hand (life points) can be attacked, or is a Tail Smash target.
    */
   protected readonly attackModeEligibleEnemyHand = computed(() => {
     if (!this.engine.gameStarted()) {
       return false;
+    }
+    const abilityMode = this.engine.abilityTargetMode();
+    if (abilityMode?.abilityId === 'tail-smash') {
+      if (!this.engine.canLocalPlayerActWithSlot(abilityMode.casterSlot)) {
+        return false;
+      }
+      const enemy: PlayerSlot = abilityMode.casterSlot === 'player1' ? 'player2' : 'player1';
+      return this.playerSlot() === enemy;
     }
     const mode = this.engine.attackMode();
     if (!mode || !this.engine.canLocalPlayerActWithSlot(mode.attackerSlot)) {
@@ -134,7 +140,9 @@ export class PlayerHand {
     }
     const enemyMonsterArr =
       enemy === 'player1' ? this.engine.player1FieldMonster() : this.engine.player2FieldMonster();
-    const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
+    const hasDefendingEnemy = enemyMonsterArr.some(
+      (e) => e.defending === true && !e.pendingDestruction,
+    );
     return !hasDefendingEnemy;
   });
 
@@ -232,6 +240,25 @@ export class PlayerHand {
 
   protected onEnemyHandAttackClick(event: MouseEvent): void {
     if (!this.attackModeEligibleEnemyHand()) {
+      return;
+    }
+    const abilityMode = this.engine.abilityTargetMode();
+    if (abilityMode?.abilityId === 'tail-smash') {
+      if (!this.engine.canLocalPlayerActWithSlot(abilityMode.casterSlot)) {
+        return;
+      }
+      event.stopPropagation();
+      const matchId = this.engine.liveMatchId();
+      if (matchId) {
+        void this.liveSync.submitUseAbility(matchId, {
+          abilityId: 'tail-smash',
+          casterMonsterSlot: abilityMode.casterMonsterSlot,
+          defenderPlayerSlot: this.playerSlot(),
+        });
+        this.engine.cancelAbilityTargetMode();
+        return;
+      }
+      this.engine.resolveTailSmashOnEnemyLife(this.playerSlot());
       return;
     }
     const mode = this.engine.attackMode();

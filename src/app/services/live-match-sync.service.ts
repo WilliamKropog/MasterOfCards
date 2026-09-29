@@ -62,6 +62,11 @@ export type UseAbilityRequest =
       defenderIdentifier: number;
     }
   | {
+      abilityId: 'tail-smash';
+      casterMonsterSlot: number;
+      defenderPlayerSlot: PlayerSlot;
+    }
+  | {
       abilityId: 'praise';
       landRowSlot: PlayerSlot;
       landIndex: number;

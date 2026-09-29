@@ -413,6 +413,168 @@
   transform: rotate(-90deg);
 }
 
+/** Destruction: the face cracks apart during the 1s hold, then the card is removed. */
+.card.card--field.card--breaking {
+  pointer-events: none;
+  animation: card-shell-fade 1s ease-in forwards;
+}
+
+.card.card--field.card--breaking .card-field-main,
+.card.card--field.card--breaking .card-field-actions {
+  animation: card-face-shatter 1s ease-in forwards;
+}
+
+.card-shatter {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.card-shatter-piece {
+  position: absolute;
+  background: linear-gradient(160deg, #fff 0%, #f4efe4 55%, #d9cbb6 100%);
+  border: 1px solid rgba(92, 64, 40, 0.55);
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  animation: card-shard-fly 0.82s cubic-bezier(0.2, 0.65, 0.3, 1) 0.18s forwards;
+}
+
+.card-shatter-piece--1 {
+  top: 0;
+  left: 0;
+  width: 52%;
+  height: 38%;
+  clip-path: polygon(0 0, 100% 10%, 72% 100%, 0 82%);
+  --dx: -34px;
+  --dy: -30px;
+  --spin: -32deg;
+}
+
+.card-shatter-piece--2 {
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 42%;
+  clip-path: polygon(18% 0, 100% 0, 100% 78%, 0 100%);
+  --dx: 36px;
+  --dy: -26px;
+  --spin: 30deg;
+}
+
+.card-shatter-piece--3 {
+  top: 32%;
+  left: 4%;
+  width: 46%;
+  height: 34%;
+  clip-path: polygon(0 18%, 88% 0, 100% 100%, 8% 86%);
+  --dx: -40px;
+  --dy: 8px;
+  --spin: -18deg;
+}
+
+.card-shatter-piece--4 {
+  top: 36%;
+  right: 2%;
+  width: 48%;
+  height: 32%;
+  clip-path: polygon(12% 0, 100% 14%, 92% 100%, 0 78%);
+  --dx: 38px;
+  --dy: 10px;
+  --spin: 22deg;
+}
+
+.card-shatter-piece--5 {
+  bottom: 0;
+  left: 8%;
+  width: 84%;
+  height: 36%;
+  clip-path: polygon(8% 0, 92% 12%, 100% 100%, 0 100%);
+  --dx: 6px;
+  --dy: 36px;
+  --spin: 14deg;
+}
+
+@keyframes card-shell-fade {
+  0%,
+  18% {
+    border-color: #ccc;
+  }
+
+  100% {
+    border-color: transparent;
+  }
+}
+
+@keyframes card-face-shatter {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform: translate(0, 0);
+  }
+
+  10% {
+    transform: translate(-1px, 1px);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(1px, -1px);
+  }
+
+  36% {
+    opacity: 0;
+    filter: contrast(1.15);
+    transform: scale(0.98);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes card-shard-fly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  55% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--spin));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.card--field.card--breaking,
+  .card.card--field.card--breaking .card-field-main,
+  .card.card--field.card--breaking .card-field-actions,
+  .card-shatter-piece {
+    animation: card-break-fade 1s linear forwards;
+  }
+}
+
+@keyframes card-break-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card.card--field {
     transition-duration: 0.01ms;
@@ -590,9 +752,9 @@
   top: 25%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 50;
+  z-index: 80;
   color: rgba(220, 38, 38, 1);
-  font-size: 1.1rem;
+  font-size: 1.65rem;
   font-weight: 800;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   pointer-events: none;
@@ -610,8 +772,8 @@
   top: 25%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 50;
-  font-size: 1rem;
+  z-index: 80;
+  font-size: 1.5rem;
   font-weight: 800;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   pointer-events: none;
@@ -629,7 +791,7 @@
 
 .card-floating-action--excavated {
   color: rgba(180, 140, 60, 1);
-  font-size: 0.85rem;
+  font-size: 1.275rem;
   max-width: 95%;
   white-space: normal;
   text-align: center;
@@ -638,7 +800,7 @@
 
 .card-floating-action--wall-shielding {
   color: rgba(148, 163, 184, 1);
-  font-size: 0.9rem;
+  font-size: 1.35rem;
   font-weight: 700;
 }
 
@@ -647,7 +809,7 @@
   top: 12%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 50;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -666,7 +828,7 @@
 }
 
 .card-floating-action--mana-generated {
-  font-size: 0.8rem;
+  font-size: 1.2rem;
   white-space: nowrap;
   font-weight: 800;
 }

@@ -45,7 +45,7 @@ export interface LiveGameState {
   nextFieldInstanceId: number;
 }
 
-export const LIVE_STARTING_LIFE_POINTS = 1000;
+export const LIVE_STARTING_LIFE_POINTS = 500;
 export const LIVE_OPENING_HAND_SIZE = 5;
 export const LIVE_DECK_SIZE = 25;
 

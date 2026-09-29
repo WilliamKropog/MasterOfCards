@@ -897,25 +897,40 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
           typeof data.casterMonsterSlot === "number"
             ? data.casterMonsterSlot
             : -1;
-        if (
-          casterMonsterSlot < 1 ||
-          (data.defenderRowSlot !== "player1" &&
-            data.defenderRowSlot !== "player2") ||
-          (data.defenderZone !== "monster" && data.defenderZone !== "land") ||
-          typeof data.defenderIdentifier !== "number"
-        ) {
+        if (casterMonsterSlot < 1) {
           throw new HttpsError(
             "invalid-argument",
-            "tail-smash requires caster and field target.",
+            "tail-smash requires casterMonsterSlot.",
           );
         }
-        intent = {
-          abilityId: "tail-smash",
-          casterMonsterSlot,
-          defenderRowSlot: data.defenderRowSlot,
-          defenderZone: data.defenderZone,
-          defenderIdentifier: data.defenderIdentifier,
-        };
+        if (
+          data.defenderPlayerSlot === "player1" ||
+          data.defenderPlayerSlot === "player2"
+        ) {
+          intent = {
+            abilityId: "tail-smash",
+            casterMonsterSlot,
+            defenderPlayerSlot: data.defenderPlayerSlot,
+          };
+        } else if (
+          (data.defenderRowSlot === "player1" ||
+            data.defenderRowSlot === "player2") &&
+          (data.defenderZone === "monster" || data.defenderZone === "land") &&
+          typeof data.defenderIdentifier === "number"
+        ) {
+          intent = {
+            abilityId: "tail-smash",
+            casterMonsterSlot,
+            defenderRowSlot: data.defenderRowSlot,
+            defenderZone: data.defenderZone,
+            defenderIdentifier: data.defenderIdentifier,
+          };
+        } else {
+          throw new HttpsError(
+            "invalid-argument",
+            "tail-smash requires a field target or the opponent's life points.",
+          );
+        }
       } else if (abilityId === "praise") {
         if (
           (data.landRowSlot !== "player1" && data.landRowSlot !== "player2") ||

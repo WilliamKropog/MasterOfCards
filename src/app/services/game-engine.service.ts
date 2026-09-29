@@ -35,7 +35,7 @@ import type { LiveGameState } from '../game/live-game-state';
 export type PlayerId = 1 | 2;
 
 /** Starting life total per player (win condition: reduce opponent to 0). */
-export const STARTING_LIFE_POINTS = 1000;
+export const STARTING_LIFE_POINTS = 500;
 
 /** Maximum land capacity per player (displayed as current / max). */
 export const MAX_LAND_CAPACITY = 6;
@@ -88,6 +88,8 @@ export interface FieldCardEntry {
   praiseBonusRock?: number;
   /** Ability ids already used this match (e.g. one-time Tail Smash). */
   usedAbilities?: string[];
+  /** Kept briefly so the damage float can show before the card is removed. */
+  pendingDestruction?: boolean;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -186,6 +188,7 @@ export interface PendingPlacement {
 })
 export class GameEngineService {
   private nextFieldInstanceId = 1;
+  private readonly destructionTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
   /** True after `startGame()` has been called for this session. */
   readonly gameStarted = signal(false);
@@ -326,6 +329,20 @@ export class GameEngineService {
 
   /** Replace local engine signals from authoritative live match gameState. */
   applyLiveGameState(state: LiveGameState): void {
+    const previous = this.gameStarted()
+      ? {
+          currentTurn: this.currentTurn(),
+          player1LifePoints: this.player1LifePoints(),
+          player2LifePoints: this.player2LifePoints(),
+          player1FieldLand: this.player1FieldLand(),
+          player1FieldMonster: this.player1FieldMonster(),
+          player2FieldLand: this.player2FieldLand(),
+          player2FieldMonster: this.player2FieldMonster(),
+          player1ManaPool: { ...this.player1ManaPool() },
+          player2ManaPool: { ...this.player2ManaPool() },
+        }
+      : null;
+
     this.gameStarted.set(!!state.gameStarted);
     this.currentTurn.set(state.currentTurn);
     this.activePlayer.set(state.activePlayer);
@@ -338,10 +355,38 @@ export class GameEngineService {
     this.player2Hand.set([...state.player2Hand]);
     this.player1Deck.set([...state.player1Deck]);
     this.player2Deck.set([...state.player2Deck]);
-    this.player1FieldLand.set(structuredClone(state.player1FieldLand) as FieldCardEntry[]);
-    this.player1FieldMonster.set(structuredClone(state.player1FieldMonster) as FieldCardEntry[]);
-    this.player2FieldLand.set(structuredClone(state.player2FieldLand) as FieldCardEntry[]);
-    this.player2FieldMonster.set(structuredClone(state.player2FieldMonster) as FieldCardEntry[]);
+    this.player1FieldLand.set(
+      this.retainDoomedFieldCards(
+        previous?.player1FieldLand,
+        structuredClone(state.player1FieldLand) as FieldCardEntry[],
+        'land',
+        'player1',
+      ),
+    );
+    this.player1FieldMonster.set(
+      this.retainDoomedFieldCards(
+        previous?.player1FieldMonster,
+        structuredClone(state.player1FieldMonster) as FieldCardEntry[],
+        'monster',
+        'player1',
+      ),
+    );
+    this.player2FieldLand.set(
+      this.retainDoomedFieldCards(
+        previous?.player2FieldLand,
+        structuredClone(state.player2FieldLand) as FieldCardEntry[],
+        'land',
+        'player2',
+      ),
+    );
+    this.player2FieldMonster.set(
+      this.retainDoomedFieldCards(
+        previous?.player2FieldMonster,
+        structuredClone(state.player2FieldMonster) as FieldCardEntry[],
+        'monster',
+        'player2',
+      ),
+    );
     this.player1ManaPool.set({ ...state.player1ManaPool });
     this.player2ManaPool.set({ ...state.player2ManaPool });
     this.placedFreeFieldCardThisTurn.set(!!state.placedFreeFieldCardThisTurn);
@@ -361,11 +406,11 @@ export class GameEngineService {
     } else {
       this.attackMode.set(null);
     }
-  }
 
-  /**
-   * Mana available this turn (refilled from lands at turn start; spent on spells, abilities, and plays).
-   */
+    if (previous && state.gameStarted) {
+      this.queueLiveMatchIndicators(previous, state);
+    }
+  }
   readonly player1ManaPool = signal<ManaGenerationMap>({});
   readonly player2ManaPool = signal<ManaGenerationMap>({});
 
@@ -578,7 +623,12 @@ export class GameEngineService {
    * Lands with no `buildTime` add their `generateMana` to the placer's pool as soon as they hit the field.
    * Lands still building only contribute on later turn refreshes. Amounts are capped by active maxMana.
    */
-  grantImmediateManaFromPlacedLand(controllerSlot: FieldPlayerSlot, cardId: string): void {
+  grantImmediateManaFromPlacedLand(
+    controllerSlot: FieldPlayerSlot,
+    cardId: string,
+    rowSlot: FieldPlayerSlot,
+    landIndex: number,
+  ): void {
     const def = getCardDefinition(cardId);
     if (!def || def.cardType !== 'Land' || !def.generateMana) {
       return;
@@ -593,6 +643,27 @@ export class GameEngineService {
     } else {
       this.player2ManaPool.set(next);
     }
+
+    const manaParts = Object.entries(def.generateMana)
+      .map(([element, catalogAmount]) => ({
+        element,
+        amount: Math.min(catalogAmount ?? 0, (next[element] ?? 0) - (pool[element] ?? 0)),
+      }))
+      .filter((part) => part.amount > 0)
+      .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
+    if (manaParts.length === 0) {
+      return;
+    }
+    // Wait until the new land card is mounted so it can show the float.
+    setTimeout(() => {
+      this.emitActionFeedback({
+        playerSlot: rowSlot,
+        zone: 'land',
+        identifier: landIndex,
+        kind: 'mana-generated',
+        manaParts,
+      });
+    }, 0);
   }
 
   /** Mana generated per turn from lands this player controls. */
@@ -614,11 +685,17 @@ export class GameEngineService {
   private controlledLandManaEntries(controller: FieldPlayerSlot): FieldCardEntry[] {
     const entries: FieldCardEntry[] = [];
     for (const entry of this.player1FieldLand()) {
+      if (entry.pendingDestruction) {
+        continue;
+      }
       if ((entry.controllerSlot ?? 'player1') === controller) {
         entries.push(entry);
       }
     }
     for (const entry of this.player2FieldLand()) {
+      if (entry.pendingDestruction) {
+        continue;
+      }
       if ((entry.controllerSlot ?? 'player2') === controller) {
         entries.push(entry);
       }
@@ -640,6 +717,9 @@ export class GameEngineService {
   landCapacityUsed(player: FieldPlayerSlot): number {
     let total = 0;
     for (const entry of this.player1FieldLand()) {
+      if (entry.pendingDestruction) {
+        continue;
+      }
       const def = getCardDefinition(entry.cardId);
       const space = effectiveLandSpace(def);
       if (space <= 0) {
@@ -651,6 +731,9 @@ export class GameEngineService {
       }
     }
     for (const entry of this.player2FieldLand()) {
+      if (entry.pendingDestruction) {
+        continue;
+      }
       const def = getCardDefinition(entry.cardId);
       const space = effectiveLandSpace(def);
       if (space <= 0) {
@@ -685,7 +768,7 @@ export class GameEngineService {
 
   /** Monster can attack, defend, or use activated abilities on the owner's turn. */
   private canMonsterAct(ownerSlot: FieldPlayerSlot, entry: FieldCardEntry): boolean {
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || entry.pendingDestruction) {
       return false;
     }
     const turn = this.currentTurn();
@@ -716,7 +799,7 @@ export class GameEngineService {
 
   /** True when this monster may perform another attack this turn (honors `multiAttack`). */
   private canMonsterAttack(ownerSlot: FieldPlayerSlot, entry: FieldCardEntry): boolean {
-    if (!this.gameStarted()) {
+    if (!this.gameStarted() || entry.pendingDestruction) {
       return false;
     }
     const turn = this.currentTurn();
@@ -935,7 +1018,7 @@ export class GameEngineService {
     casterSlot: FieldPlayerSlot,
   ): boolean {
     const entry = this.getFieldEntry(rowSlot, zone, identifier);
-    if (!entry) {
+    if (!entry || entry.pendingDestruction) {
       return false;
     }
     if (entry.spellImmune === true) {
@@ -1019,6 +1102,57 @@ export class GameEngineService {
     this.attackMode.set(null);
     this.applyFieldEntry(casterSlot, 'monster', casterMonsterSlot, casterResult);
     this.applyFieldEntry(defenderSlot, defenderZone, defenderIndex, defenderResult);
+    return true;
+  }
+
+  /**
+   * Resolve Tail Smash onto the opponent's life points.
+   * Deals 80 damage. Spends 3 Rock, consumes the monster's turn, one-time use.
+   */
+  resolveTailSmashOnEnemyLife(defenderPlayerSlot: FieldPlayerSlot): boolean {
+    const mode = this.abilityTargetMode();
+    if (!mode || mode.abilityId !== 'tail-smash' || !this.gameStarted()) {
+      return false;
+    }
+    const casterSlot = mode.casterSlot;
+    const enemy: FieldPlayerSlot = casterSlot === 'player1' ? 'player2' : 'player1';
+    if (defenderPlayerSlot !== enemy || !this.canLocalPlayerActWithSlot(casterSlot)) {
+      return false;
+    }
+
+    const casterMonsterSlot = mode.casterMonsterSlot;
+    const casterEntry = this.getMonsterBySlot(casterSlot, casterMonsterSlot);
+    if (!casterEntry || casterEntry.cardId !== CardIds.rockterrior) {
+      return false;
+    }
+    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
+      return false;
+    }
+    if (!this.canMonsterAct(casterSlot, casterEntry)) {
+      return false;
+    }
+
+    const tailSmashCost: ManaCostMap = { Rock: 3 };
+    if (!this.trySpendMana(casterSlot, tailSmashCost)) {
+      return false;
+    }
+
+    const amount = 80;
+    const applyLp = (current: number) => Math.max(0, current - amount);
+    if (enemy === 'player1') {
+      this.player1LifePoints.update(applyLp);
+    } else {
+      this.player2LifePoints.update(applyLp);
+    }
+    this.emitDamage({ playerSlot: enemy, amount });
+
+    this.abilityTargetMode.set(null);
+    this.attackMode.set(null);
+    this.applyFieldEntry(casterSlot, 'monster', casterMonsterSlot, {
+      ...casterEntry,
+      hasActedThisTurn: true,
+      usedAbilities: [...(casterEntry.usedAbilities ?? []), 'tail-smash'],
+    });
     return true;
   }
 
@@ -1489,7 +1623,7 @@ export class GameEngineService {
     attackerSlot: FieldPlayerSlot,
   ): boolean {
     const defenderEntry = this.getFieldEntry(rowSlot, defenderZone, defenderIdentifier);
-    if (!defenderEntry) {
+    if (!defenderEntry || defenderEntry.pendingDestruction) {
       return false;
     }
     const enemy: FieldPlayerSlot = attackerSlot === 'player1' ? 'player2' : 'player1';
@@ -1498,7 +1632,9 @@ export class GameEngineService {
     }
     const enemyMonsterArr =
       enemy === 'player1' ? this.player1FieldMonster() : this.player2FieldMonster();
-    const hasDefendingEnemy = enemyMonsterArr.some((e) => e.defending === true);
+    const hasDefendingEnemy = enemyMonsterArr.some(
+      (e) => e.defending === true && !e.pendingDestruction,
+    );
 
     if (hasDefendingEnemy) {
       if (defenderZone !== 'monster') {
@@ -1576,7 +1712,7 @@ export class GameEngineService {
         return arr;
       }
       if (hp <= 0) {
-        next.splice(arrIndex, 1);
+        next[arrIndex] = { ...entry, currentHealth: 0, pendingDestruction: true };
       } else {
         next[arrIndex] = entry;
       }
@@ -1595,6 +1731,10 @@ export class GameEngineService {
 
     if (hp <= 0 && zone === 'land') {
       this.clampManaPoolForController(entry.controllerSlot ?? slot);
+    }
+
+    if (hp <= 0) {
+      this.scheduleFieldCardRemoval(slot, zone, entry.fieldInstanceId);
     }
 
     if (excavationRevive) {
@@ -1899,6 +2039,352 @@ export class GameEngineService {
     }, 0);
   }
 
+  private queueLiveMatchIndicators(
+    previous: {
+      currentTurn: PlayerId | null;
+      player1LifePoints: number;
+      player2LifePoints: number;
+      player1FieldLand: readonly FieldCardEntry[];
+      player1FieldMonster: readonly FieldCardEntry[];
+      player2FieldLand: readonly FieldCardEntry[];
+      player2FieldMonster: readonly FieldCardEntry[];
+      player1ManaPool: ManaGenerationMap;
+      player2ManaPool: ManaGenerationMap;
+    },
+    state: LiveGameState,
+  ): void {
+    // Wait a frame so newly placed cards are mounted before they observe the events.
+    setTimeout(() => this.emitLiveMatchIndicators(previous, state), 0);
+  }
+
+  private emitLiveMatchIndicators(
+    previous: {
+      currentTurn: PlayerId | null;
+      player1LifePoints: number;
+      player2LifePoints: number;
+      player1FieldLand: readonly FieldCardEntry[];
+      player1FieldMonster: readonly FieldCardEntry[];
+      player2FieldLand: readonly FieldCardEntry[];
+      player2FieldMonster: readonly FieldCardEntry[];
+      player1ManaPool: ManaGenerationMap;
+      player2ManaPool: ManaGenerationMap;
+    },
+    state: LiveGameState,
+  ): void {
+    const p1Loss = previous.player1LifePoints - state.player1LifePoints;
+    if (p1Loss > 0) {
+      this.emitDamage({ playerSlot: 'player1', amount: p1Loss });
+    }
+    const p2Loss = previous.player2LifePoints - state.player2LifePoints;
+    if (p2Loss > 0) {
+      this.emitDamage({ playerSlot: 'player2', amount: p2Loss });
+    }
+
+    this.emitLiveFieldIndicators(
+      'player1',
+      previous.player1FieldLand,
+      previous.player1FieldMonster,
+      state.player1FieldLand,
+      state.player1FieldMonster,
+    );
+    this.emitLiveFieldIndicators(
+      'player2',
+      previous.player2FieldLand,
+      previous.player2FieldMonster,
+      state.player2FieldLand,
+      state.player2FieldMonster,
+    );
+
+    if (previous.currentTurn !== null && previous.currentTurn !== state.currentTurn) {
+      const starting: FieldPlayerSlot = state.currentTurn === 1 ? 'player1' : 'player2';
+      this.emitLandManaGenerationFeedback(starting);
+    } else {
+      this.emitNewInstantLandManaFloats(
+        'player1',
+        previous.player1FieldLand,
+        state.player1FieldLand,
+        previous.player1ManaPool,
+        state.player1ManaPool,
+        previous.player2ManaPool,
+        state.player2ManaPool,
+      );
+      this.emitNewInstantLandManaFloats(
+        'player2',
+        previous.player2FieldLand,
+        state.player2FieldLand,
+        previous.player1ManaPool,
+        state.player1ManaPool,
+        previous.player2ManaPool,
+        state.player2ManaPool,
+      );
+    }
+  }
+
+  /** Float the mana a just-placed instant land added, such as Mud Hut's opening Rock. */
+  private emitNewInstantLandManaFloats(
+    rowSlot: FieldPlayerSlot,
+    prevLands: readonly FieldCardEntry[],
+    nextLands: readonly FieldCardEntry[],
+    prevPool1: ManaGenerationMap,
+    nextPool1: ManaGenerationMap,
+    prevPool2: ManaGenerationMap,
+    nextPool2: ManaGenerationMap,
+  ): void {
+    const prevIds = new Set(prevLands.map((entry) => entry.fieldInstanceId));
+    nextLands.forEach((entry, index) => {
+      if (prevIds.has(entry.fieldInstanceId)) {
+        return;
+      }
+      const def = getCardDefinition(entry.cardId);
+      if (!def?.generateMana || effectiveLandBuildTime(def) > 0) {
+        return;
+      }
+      const controller = entry.controllerSlot ?? rowSlot;
+      const prevPool = controller === 'player1' ? prevPool1 : prevPool2;
+      const nextPool = controller === 'player1' ? nextPool1 : nextPool2;
+      const manaParts = Object.entries(def.generateMana)
+        .map(([element, catalogAmount]) => ({
+          element,
+          amount: Math.min(catalogAmount ?? 0, (nextPool[element] ?? 0) - (prevPool[element] ?? 0)),
+        }))
+        .filter((part) => part.amount > 0)
+        .sort((a, b) => b.amount - a.amount || a.element.localeCompare(b.element));
+      if (manaParts.length === 0) {
+        return;
+      }
+      this.emitActionFeedback({
+        playerSlot: rowSlot,
+        zone: 'land',
+        identifier: index,
+        kind: 'mana-generated',
+        manaParts,
+      });
+    });
+  }
+
+  private emitLiveFieldIndicators(
+    rowSlot: FieldPlayerSlot,
+    prevLands: readonly FieldCardEntry[],
+    prevMonsters: readonly FieldCardEntry[],
+    nextLands: readonly FieldCardEntry[],
+    nextMonsters: readonly FieldCardEntry[],
+  ): void {
+    const nextMonsterById = new Map(nextMonsters.map((entry) => [entry.fieldInstanceId, entry]));
+    for (const prev of prevMonsters) {
+      const next = nextMonsterById.get(prev.fieldInstanceId);
+      if (!next || next.fieldSlot == null) {
+        if (!prev.pendingDestruction && prev.fieldSlot != null) {
+          const amount = this.liveCardHealth(prev);
+          if (amount > 0) {
+            this.emitDamage({
+              playerSlot: rowSlot,
+              zone: 'monster',
+              identifier: prev.fieldSlot,
+              amount,
+            });
+          }
+        }
+        continue;
+      }
+      const prevBlocks = prev.blocks ?? 0;
+      const nextBlocks = next.blocks ?? 0;
+      if (nextBlocks > prevBlocks) {
+        this.emitActionFeedback({
+          playerSlot: rowSlot,
+          zone: 'monster',
+          identifier: next.fieldSlot,
+          kind: 'wall-shielding',
+          text: `+${nextBlocks - prevBlocks} shielding`,
+        });
+      } else if (nextBlocks < prevBlocks) {
+        this.emitDamage({
+          playerSlot: rowSlot,
+          zone: 'monster',
+          identifier: next.fieldSlot,
+          amount: 1,
+          blocked: true,
+        });
+      }
+      const hpLoss = this.liveCardHealth(prev) - this.liveCardHealth(next);
+      if (hpLoss > 0) {
+        this.emitDamage({
+          playerSlot: rowSlot,
+          zone: 'monster',
+          identifier: next.fieldSlot,
+          amount: hpLoss,
+        });
+      }
+    }
+
+    for (const next of nextMonsters) {
+      if (next.fieldSlot == null) {
+        continue;
+      }
+      if (prevMonsters.some((prev) => prev.fieldInstanceId === next.fieldInstanceId)) {
+        continue;
+      }
+      const startingBlocks = getCardDefinition(next.cardId)?.startingBlocks ?? 0;
+      const gained = (next.blocks ?? 0) - startingBlocks;
+      if (gained > 0) {
+        this.emitActionFeedback({
+          playerSlot: rowSlot,
+          zone: 'monster',
+          identifier: next.fieldSlot,
+          kind: 'wall-shielding',
+          text: `+${gained} shielding`,
+        });
+      }
+    }
+
+    const nextLandIndex = new Map(nextLands.map((entry, index) => [entry.fieldInstanceId, index]));
+    for (const prev of prevLands) {
+      const index = nextLandIndex.get(prev.fieldInstanceId);
+      if (index == null) {
+        if (!prev.pendingDestruction) {
+          const displayed =
+            rowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand();
+          const ghostIndex = displayed.findIndex(
+            (entry) => entry.fieldInstanceId === prev.fieldInstanceId,
+          );
+          const amount = this.liveCardHealth(prev);
+          if (ghostIndex >= 0 && amount > 0) {
+            this.emitDamage({
+              playerSlot: rowSlot,
+              zone: 'land',
+              identifier: ghostIndex,
+              amount,
+            });
+          }
+        }
+        continue;
+      }
+      const next = nextLands[index]!;
+      const hpLoss = this.liveCardHealth(prev) - this.liveCardHealth(next);
+      if (hpLoss > 0) {
+        this.emitDamage({
+          playerSlot: rowSlot,
+          zone: 'land',
+          identifier: index,
+          amount: hpLoss,
+        });
+      }
+      if ((next.praiseBonusRock ?? 0) > (prev.praiseBonusRock ?? 0)) {
+        this.emitActionFeedback({
+          playerSlot: rowSlot,
+          zone: 'land',
+          identifier: index,
+          kind: 'praise-bonus-rock',
+          text: '+1 Rock Mana per Turn',
+        });
+        const gopher = nextMonsters.find((monster) => {
+          if (monster.cardId !== CardIds.mightyGopher || monster.fieldSlot == null) {
+            return false;
+          }
+          const before = prevMonsters.find((entry) => entry.fieldInstanceId === monster.fieldInstanceId);
+          return !!monster.hasActedThisTurn && !before?.hasActedThisTurn;
+        });
+        if (gopher?.fieldSlot != null) {
+          this.emitActionFeedback({
+            playerSlot: rowSlot,
+            zone: 'monster',
+            identifier: gopher.fieldSlot,
+            kind: 'praising',
+          });
+        }
+      }
+      const prevUsed = prev.usedAbilities ?? [];
+      const nextUsed = next.usedAbilities ?? [];
+      if (!prevUsed.includes('excavate') && nextUsed.includes('excavate')) {
+        this.emitActionFeedback({
+          playerSlot: rowSlot,
+          zone: 'land',
+          identifier: index,
+          kind: 'excavated',
+          text: 'Excavated — returned to deck',
+        });
+      }
+    }
+  }
+
+  private liveCardHealth(entry: FieldCardEntry): number {
+    if (typeof entry.currentHealth === 'number') {
+      return entry.currentHealth;
+    }
+    return entry.maxHealthOverride ?? getCardDefinition(entry.cardId)?.maxHealth ?? 0;
+  }
+
+  /**
+   * Keep a card that just died in its row long enough for the damage float to render,
+   * then remove it.
+   */
+  private retainDoomedFieldCards(
+    previous: readonly FieldCardEntry[] | undefined,
+    next: FieldCardEntry[],
+    zone: FieldZone,
+    rowSlot: FieldPlayerSlot,
+  ): FieldCardEntry[] {
+    if (!previous?.length) {
+      return next;
+    }
+    const nextIds = new Set(next.map((entry) => entry.fieldInstanceId));
+    const occupiedSlots = new Set(
+      next.map((entry) => entry.fieldSlot).filter((slot): slot is number => slot != null),
+    );
+    const occupiedSpaces = new Set(next.flatMap((entry) => entry.influencedSpaces ?? []));
+    const extras: FieldCardEntry[] = [];
+    for (const prev of previous) {
+      if (nextIds.has(prev.fieldInstanceId)) {
+        continue;
+      }
+      if (zone === 'monster' && prev.fieldSlot != null && occupiedSlots.has(prev.fieldSlot)) {
+        continue;
+      }
+      if (zone === 'land' && (prev.influencedSpaces ?? []).some((space) => occupiedSpaces.has(space))) {
+        continue;
+      }
+      if (!prev.pendingDestruction) {
+        this.scheduleFieldCardRemoval(rowSlot, zone, prev.fieldInstanceId);
+        extras.push({ ...prev, currentHealth: 0, pendingDestruction: true });
+      } else {
+        extras.push(prev);
+      }
+    }
+    return extras.length > 0 ? [...next, ...extras] : next;
+  }
+
+  private scheduleFieldCardRemoval(
+    slot: FieldPlayerSlot,
+    zone: FieldZone,
+    fieldInstanceId: number,
+  ): void {
+    if (this.destructionTimers.has(fieldInstanceId)) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      this.destructionTimers.delete(fieldInstanceId);
+      this.removeFieldCardByInstanceId(slot, zone, fieldInstanceId);
+    }, 1000);
+    this.destructionTimers.set(fieldInstanceId, timer);
+  }
+
+  private removeFieldCardByInstanceId(
+    slot: FieldPlayerSlot,
+    zone: FieldZone,
+    fieldInstanceId: number,
+  ): void {
+    const strip = (cards: FieldCardEntry[]) =>
+      cards.filter((entry) => entry.fieldInstanceId !== fieldInstanceId);
+    if (slot === 'player1' && zone === 'land') {
+      this.player1FieldLand.update(strip);
+    } else if (slot === 'player1' && zone === 'monster') {
+      this.player1FieldMonster.update(strip);
+    } else if (slot === 'player2' && zone === 'land') {
+      this.player2FieldLand.update(strip);
+    } else {
+      this.player2FieldMonster.update(strip);
+    }
+  }
+
   private emitDamage(event: Omit<DamageEvent, 'timestamp'>): void {
     const ts = Date.now();
     this.damageEvents.update((prev) => [...prev, { ...event, timestamp: ts }]);
@@ -2044,6 +2530,10 @@ export class GameEngineService {
 
   /** Start or restart a local match to a known baseline (pre-game). */
   resetMatch(): void {
+    for (const timer of this.destructionTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.destructionTimers.clear();
     this.gameStarted.set(false);
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
@@ -2291,7 +2781,9 @@ export class GameEngineService {
     const fieldSig = targetRowSlot === 'player1' ? this.player1FieldLand : this.player2FieldLand;
     fieldSig.update((arr) => [...arr, entry]);
 
-    this.grantImmediateManaFromPlacedLand(controllerSlot, cardId);
+    const landIndex =
+      (targetRowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand()).length - 1;
+    this.grantImmediateManaFromPlacedLand(controllerSlot, cardId, targetRowSlot, landIndex);
     if (isThousandMileWall(def)) {
       this.applyThousandMileWallOnLandPlaced(targetRowSlot, influencedSpaces);
     }
@@ -2465,7 +2957,15 @@ export class GameEngineService {
       const fieldSig =
         pending.targetRowSlot === 'player1' ? this.player1FieldLand : this.player2FieldLand;
       fieldSig.update((arr) => [...arr, entry]);
-      this.grantImmediateManaFromPlacedLand(pending.controllerSlot, pending.cardId);
+      const landIndex =
+        (pending.targetRowSlot === 'player1' ? this.player1FieldLand() : this.player2FieldLand()).length -
+        1;
+      this.grantImmediateManaFromPlacedLand(
+        pending.controllerSlot,
+        pending.cardId,
+        pending.targetRowSlot,
+        landIndex,
+      );
       if (isThousandMileWall(def)) {
         this.applyThousandMileWallOnLandPlaced(pending.targetRowSlot, pending.selectedSpaces);
       }
