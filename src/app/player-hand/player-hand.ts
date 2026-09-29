@@ -1,10 +1,10 @@
-import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Card } from '../card/card';
 import { getCardDefinition, spellAllowsPlayerLifeTarget } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
-import { GameEngineService, MAX_LAND_CAPACITY } from '../services/game-engine.service';
+import { GameEngineService, MAX_LAND_CAPACITY, type HandCard } from '../services/game-engine.service';
 import { LiveMatchSyncService } from '../services/live-match-sync.service';
 import { SpellDragLineService } from '../services/spell-drag-line.service';
 
@@ -25,8 +25,8 @@ export class PlayerHand {
   /** Which player this hand belongs to. */
   readonly playerSlot = input.required<PlayerSlot>();
 
-  /** Catalog ids to show in hand order (e.g. `CardIds.rockMonster`). */
-  readonly cardIds = input<string[]>([]);
+  /** Catalog entries to show in hand order. */
+  readonly cardIds = input<HandCard[]>([]);
 
   /**
    * True if this hand belongs to the remote opponent (in a live match).
@@ -220,22 +220,22 @@ export class PlayerHand {
       return;
     }
     if (event.previousContainer !== event.container) {
-      const data = event.item.data as CardDragPayload | undefined;
-      if (data && data.ownerPlayerSlot !== this.playerSlot()) {
-        return;
-      }
+      return;
     }
-    if (event.previousContainer === event.container) {
-      moveItemInArray(event.container.data as string[], event.previousIndex, event.currentIndex);
-    } else {
-      transferArrayItem(
-        event.previousContainer.data as string[],
-        event.container.data as string[],
-        event.previousIndex,
-        event.currentIndex,
-      );
+    const fromIndex = event.previousIndex;
+    const toIndex = event.currentIndex;
+    const before = this.engine.handCardIds(this.playerSlot());
+    if (!this.engine.moveHandCard(this.playerSlot(), fromIndex, toIndex)) {
+      return;
     }
-    this.engine.touchDropContainers(event);
+    const matchId = this.engine.liveMatchId();
+    if (!matchId) {
+      return;
+    }
+    const order = this.engine.handCardIds(this.playerSlot());
+    void this.liveSync.submitReorderHand(matchId, order).catch(() => {
+      this.engine.restoreHandOrder(this.playerSlot(), before);
+    });
   }
 
   protected onEnemyHandAttackClick(event: MouseEvent): void {

@@ -136,7 +136,10 @@ export class LiveMatchSyncService {
   }
 
   async submitPlayCard(matchId: string, play: PlayCardRequest): Promise<void> {
-    await this.submitAction({ matchId, type: 'playCard', ...play }, { loadingMove: true });
+    await this.submitAction(
+      { matchId, type: 'playCard', ...play, hand: this.localHandOrder() },
+      { loadingMove: true },
+    );
   }
 
   async submitDefend(matchId: string, monsterFieldSlot: number): Promise<void> {
@@ -148,7 +151,24 @@ export class LiveMatchSyncService {
   }
 
   async submitCastSpell(matchId: string, spell: CastSpellRequest): Promise<void> {
-    await this.submitAction({ matchId, type: 'castSpell', ...spell }, { loadingMove: true });
+    await this.submitAction(
+      { matchId, type: 'castSpell', ...spell, hand: this.localHandOrder() },
+      { loadingMove: true },
+    );
+  }
+
+  /** Persist a hand rearrangement. Does not block a card play that follows it. */
+  async submitReorderHand(matchId: string, hand: readonly string[]): Promise<void> {
+    const callable = httpsCallable(this.functions, 'submitMatchAction');
+    await callable({ matchId, type: 'reorderHand', hand: [...hand] });
+  }
+
+  private localHandOrder(): string[] | undefined {
+    const slot = this.engine.localPlayerSlot();
+    if (!slot) {
+      return undefined;
+    }
+    return this.engine.handCardIds(slot);
   }
 
   async submitUseAbility(matchId: string, ability: UseAbilityRequest): Promise<void> {

@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import type { CdkDragDrop } from '@angular/cdk/drag-drop';
+import { moveItemInArray, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import {
   addManaToPool,
   addManaToPoolCapped,
@@ -90,6 +90,12 @@ export interface FieldCardEntry {
   usedAbilities?: string[];
   /** Kept briefly so the damage float can show before the card is removed. */
   pendingDestruction?: boolean;
+}
+
+/** One card in a hand. `handInstanceId` stays with that copy when the hand is rearranged. */
+export interface HandCard {
+  handInstanceId: number;
+  cardId: string;
 }
 
 /** Which row a field card sits in (land vs monster). */
@@ -188,14 +194,20 @@ export interface PendingPlacement {
 })
 export class GameEngineService {
   private nextFieldInstanceId = 1;
+  private nextHandInstanceId = 1;
   private readonly destructionTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  /**
+   * Local hand order that has not been confirmed by the live server yet.
+   * Keeps a rearrangement visible if another snapshot arrives first.
+   */
+  private pendingHandOrders: Partial<Record<FieldPlayerSlot, string[]>> = {};
 
   /** True after `startGame()` has been called for this session. */
   readonly gameStarted = signal(false);
 
-  /** Hand contents (catalog ids); mutated by CDK drag-drop, then `touchDropContainers` refreshes signals. */
-  readonly player1Hand = signal<string[]>([]);
-  readonly player2Hand = signal<string[]>([]);
+  /** Hand contents. Each copy keeps its handInstanceId across rearrangements. */
+  readonly player1Hand = signal<HandCard[]>([]);
+  readonly player2Hand = signal<HandCard[]>([]);
 
   /**
    * Draw pile (front = index 0). Built in `startGame()`; cards are shifted off when drawn.
@@ -351,8 +363,8 @@ export class GameEngineService {
     this.player2TurnCounter.set(state.player2TurnCounter);
     this.player1LifePoints.set(state.player1LifePoints);
     this.player2LifePoints.set(state.player2LifePoints);
-    this.player1Hand.set([...state.player1Hand]);
-    this.player2Hand.set([...state.player2Hand]);
+    this.player1Hand.set(this.adoptHand('player1', this.player1Hand(), state.player1Hand));
+    this.player2Hand.set(this.adoptHand('player2', this.player2Hand(), state.player2Hand));
     this.player1Deck.set([...state.player1Deck]);
     this.player2Deck.set([...state.player2Deck]);
     this.player1FieldLand.set(
@@ -477,11 +489,120 @@ export class GameEngineService {
   readonly player1LandCapacity = computed(() => this.landCapacityUsed('player1'));
   readonly player2LandCapacity = computed(() => this.landCapacityUsed('player2'));
 
+  /** Catalog ids in current hand order. */
+  handCardIds(slot: FieldPlayerSlot): string[] {
+    const hand = slot === 'player1' ? this.player1Hand() : this.player2Hand();
+    return hand.map((card) => card.cardId);
+  }
+
+  /** Current index of one hand copy, or -1 if it is no longer in that hand. */
+  handIndexFor(slot: FieldPlayerSlot, handInstanceId: number): number {
+    const hand = slot === 'player1' ? this.player1Hand() : this.player2Hand();
+    return hand.findIndex((card) => card.handInstanceId === handInstanceId);
+  }
+
+  /**
+   * Move one hand card from `fromIndex` to `toIndex`.
+   * Uses the same index rules as CDK's `moveItemInArray`.
+   */
+  moveHandCard(slot: FieldPlayerSlot, fromIndex: number, toIndex: number): boolean {
+    const hand = slot === 'player1' ? this.player1Hand() : this.player2Hand();
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= hand.length ||
+      toIndex >= hand.length
+    ) {
+      return false;
+    }
+    const next = [...hand];
+    moveItemInArray(next, fromIndex, toIndex);
+    if (slot === 'player1') {
+      this.player1Hand.set(next);
+    } else {
+      this.player2Hand.set(next);
+    }
+    this.pendingHandOrders[slot] = next.map((card) => card.cardId);
+    return true;
+  }
+
+  /** Put a hand back to `cardIds` after a live reorder fails. */
+  restoreHandOrder(slot: FieldPlayerSlot, cardIds: readonly string[]): void {
+    const previous = slot === 'player1' ? this.player1Hand() : this.player2Hand();
+    const restored = this.preserveHand(previous, cardIds);
+    if (slot === 'player1') {
+      this.player1Hand.set(restored);
+    } else {
+      this.player2Hand.set(restored);
+    }
+    delete this.pendingHandOrders[slot];
+  }
+
+  private createHandCard(cardId: string): HandCard {
+    return { handInstanceId: this.nextHandInstanceId++, cardId };
+  }
+
+  private handCardsFromIds(cardIds: readonly string[]): HandCard[] {
+    return cardIds.map((cardId) => this.createHandCard(cardId));
+  }
+
+  private sameCardMultiset(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    const counts = new Map<string, number>();
+    for (const id of a) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    for (const id of b) {
+      const left = counts.get(id) ?? 0;
+      if (left <= 0) {
+        return false;
+      }
+      counts.set(id, left - 1);
+    }
+    return true;
+  }
+
+  /** Reuse existing hand copies when the server sends catalog ids, so identity survives a snapshot. */
+  private preserveHand(previous: readonly HandCard[], cardIds: readonly string[]): HandCard[] {
+    const remaining = [...previous];
+    return cardIds.map((cardId) => {
+      const index = remaining.findIndex((card) => card.cardId === cardId);
+      if (index >= 0) {
+        return remaining.splice(index, 1)[0]!;
+      }
+      return this.createHandCard(cardId);
+    });
+  }
+
+  private adoptHand(
+    slot: FieldPlayerSlot,
+    previous: readonly HandCard[],
+    incoming: readonly string[],
+  ): HandCard[] {
+    const pending = this.pendingHandOrders[slot];
+    let cardIds = incoming;
+    if (pending && this.sameCardMultiset(pending, incoming)) {
+      cardIds = pending;
+      const confirmed = pending.every((id, index) => id === incoming[index]);
+      if (confirmed) {
+        delete this.pendingHandOrders[slot];
+      }
+    } else {
+      delete this.pendingHandOrders[slot];
+    }
+    return this.preserveHand(previous, cardIds);
+  }
+
   /** Begin the match: turn counter → 1, current turn → Player 1. */
   startGame(): void {
     this.player1LifePoints.set(STARTING_LIFE_POINTS);
     this.player2LifePoints.set(STARTING_LIFE_POINTS);
     this.nextFieldInstanceId = 1;
+    this.nextHandInstanceId = 1;
+    this.pendingHandOrders = {};
     this.gameStarted.set(true);
     this.turnCounter.set(1);
     this.player1TurnCounter.set(1);
@@ -492,8 +613,8 @@ export class GameEngineService {
     const deck2 = buildShuffledDeck();
     const hand1 = deck1.splice(0, OPENING_HAND_SIZE);
     const hand2 = deck2.splice(0, OPENING_HAND_SIZE);
-    this.player1Hand.set(hand1);
-    this.player2Hand.set(hand2);
+    this.player1Hand.set(this.handCardsFromIds(hand1));
+    this.player2Hand.set(this.handCardsFromIds(hand2));
     this.player1Deck.set(deck1);
     this.player2Deck.set(deck2);
     console.log('Player 1 opening hand:', hand1);
@@ -1301,7 +1422,7 @@ export class GameEngineService {
     }
 
     const hand = casterSlot === 'player1' ? this.player1Hand() : this.player2Hand();
-    if (handIndex < 0 || handIndex >= hand.length || hand[handIndex] !== spellCardId) {
+    if (handIndex < 0 || handIndex >= hand.length || hand[handIndex]?.cardId !== spellCardId) {
       return false;
     }
 
@@ -1354,7 +1475,7 @@ export class GameEngineService {
       return false;
     }
 
-    const removeAtIndex = (arr: string[]): string[] => {
+    const removeAtIndex = (arr: HandCard[]): HandCard[] => {
       const next = [...arr];
       next.splice(handIndex, 1);
       return next;
@@ -1418,7 +1539,7 @@ export class GameEngineService {
     }
 
     const hand = casterSlot === 'player1' ? this.player1Hand() : this.player2Hand();
-    if (handIndex < 0 || handIndex >= hand.length || hand[handIndex] !== spellCardId) {
+    if (handIndex < 0 || handIndex >= hand.length || hand[handIndex]?.cardId !== spellCardId) {
       return false;
     }
 
@@ -1443,7 +1564,7 @@ export class GameEngineService {
       return false;
     }
 
-    const removeAtIndex = (arr: string[]): string[] => {
+    const removeAtIndex = (arr: HandCard[]): HandCard[] => {
       const next = [...arr];
       next.splice(handIndex, 1);
       return next;
@@ -2424,7 +2545,7 @@ export class GameEngineService {
   /**
    * Call when a Land or Monster is played from hand onto this player's field row during their turn.
    */
-  notifyPlacedFieldCardFromHand(handData: string[]): void {
+  notifyPlacedFieldCardFromHand(handData: HandCard[]): void {
     if (!this.gameStarted()) {
       return;
     }
@@ -2487,7 +2608,7 @@ export class GameEngineService {
       }
       const [card, ...rest] = deck;
       this.player1Deck.set(rest);
-      this.player1Hand.update((h) => [...h, card!]);
+      this.player1Hand.update((h) => [...h, this.createHandCard(card!)]);
     } else {
       const deck = this.player2Deck();
       if (deck.length === 0) {
@@ -2495,7 +2616,7 @@ export class GameEngineService {
       }
       const [card, ...rest] = deck;
       this.player2Deck.set(rest);
-      this.player2Hand.update((h) => [...h, card!]);
+      this.player2Hand.update((h) => [...h, this.createHandCard(card!)]);
     }
   }
 
@@ -2504,15 +2625,15 @@ export class GameEngineService {
    * so Angular signals notify dependents.
    */
   touchDropContainers(event: CdkDragDrop<any>): void {
-    const prev = event.previousContainer.data as string[] | FieldCardEntry[];
-    const next = event.container.data as string[] | FieldCardEntry[];
+    const prev = event.previousContainer.data as HandCard[] | FieldCardEntry[];
+    const next = event.container.data as HandCard[] | FieldCardEntry[];
     if (prev !== next) {
       this.touchArrayByRef(prev);
     }
     this.touchArrayByRef(next);
   }
 
-  private touchArrayByRef(data: string[] | FieldCardEntry[]): void {
+  private touchArrayByRef(data: HandCard[] | FieldCardEntry[]): void {
     if (data === this.player1Hand()) {
       this.player1Hand.update((a) => [...a]);
     } else if (data === this.player2Hand()) {
@@ -2543,6 +2664,7 @@ export class GameEngineService {
     this.currentTurn.set(null);
     this.activePlayer.set(1);
     this.nextFieldInstanceId = 1;
+    this.pendingHandOrders = {};
     this.player1Hand.set([]);
     this.player2Hand.set([]);
     this.player1FieldLand.set([]);
@@ -2595,7 +2717,8 @@ export class GameEngineService {
     const pool = slot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
     const placedFreeThisTurn = this.placedFreeFieldCardThisTurn();
 
-    const canPlayAnyHandCard = hand.some((cardId) => {
+    const canPlayAnyHandCard = hand.some((card) => {
+      const cardId = card.cardId;
       const def = getCardDefinition(cardId);
       if (!def) { return false; }
       const isFree = !hasManaCost(def.manaCost);
@@ -2767,6 +2890,15 @@ export class GameEngineService {
       if (claimed.has(s)) { return false; }
     }
 
+    const landHand = controllerSlot === 'player1' ? this.player1Hand() : this.player2Hand();
+    if (
+      handIndex < 0 ||
+      handIndex >= landHand.length ||
+      landHand[handIndex]?.cardId !== cardId
+    ) {
+      return false;
+    }
+
     if (!this.trySpendMana(controllerSlot, def.manaCost)) { return false; }
 
     const hand = controllerSlot === 'player1' ? this.player1Hand : this.player2Hand;
@@ -2816,6 +2948,15 @@ export class GameEngineService {
 
     if (fieldSlot < 1 || fieldSlot > MONSTER_FIELD_SLOTS) { return false; }
     if (this.getMonsterBySlot(controllerSlot, fieldSlot)) { return false; }
+
+    const monsterHand = controllerSlot === 'player1' ? this.player1Hand() : this.player2Hand();
+    if (
+      handIndex < 0 ||
+      handIndex >= monsterHand.length ||
+      monsterHand[handIndex]?.cardId !== cardId
+    ) {
+      return false;
+    }
 
     if (!this.trySpendMana(controllerSlot, def.manaCost)) { return false; }
 
@@ -2929,7 +3070,7 @@ export class GameEngineService {
         this.player2ManaPool.set(refunded);
       }
     }
-    const returnToHand = (h: string[]) => [...h, pending.cardId];
+    const returnToHand = (h: HandCard[]) => [...h, this.createHandCard(pending.cardId)];
     if (pending.controllerSlot === 'player1') {
       this.player1Hand.update(returnToHand);
     } else {

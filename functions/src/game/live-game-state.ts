@@ -354,14 +354,79 @@ function refreshManaPool(
 }
 
 /**
- * Apply a land/monster play from hand onto LiveGameState.
- * Returns null when the move is illegal.
+ * Permute a player's hand to `handOrder` when it contains the same cards.
+ * Returns null when `handOrder` is not a rearrangement of the current hand.
+ * Returns `state` unchanged when no order was provided or it already matches.
  */
+function alignHandOrder(
+  state: LiveGameState,
+  controllerSlot: "player1" | "player2",
+  handOrder: readonly string[] | undefined,
+): LiveGameState | null {
+  if (!handOrder) {
+    return state;
+  }
+  const current = controllerSlot === "player1" ? state.player1Hand : state.player2Hand;
+  if (handOrder.length === current.length && handOrder.every((id, index) => id === current[index])) {
+    return state;
+  }
+  if (!sameCardMultiset(current, handOrder)) {
+    return null;
+  }
+  if (controllerSlot === "player1") {
+    return { ...state, player1Hand: [...handOrder] };
+  }
+  return { ...state, player2Hand: [...handOrder] };
+}
+
+function sameCardMultiset(current: readonly string[], next: readonly string[]): boolean {
+  if (current.length !== next.length) {
+    return false;
+  }
+  const counts = new Map<string, number>();
+  for (const id of current) {
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  for (const id of next) {
+    const left = counts.get(id) ?? 0;
+    if (left <= 0) {
+      return false;
+    }
+    counts.set(id, left - 1);
+  }
+  return true;
+}
+
+/** Save a hand rearrangement. The cards themselves do not change. */
+export function applyReorderHandToLiveGameState(
+  state: LiveGameState,
+  controllerSlot: "player1" | "player2",
+  handOrder: readonly string[],
+): LiveGameState | null {
+  if (!state.gameStarted) {
+    return null;
+  }
+  const seat: 1 | 2 = controllerSlot === "player1" ? 1 : 2;
+  if (state.currentTurn !== seat) {
+    return null;
+  }
+  const aligned = alignHandOrder(state, controllerSlot, handOrder);
+  if (!aligned || aligned === state) {
+    return aligned;
+  }
+  return { ...aligned, version: state.version + 1 };
+}
 export function applyPlayCardToLiveGameState(
   state: LiveGameState,
   controllerSlot: 'player1' | 'player2',
   intent: PlayCardIntent,
+  handOrder?: readonly string[],
 ): LiveGameState | null {
+  const aligned = alignHandOrder(state, controllerSlot, handOrder);
+  if (!aligned) {
+    return null;
+  }
+  state = aligned;
   if (!state.gameStarted) {
     return null;
   }
@@ -1133,7 +1198,13 @@ export function applyCastSpellToLiveGameState(
   state: LiveGameState,
   controllerSlot: FieldPlayerSlot,
   intent: CastSpellIntent,
+  handOrder?: readonly string[],
 ): LiveGameState | null {
+  const aligned = alignHandOrder(state, controllerSlot, handOrder);
+  if (!aligned) {
+    return null;
+  }
+  state = aligned;
   if (!state.gameStarted) {
     return null;
   }

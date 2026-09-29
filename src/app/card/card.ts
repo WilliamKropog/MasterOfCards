@@ -70,8 +70,8 @@ export class Card {
   /** Index in that row’s field list (for attack mode source identity). */
   readonly fieldCardIndex = input<number | null>(null);
 
-  /** Index in the parent hand list; set for hand cards so spell cast can remove the correct copy. */
-  readonly handIndex = input<number | undefined>(undefined);
+  /** Stable id of this copy while it is in a hand. */
+  readonly handInstanceId = input<number | undefined>(undefined);
 
   /** Explicit override for hiding hand card face (renders as a blank square). */
   readonly hiddenInHand = input<boolean | undefined>(undefined);
@@ -574,10 +574,20 @@ export class Card {
     if (slot === null) {
       return null;
     }
-    const hi = this.handIndex();
+    const hi = this.playingHandIndex();
     const base: CardDragPayload = { cardId: this.cardId(), ownerPlayerSlot: slot };
-    return hi === undefined ? base : { ...base, handIndex: hi };
+    return hi < 0 ? base : { ...base, handIndex: hi };
   });
+
+  /** Index of this hand copy right now, after any rearrangement. */
+  private playingHandIndex(): number {
+    const slot = this.ownerPlayerSlot();
+    const id = this.handInstanceId();
+    if (slot === null || id === undefined) {
+      return -1;
+    }
+    return this.engine.handIndexFor(slot, id);
+  }
 
   protected readonly cardAriaLabel = computed(() => {
     if (this.isHiddenInHand()) {
@@ -750,8 +760,8 @@ export class Card {
         const snapHand = this.spellDragLine.spellSnapHandTarget();
         const overEnemyHand = this.spellDragLine.spellDragOverEnemyHand();
         const slot = this.ownerPlayerSlot();
-        const idx = this.handIndex();
-        if (slot === null || idx === undefined) {
+        const idx = this.playingHandIndex();
+        if (slot === null || idx < 0) {
           return;
         }
         if (matchId) {
@@ -796,8 +806,8 @@ export class Card {
       } else if (type === 'Land') {
         const preview = this.cardDrag.landPreviewSpaces();
         const slot = this.ownerPlayerSlot();
-        const idx = this.handIndex();
-        if (preview.length > 0 && slot !== null && idx !== undefined) {
+        const idx = this.playingHandIndex();
+        if (preview.length > 0 && slot !== null && idx >= 0) {
           const def = this.def()!;
           const targetRowSlot: PlayerSlot = mustPlaceLandOnOpponentRow(def)
             ? (slot === 'player1' ? 'player2' : 'player1')
@@ -822,8 +832,8 @@ export class Card {
       } else if (type === 'Monster') {
         const previewSlot = this.cardDrag.monsterPreviewSlot();
         const slot = this.ownerPlayerSlot();
-        const idx = this.handIndex();
-        if (previewSlot !== null && slot !== null && idx !== undefined) {
+        const idx = this.playingHandIndex();
+        if (previewSlot !== null && slot !== null && idx >= 0) {
           if (matchId) {
             void this.liveSync.submitPlayCard(matchId, {
               cardId: this.cardId(),

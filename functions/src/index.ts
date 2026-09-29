@@ -9,6 +9,7 @@ import {
   applyDefendToLiveGameState,
   applyEndTurnToLiveGameState,
   applyPlayCardToLiveGameState,
+  applyReorderHandToLiveGameState,
   applyUseAbilityToLiveGameState,
   createInitialLiveGameState,
   stripUndefinedDeep,
@@ -679,16 +680,26 @@ type SubmitMatchActionRequest = {
   casterMonsterSlot?: number;
   landRowSlot?: "player1" | "player2";
   landIndex?: number;
+  hand?: unknown;
 };
 
 const SUPPORTED_ACTIONS = new Set([
   "endTurn",
   "playCard",
+  "reorderHand",
   "defend",
   "attack",
   "castSpell",
   "useAbility",
 ]);
+
+function parseHandOrder(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const hand = value.filter((entry): entry is string => typeof entry === "string");
+  return hand.length === value.length ? hand : undefined;
+}
 
 /**
  * Action Sync entry point for live match mutations.
@@ -709,7 +720,7 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
   if (!SUPPORTED_ACTIONS.has(type)) {
     throw new HttpsError(
       "invalid-argument",
-      "Supported actions: endTurn, playCard, defend, attack, castSpell, useAbility.",
+      "Supported actions: endTurn, playCard, reorderHand, defend, attack, castSpell, useAbility.",
     );
   }
 
@@ -750,6 +761,21 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         fromTurn: currentTurn,
         toTurn: nextState.currentTurn,
       };
+    } else if (type === "reorderHand") {
+      const handOrder = parseHandOrder(data.hand);
+      if (!handOrder) {
+        throw new HttpsError("invalid-argument", "reorderHand requires hand.");
+      }
+      const applied = applyReorderHandToLiveGameState(
+        match.gameState,
+        controllerSlot,
+        handOrder,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal hand reorder.");
+      }
+      nextState = applied;
+      actionPayload = { type: "reorderHand" };
     } else if (type === "defend") {
       const monsterFieldSlot =
         typeof data.monsterFieldSlot === "number"
@@ -868,6 +894,7 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         match.gameState,
         controllerSlot,
         intent,
+        parseHandOrder(data.hand),
       );
       if (!applied) {
         throw new HttpsError("failed-precondition", "Illegal castSpell move.");
@@ -1006,6 +1033,7 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         match.gameState,
         controllerSlot,
         intent,
+        parseHandOrder(data.hand),
       );
       if (!applied) {
         throw new HttpsError("failed-precondition", "Illegal playCard move.");
