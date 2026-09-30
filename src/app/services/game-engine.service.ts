@@ -1086,13 +1086,13 @@ export class GameEngineService {
     return true;
   }
 
-  /** True when Rockterrior still has Tail Smash available and can pay / act. */
+  /** True when Rockterrior can pay for Tail Smash and has not used it yet this turn. */
   canBeginTailSmash(ownerSlot: FieldPlayerSlot, monsterSlot: number): boolean {
     if (!this.gameStarted() || !this.canLocalPlayerActWithSlot(ownerSlot)) {
       return false;
     }
     const entry = this.getMonsterBySlot(ownerSlot, monsterSlot);
-    if (!entry || entry.cardId !== CardIds.rockterrior) {
+    if (!entry || entry.pendingDestruction || entry.cardId !== CardIds.rockterrior) {
       return false;
     }
     if ((entry.usedAbilities ?? []).includes('tail-smash')) {
@@ -1102,7 +1102,7 @@ export class GameEngineService {
       return false;
     }
     const pool = ownerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
-    return canAffordManaCost(pool, { Rock: 3 });
+    return canAffordManaCost(pool, { Rock: 6 });
   }
 
   /**
@@ -1154,7 +1154,7 @@ export class GameEngineService {
 
   /**
    * Resolve Tail Smash onto a chosen enemy field card.
-   * Deals 80 damage (160 to Ice). Spends 3 Rock, consumes the monster's turn, one-time use.
+   * Deals 60 damage. Spends 6 Rock, using Rainbow mana first. Once per turn.
    */
   resolveTailSmashOnTarget(
     defenderSlot: FieldPlayerSlot,
@@ -1179,14 +1179,11 @@ export class GameEngineService {
     if (casterEntry.cardId !== CardIds.rockterrior) {
       return false;
     }
-    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
-      return false;
-    }
-    if (!this.canMonsterAct(casterSlot, casterEntry)) {
+    if (!this.canBeginTailSmash(casterSlot, casterMonsterSlot)) {
       return false;
     }
 
-    const tailSmashCost: ManaCostMap = { Rock: 3 };
+    const tailSmashCost: ManaCostMap = { Rock: 6 };
     if (!this.trySpendMana(casterSlot, tailSmashCost)) {
       return false;
     }
@@ -1196,7 +1193,7 @@ export class GameEngineService {
       return false;
     }
 
-    const amount = defenderDef.cardElement === 'Ice' ? 160 : 80;
+    const amount = 60;
     const { entry: defenderResult, blocked } = this.applyIncomingFieldDamage(
       defenderEntry,
       amount,
@@ -1212,23 +1209,20 @@ export class GameEngineService {
       });
     }
 
-    const used = [...(casterEntry.usedAbilities ?? []), 'tail-smash'];
-    const casterResult: FieldCardEntry = {
-      ...casterEntry,
-      hasActedThisTurn: true,
-      usedAbilities: used,
-    };
-
     this.abilityTargetMode.set(null);
     this.attackMode.set(null);
-    this.applyFieldEntry(casterSlot, 'monster', casterMonsterSlot, casterResult);
     this.applyFieldEntry(defenderSlot, defenderZone, defenderIndex, defenderResult);
+    this.applyFieldEntry(casterSlot, 'monster', casterMonsterSlot, {
+      ...casterEntry,
+      hasActedThisTurn: true,
+      usedAbilities: [...(casterEntry.usedAbilities ?? []), 'tail-smash'],
+    });
     return true;
   }
 
   /**
    * Resolve Tail Smash onto the opponent's life points.
-   * Deals 80 damage. Spends 3 Rock, consumes the monster's turn, one-time use.
+   * Deals 60 damage. Spends 6 Rock, using Rainbow mana first. Once per turn.
    */
   resolveTailSmashOnEnemyLife(defenderPlayerSlot: FieldPlayerSlot): boolean {
     const mode = this.abilityTargetMode();
@@ -1246,19 +1240,16 @@ export class GameEngineService {
     if (!casterEntry || casterEntry.cardId !== CardIds.rockterrior) {
       return false;
     }
-    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
-      return false;
-    }
-    if (!this.canMonsterAct(casterSlot, casterEntry)) {
+    if (!this.canBeginTailSmash(casterSlot, casterMonsterSlot)) {
       return false;
     }
 
-    const tailSmashCost: ManaCostMap = { Rock: 3 };
+    const tailSmashCost: ManaCostMap = { Rock: 6 };
     if (!this.trySpendMana(casterSlot, tailSmashCost)) {
       return false;
     }
 
-    const amount = 80;
+    const amount = 60;
     const applyLp = (current: number) => Math.max(0, current - amount);
     if (enemy === 'player1') {
       this.player1LifePoints.update(applyLp);
@@ -2118,12 +2109,13 @@ export class GameEngineService {
   }
 
   /**
-   * King Colossus: set HP to catalog max + 10 × Rock mana the player had before paying its cost.
-   * Must run after `trySpendMana` so we reconstruct pre-spend Rock from pool + cost.
+   * King Colossus: set HP to catalog max + 10 × Rock mana the player held before paying its cost.
+   * Pass `rockBefore` when this runs after mana has already been spent.
    */
   private applyKingColossusOnPlaced(
     controllerSlot: FieldPlayerSlot,
     entry: FieldCardEntry,
+    rockBefore?: number,
   ): void {
     const def = getCardDefinition(entry.cardId);
     if (!isKingColossus(def)) {
@@ -2131,11 +2123,9 @@ export class GameEngineService {
     }
     const pool =
       controllerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool();
-    const rockAfterSpend = pool['Rock'] ?? 0;
-    const rockCost = def?.manaCost?.['Rock'] ?? 0;
-    const rockBeforeSpend = rockAfterSpend + rockCost;
-    const baseHp = def?.maxHealth ?? 300;
-    const hp = baseHp + rockBeforeSpend * 10;
+    const rockHeld = rockBefore ?? pool['Rock'] ?? 0;
+    const baseHp = def?.maxHealth ?? 100;
+    const hp = baseHp + rockHeld * 10;
     entry.currentHealth = hp;
     entry.maxHealthOverride = hp;
   }
@@ -2524,7 +2514,15 @@ export class GameEngineService {
 
   private clearFieldActedFlags(): void {
     const clear = (a: FieldCardEntry[]): FieldCardEntry[] =>
-      a.map((e) => ({ ...e, hasActedThisTurn: false, attacksThisTurn: undefined }));
+      a.map((e) => {
+        const used = (e.usedAbilities ?? []).filter((id) => id !== 'tail-smash');
+        return {
+          ...e,
+          hasActedThisTurn: false,
+          attacksThisTurn: undefined,
+          usedAbilities: used.length > 0 ? used : undefined,
+        };
+      });
     this.player1FieldLand.update(clear);
     this.player1FieldMonster.update(clear);
     this.player2FieldLand.update(clear);
@@ -2958,6 +2956,8 @@ export class GameEngineService {
       return false;
     }
 
+    const rockHeld =
+      (controllerSlot === 'player1' ? this.player1ManaPool() : this.player2ManaPool())['Rock'] ?? 0;
     if (!this.trySpendMana(controllerSlot, def.manaCost)) { return false; }
 
     const hand = controllerSlot === 'player1' ? this.player1Hand : this.player2Hand;
@@ -2969,7 +2969,7 @@ export class GameEngineService {
 
     const entry = this.createFieldCardEntry(cardId, controllerSlot);
     entry.fieldSlot = fieldSlot;
-    this.applyKingColossusOnPlaced(controllerSlot, entry);
+    this.applyKingColossusOnPlaced(controllerSlot, entry, rockHeld);
     const fieldSig =
       controllerSlot === 'player1' ? this.player1FieldMonster : this.player2FieldMonster;
     fieldSig.update((arr) => [...arr, entry]);

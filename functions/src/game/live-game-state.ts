@@ -72,9 +72,11 @@ function shuffleInPlace<T>(arr: T[]): void {
 function clearActedFlags(cards: LiveFieldCard[]): LiveFieldCard[] {
   return cards.map((e) => {
     const { attacksThisTurn: _removed, ...rest } = e;
+    const used = (rest.usedAbilities ?? []).filter((id) => id !== 'tail-smash');
     return {
       ...rest,
       hasActedThisTurn: false,
+      usedAbilities: used.length > 0 ? used : undefined,
     };
   });
 }
@@ -511,10 +513,8 @@ export function applyPlayCardToLiveGameState(
       entry.blocks = rules.startingBlocks;
     }
     if (intent.cardId === 'king-colossus') {
-      const rockCost = rules.manaCost?.['Rock'] ?? 0;
-      const rockAfter = spent['Rock'] ?? 0;
-      const rockBefore = rockAfter + rockCost;
-      const baseHp = rules.maxHealth ?? 300;
+      const rockBefore = pool['Rock'] ?? 0;
+      const baseHp = rules.maxHealth ?? 100;
       const hp = baseHp + rockBefore * 10;
       entry.currentHealth = hp;
       entry.maxHealthOverride = hp;
@@ -1392,16 +1392,16 @@ export function applyUseAbilityToLiveGameState(
     if (!casterEntry || casterEntry.cardId !== 'rockterrior') {
       return null;
     }
-    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
+    if (!canMonsterAct(state, controllerSlot, casterEntry)) {
       return null;
     }
-    if (!canMonsterAct(state, controllerSlot, casterEntry)) {
+    if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
       return null;
     }
 
     const pool =
       controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
-    const spent = spendMana(pool, { Rock: 3 });
+    const spent = spendMana(pool, { Rock: 6 });
     if (spent === null) {
       return null;
     }
@@ -1429,9 +1429,9 @@ export function applyUseAbilityToLiveGameState(
         return null;
       }
       if (intent.defenderPlayerSlot === 'player1') {
-        next.player1LifePoints = Math.max(0, next.player1LifePoints - 80);
+        next.player1LifePoints = Math.max(0, next.player1LifePoints - 60);
       } else {
-        next.player2LifePoints = Math.max(0, next.player2LifePoints - 80);
+        next.player2LifePoints = Math.max(0, next.player2LifePoints - 60);
       }
       return next;
     }
@@ -1468,7 +1468,7 @@ export function applyUseAbilityToLiveGameState(
       return null;
     }
 
-    const amount = defenderRules.cardElement === 'Ice' ? 160 : 80;
+    const amount = 60;
     const defenderAfter = applyIncomingFieldDamage(liveDefender, amount, defenderRules);
     setFieldEntry(
       next,

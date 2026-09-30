@@ -861,6 +861,10 @@
   color: rgba(161, 120, 54, 1);
 }
 
+.card-floating-action--mana-generated[data-mana-element='Rainbow'] {
+  color: #6d28d9;
+}
+
 .card.card--defending .card-floating-action-stack,
 .card.card--land-building .card-floating-action-stack {
   transform: rotate(90deg) translateX(-50%);

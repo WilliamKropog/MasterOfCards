@@ -216,6 +216,12 @@
   border-color: rgba(180, 140, 70, 0.45);
 }
 
+.player-hand-mana-pill[data-mana-element='Rainbow'] {
+  color: #3b0764;
+  background: linear-gradient(90deg, #fecaca, #fde68a, #bbf7d0, #bae6fd, #ddd6fe);
+  border-color: rgba(109, 40, 217, 0.45);
+}
+
 /* ── Active turn highlight ─────────────────────────────────────────── */
 
 .player-hand.player-hand--active-turn {

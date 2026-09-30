@@ -125,40 +125,58 @@ export function hasManaCost(cost: ManaCostMap | undefined): boolean {
   return Object.values(cost).some((amount) => amount > 0);
 }
 
-/** Whether the player's mana pool satisfies every entry in `cost`. */
-export function canAffordManaCost(pool: ManaGenerationMap, cost: ManaCostMap | undefined): boolean {
-  if (!hasManaCost(cost)) {
-    return true;
-  }
-  for (const [element, amount] of Object.entries(cost!)) {
-    if (amount <= 0) {
-      continue;
-    }
-    if ((pool[element] ?? 0) < amount) {
-      return false;
-    }
-  }
-  return true;
+/** Universal mana. Pays for any element, and is spent before that element's own mana. */
+export const RAINBOW_MANA = 'Rainbow';
+
+interface RainbowSpend {
+  rainbowLeft: number;
+  specific: ManaGenerationMap;
 }
 
 /**
- * Deducts `cost` from `pool` when affordable. Returns a new pool, or `null` if any element is short.
+ * Rainbow covers any element and is used before that element's own mana.
+ * A Rainbow cost itself is paid only with Rainbow.
+ * Returns null when the pool cannot cover the cost.
  */
-export function spendManaCost(
-  pool: ManaGenerationMap,
-  cost: ManaCostMap | undefined,
-): ManaGenerationMap | null {
-  if (!canAffordManaCost(pool, cost)) {
-    return null;
+function rainbowSpendPlan(pool: ManaGenerationMap, cost: ManaCostMap): RainbowSpend | null {
+  let rainbow = pool[RAINBOW_MANA] ?? 0;
+  const rainbowCost = cost[RAINBOW_MANA] ?? 0;
+  if (rainbowCost > 0) {
+    if (rainbow < rainbowCost) {
+      return null;
+    }
+    rainbow -= rainbowCost;
   }
-  if (!hasManaCost(cost)) {
-    return { ...pool };
-  }
-  const next: ManaGenerationMap = { ...pool };
-  for (const [element, amount] of Object.entries(cost!)) {
+  const specific: ManaGenerationMap = {};
+  const elements = Object.keys(cost)
+    .filter((element) => element !== RAINBOW_MANA)
+    .sort();
+  for (const element of elements) {
+    const amount = cost[element] ?? 0;
     if (amount <= 0) {
       continue;
     }
+    const fromRainbow = Math.min(rainbow, amount);
+    const fromSpecific = amount - fromRainbow;
+    if ((pool[element] ?? 0) < fromSpecific) {
+      return null;
+    }
+    rainbow -= fromRainbow;
+    if (fromSpecific > 0) {
+      specific[element] = fromSpecific;
+    }
+  }
+  return { rainbowLeft: rainbow, specific };
+}
+
+function applyRainbowSpend(pool: ManaGenerationMap, plan: RainbowSpend): ManaGenerationMap {
+  const next: ManaGenerationMap = { ...pool };
+  if (plan.rainbowLeft <= 0) {
+    delete next[RAINBOW_MANA];
+  } else {
+    next[RAINBOW_MANA] = plan.rainbowLeft;
+  }
+  for (const [element, amount] of Object.entries(plan.specific)) {
     const remaining = (next[element] ?? 0) - amount;
     if (remaining <= 0) {
       delete next[element];
@@ -167,6 +185,32 @@ export function spendManaCost(
     }
   }
   return next;
+}
+
+/** Whether the player's mana pool satisfies every entry in `cost`, with Rainbow covering any element. */
+export function canAffordManaCost(pool: ManaGenerationMap, cost: ManaCostMap | undefined): boolean {
+  if (!hasManaCost(cost)) {
+    return true;
+  }
+  return rainbowSpendPlan(pool, cost!) !== null;
+}
+
+/**
+ * Deducts `cost` from `pool` when affordable. Returns a new pool, or `null` if any element is short.
+ * Rainbow is spent before the cost's own element.
+ */
+export function spendManaCost(
+  pool: ManaGenerationMap,
+  cost: ManaCostMap | undefined,
+): ManaGenerationMap | null {
+  if (!hasManaCost(cost)) {
+    return { ...pool };
+  }
+  const plan = rainbowSpendPlan(pool, cost!);
+  if (!plan) {
+    return null;
+  }
+  return applyRainbowSpend(pool, plan);
 }
 
 /** Adds `add` element amounts into a copy of `pool`. */
@@ -242,8 +286,8 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'rock-monster',
     name: 'Rock Monster',
     cardType: 'Monster',
-    maxHealth: 80,
-    attack: 20,
+    maxHealth: 60,
+    attack: 10,
     weight: 2,
     cardElement: 'Rock',
     rarity: 'Common',
@@ -258,10 +302,10 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     manaCost: { Rock: 4 },
     cardElement: 'Rock',
     rarity: 'Common',
-    damage: 60,
+    damage: 70,
     weight: 2,
     damageMultiplierAgainstZone: { land: 2 },
-    description: 'Deals 60 damage to a target. If the target is a Land card, the damage is doubled.',
+    description: 'Deals 70 damage to a target. If the target is a Land card, the damage is doubled.',
   },
   'mud-hut': {
     id: 'mud-hut',
@@ -275,14 +319,14 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     maxMana: {Rock: 5},
     weight: 2,
     space: 1,
-    description: 'A building that gets built and generates Rock mana instantly.',
+    description: 'A building that, once placed, is built and generates Rock mana instantly.',
   },
   'mighty-gopher': {
     id: 'mighty-gopher',
     name: 'Mighty Gopher',
     cardType: 'Monster',
     maxHealth: 40,
-    attack: 30,
+    attack: 20,
     weight: 1,
     cardElement: 'Rock',
     rarity: 'Common',
@@ -293,7 +337,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
   },
   'mountain-range': {
     id: 'mountain-range',
-    name: 'Mountain Range',
+    name: 'Eternal Mountains',
     cardType: 'Land',
     manaCost: { Rock: 4 },
     maxHealth: 400,
@@ -302,9 +346,9 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     buildTime: 3,
     space: 3,
     weight: 5,
-    generateMana: {Rock: 4, Ice: 3, Wind: 3, Mystic: 2, Grass: 2, Lightning: 2},
-    maxMana: {Rock: 15, Ice: 10, Wind: 10, Mystic: 5, Grass: 5, Lightning: 5},
-    description: 'A mountainous region that generates lots of mana.',
+    generateMana: {Rock: 5, Rainbow: 2},
+    maxMana: {Rock: 15, Rainbow: 6},
+    description: 'A mountainous region that has endured the test of time and generates lots of mana.',
   },
   'temple-of-being': {
     id: 'temple-of-being',
@@ -319,33 +363,33 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 2},
     maxMana: {Rock: 6},
     placeOnOpponentLandRow: true,
-    description: 'Can only be placed on the opponent\'s field if they have space available.',
+    description: 'Can only be placed on the opponent\'s field and occupies one of their spaces.',
   },
   'armoredillo': {
     id: 'armoredillo',
     name: 'Armoredillo',
     cardType: 'Monster',
     maxHealth: 30,
-    attack: 20,
+    attack: 30,
     weight: 1,
     cardElement: 'Rock',
     rarity: 'Common',
     monsterClass: 'Critter',
     attributes: ['Melee'],
     startingBlocks: 1,
-    description: 'Starts with 1 shield when placed.',
+    description: 'Starts with 1 block when placed.',
   },
   'ruptar': {
     id: 'ruptar',
     name: 'Ruptar',
     cardType: 'Monster',
     manaCost: { Rock: 4 },
-    maxHealth: 120,
-    attack: 30,
+    maxHealth: 100,
+    attack: 20,
     multiAttack: 2,
     weight: 3,
     cardElement: 'Rock',
-    rarity: 'Uncommon',
+    rarity: 'Rare',
     monsterClass: 'Dinosaur',
     attributes: ['Melee', 'Haste'],
     description: 'If attacking a target that is Lightning typed, gain an additional attack for that turn.',
@@ -354,7 +398,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'elder-gopher-statue',
     name: 'Elder Gopher Statue',
     cardType: 'Land',
-    maxHealth: 200,
+    maxHealth: 150,
     cardElement: 'Rock',
     rarity: 'Uncommon',
     buildTime: 1,
@@ -363,26 +407,26 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     generateMana: {Rock: 1},
     maxMana: {Rock: 10},
     landAbilities: [{ id: 'praise', name: 'Praise', manaCost: 0, manaElement: 'Rock' }],
-    description: 'Elder Gopher Statue is powered by the Praises of the Mighty Gophers. Every time a Mighty Gopher Praises the Elder Gopher Statue, it generates an additional 1 Rock mana permanently. Consumes the turn of the Mighty Gopher.',
+    description: 'A statue built to honor the mightiest gopher to ever live. If a Mighty Gopher is placed on this land, it can praise the statue and increase the Rock mana generation of the land permanently by 1.',
   },
   'rockterrior': {
     id: 'rockterrior',
-    name: 'Rockterrior',
+    name: 'Smashterrior',
     cardType: 'Monster',
-    manaCost: { Rock: 8 },
-    maxHealth: 180,
-    attack: 30,
+    manaCost: { Rock: 9 },
+    maxHealth: 140,
+    attack: 40,
     weight: 4,
     cardElement: 'Rock',
     rarity: 'Rare',
     monsterClass: 'Dinosaur',
     attributes: ['Melee'],
-    abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 5, manaElement: 'Rock' }],
-    description: 'Tail Smash: Choose a field card or the opponent\'s life points and deal 80 damage. If the target is an Ice type, deal 160 damage instead. Costs 3 Rock mana and is a one time use only.',
+    abilities: [{ id: 'tail-smash', name: 'Tail Smash', manaCost: 6, manaElement: 'Rock' }],
+    description: 'A dinosaur with a giant spike ball tail that can be used to smash its opponents. Costs 6 Rock mana and deals 60 damage to any target.',
   },
   'rock-slide': {
     id: 'rock-slide',
-    name: 'Rock Slide',
+    name: 'Avalanche',
     cardType: 'Spell',
     manaCost: { Rock: 7 },
     cardElement: 'Rock',
@@ -397,21 +441,21 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: 'excavation-site',
     name: 'Excavation Site',
     cardType: 'Land',
-    maxHealth: 160,
+    maxHealth: 120,
     cardElement: 'Rock',
     rarity: 'Rare',
     buildTime: 2,
     space: 1,
     weight: 3,
     generateMana: {Rock: 2, Sand: 2},
-    maxMana: {Rock: 7, Sand: 7},
+    maxMana: {Rock: 6, Sand: 6},
     description: 'If a Dinosaur card is placed on this land and is killed, then place at the Dinosaur at the bottom of the player\'s deck instead of discarding it to the graveyard. One time use only.',
   },
   'earth-shatter': {
     id: 'earth-shatter',
     name: 'Earth Shatter',
     cardType: 'Spell',
-    manaCost: { Rock: 12 },
+    manaCost: { Rock: 15 },
     cardElement: 'Rock',
     rarity: 'Epic',
     weight: 7,
@@ -423,24 +467,23 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     id: '1000-mile-wall',
     name: '1000 Mile Wall',
     cardType: 'Land',
-    manaCost: { Rock: 7 },
-    maxHealth: 500,
+    maxHealth: 300,
     cardElement: 'Rock',
     rarity: 'Epic',
-    buildTime: 4,
+    buildTime: 5,
     space: 5,
     weight: 8,
-    generateMana: {Rock: 9},
-    maxMana: {Rock: 20},
+    generateMana: {Rock: 8},
+    maxMana: {Rock: 40},
     description:
-      'After this land finishes building: whenever a Monster is placed on it, that Monster gains 1 block for each Monster on this land (including itself), and each other Monster already on this land gains 1 block. Monsters already on these spaces when this land finishes building each gain 1 block per Monster on this land.',
+      'A wall that stretches for thousands of miles. Every Monster on this land gains 1 block for itself and for every other Monster placed on this land.',
   },
   'king-colossus': {
     id: 'king-colossus',
     name: 'King Colossus',
     cardType: 'Monster',
-    manaCost: { Rock: 15 },
-    maxHealth: 200,
+    manaCost: { Rock: 20 },
+    maxHealth: 100,
     attack: 50,
     weight: 10,
     cardElement: 'Rock',
@@ -448,7 +491,7 @@ export const CARD_CATALOG: Record<string, CardDefinition> = {
     monsterClass: 'Elemental',
     attributes: ['Melee'],
     description:
-      'When placed, starts with an additional +10 Health for every Rock mana you currently have.',
+      'The reawakened ancient king of the Rock realm. Powered by Rock mana, King Colossus starts with +10 health for every Rock mana currently held when placed.',
   },
 };
 

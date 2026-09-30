@@ -428,10 +428,10 @@ export class Card {
       return true;
     }
     const pool = slot === 'player1' ? this.engine.player1Mana() : this.engine.player2Mana();
-    return (pool['Rock'] ?? 0) < 1;
+    return !canAffordManaCost(pool, { Rock: 1 });
   });
 
-  /** Rockterrior: show Tail Smash while ready (stays visible but disabled after one use). */
+  /** Rockterrior: Tail Smash is available once per turn while its cost can be paid. */
   protected readonly showTailSmashAbility = computed(() => {
     if (!this.onField() || this.fieldZone() !== 'monster') {
       return false;
@@ -439,15 +439,13 @@ export class Card {
     if (this.cardId() !== 'rockterrior') {
       return false;
     }
-    return this.fieldReadyHighlight();
+    const slot = this.ownerPlayerSlot();
+    return slot !== null && this.engine.canLocalPlayerActWithSlot(slot);
   });
 
-  /** Tail Smash requires 3 Rock mana and is one-time use. */
+  /** Tail Smash costs 6 Rock. Rainbow mana can pay that cost. */
   protected readonly tailSmashDisabled = computed(() => {
     if (!this.showTailSmashAbility()) {
-      return true;
-    }
-    if ((this.fieldEntry()?.usedAbilities ?? []).includes('tail-smash')) {
       return true;
     }
     const slot = this.ownerPlayerSlot();
