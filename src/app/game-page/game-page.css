@@ -229,6 +229,84 @@
 }
 
 /* Deck + hand: deck sits to the side of the centered hand group */
+.match-result-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(8, 12, 24, 0.72);
+}
+
+.match-result-modal {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(36rem, 100%);
+  min-height: 18rem;
+  padding: 3.5rem 2.5rem;
+  border-radius: 18px;
+  background: #0f172a;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.5);
+}
+
+.match-result-title {
+  margin: 0;
+  font-size: clamp(3.5rem, 8vw, 5.25rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(2.75rem);
+  animation: match-result-rise 1.8s ease forwards;
+}
+
+.match-result-title--victory {
+  color: #2563eb;
+}
+
+.match-result-title--defeat {
+  color: #dc2626;
+}
+
+.match-result-home {
+  margin-top: 2.25rem;
+  min-width: 11rem;
+  animation: match-result-home-in 0.45s ease;
+  --mat-button-filled-container-color: #f8fafc;
+  --mat-button-filled-label-text-color: #0f172a;
+}
+
+@keyframes match-result-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes match-result-home-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-result-title {
+    animation-duration: 0.01s;
+  }
+
+  .match-result-home {
+    animation: none;
+  }
+}
+
 .player-hand-row {
   display: flex;
   flex-direction: row;

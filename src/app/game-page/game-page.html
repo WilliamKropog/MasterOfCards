@@ -1,4 +1,4 @@
-<header class="app-header">
+<header class="app-header" [attr.inert]="engine.matchConcluded() ? '' : null">
   <div class="app-header-top">
     <div class="app-header-left">
       <h1 class="app-title">{{ title() }}</h1>
@@ -56,6 +56,7 @@
   class="battle-layout"
   cdkDropListGroup
   aria-label="Game table"
+  [attr.inert]="engine.matchConcluded() ? '' : null"
 >
   <div class="player-hand-row">
     <app-player-deck [playerSlot]="engine.topPlayerSlot()" />
@@ -73,3 +74,34 @@
 </section>
 
 <app-spell-drag-line-overlay />
+
+@if (engine.localMatchResult(); as result) {
+  <div class="match-result-backdrop">
+    <div
+      class="match-result-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="match-result-title"
+    >
+      <h2
+        id="match-result-title"
+        class="match-result-title"
+        [class.match-result-title--victory]="result === 'victory'"
+        [class.match-result-title--defeat]="result === 'defeat'"
+        (animationend)="onResultTitleAnimationEnd($event)"
+      >
+        {{ result === 'victory' ? 'Victory' : 'Defeat' }}
+      </h2>
+      @if (resultActionReady()) {
+        <button
+          matButton="filled"
+          type="button"
+          class="match-result-home"
+          (click)="onEndGameClick()"
+        >
+          Return Home
+        </button>
+      }
+    </div>
+  </div>
+}

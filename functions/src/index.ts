@@ -744,6 +744,9 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         "Match game state is not initialized.",
       );
     }
+    if (match.gameState.player1LifePoints <= 0 || match.gameState.player2LifePoints <= 0) {
+      throw new HttpsError("failed-precondition", "Match is over.");
+    }
 
     const currentTurn = match.gameState.currentTurn === 2 ? 2 : 1;
     if (callerSeat !== currentTurn) {

@@ -1,5 +1,5 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { Auth, authState } from '@angular/fire/auth';
 import { MatButton } from '@angular/material/button';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -47,7 +47,22 @@ export class GamePage implements OnInit, OnDestroy {
     return null;
   });
 
+  /** True after the Victory / Defeat title has finished rising. Reveals Return Home. */
+  protected readonly resultActionReady = signal(false);
+
   private fragmentSub: Subscription | null = null;
+
+  constructor() {
+    effect(() => {
+      const result = this.engine.localMatchResult();
+      if (!result) {
+        this.resultActionReady.set(false);
+        return;
+      }
+      this.cardDrag.endDrag();
+      this.engine.cancelAllTargetModes();
+    });
+  }
 
   ngOnInit(): void {
     this.fragmentSub = this.route.fragment.subscribe((fragment) => {
@@ -123,6 +138,13 @@ export class GamePage implements OnInit, OnDestroy {
     }
   }
 
+  protected onResultTitleAnimationEnd(event: AnimationEvent): void {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    this.resultActionReady.set(true);
+  }
+
   protected onEndGameClick(): void {
     this.cardDrag.endDrag();
     this.liveSync.detach();
@@ -157,6 +179,9 @@ export class GamePage implements OnInit, OnDestroy {
 
   @HostListener('document:keydown', ['$event'])
   protected onDocumentKeydown(event: KeyboardEvent): void {
+    if (this.engine.matchConcluded()) {
+      return;
+    }
     if (event.key === 'Escape') {
       this.engine.cancelAllTargetModes();
     }
@@ -168,6 +193,9 @@ export class GamePage implements OnInit, OnDestroy {
    */
   @HostListener('document:click', ['$event'])
   protected onDocumentClick(event: MouseEvent): void {
+    if (this.engine.matchConcluded()) {
+      return;
+    }
     if (!this.engine.attackMode() && !this.engine.abilityTargetMode()) {
       return;
     }

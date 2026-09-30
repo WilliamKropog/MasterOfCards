@@ -179,7 +179,7 @@ export class LiveMatchSyncService {
     payload: Record<string, unknown>,
     options?: { loadingMove?: boolean },
   ): Promise<void> {
-    if (this.submitting) {
+    if (this.submitting || this.engine.matchConcluded()) {
       return;
     }
     this.submitting = true;

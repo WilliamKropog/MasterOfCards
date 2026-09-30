@@ -296,8 +296,29 @@ export class GameEngineService {
    * In a local/hotseat match (localPlayerSlot === null), both slots can be controlled.
    * In a live match, only the seat matching localPlayerSlot can be controlled.
    */
+  /**
+   * True once either player has been reduced to 0 life. The match stays on screen, but no further
+   * plays, attacks, or turn changes are accepted.
+   */
+  readonly matchConcluded = computed(
+    () => this.gameStarted() && (this.player1LifePoints() <= 0 || this.player2LifePoints() <= 0),
+  );
+
+  /**
+   * Result for the player sitting at this screen. Live matches use that player's seat.
+   * A local hotseat uses the bottom seat.
+   */
+  readonly localMatchResult = computed<'victory' | 'defeat' | null>(() => {
+    if (!this.matchConcluded()) {
+      return null;
+    }
+    const viewer = this.localPlayerSlot() ?? this.bottomPlayerSlot();
+    const viewerLife = viewer === 'player1' ? this.player1LifePoints() : this.player2LifePoints();
+    return viewerLife > 0 ? 'victory' : 'defeat';
+  });
+
   canLocalPlayerControlSlot(slot: FieldPlayerSlot | null | undefined): boolean {
-    if (!slot) {
+    if (!slot || this.matchConcluded()) {
       return false;
     }
     const local = this.localPlayerSlot();
@@ -506,6 +527,9 @@ export class GameEngineService {
    * Uses the same index rules as CDK's `moveItemInArray`.
    */
   moveHandCard(slot: FieldPlayerSlot, fromIndex: number, toIndex: number): boolean {
+    if (this.matchConcluded()) {
+      return false;
+    }
     const hand = slot === 'player1' ? this.player1Hand() : this.player2Hand();
     if (
       fromIndex === toIndex ||
@@ -889,7 +913,7 @@ export class GameEngineService {
 
   /** Monster can attack, defend, or use activated abilities on the owner's turn. */
   private canMonsterAct(ownerSlot: FieldPlayerSlot, entry: FieldCardEntry): boolean {
-    if (!this.gameStarted() || entry.pendingDestruction) {
+    if (!this.gameStarted() || this.matchConcluded() || entry.pendingDestruction) {
       return false;
     }
     const turn = this.currentTurn();
@@ -920,7 +944,7 @@ export class GameEngineService {
 
   /** True when this monster may perform another attack this turn (honors `multiAttack`). */
   private canMonsterAttack(ownerSlot: FieldPlayerSlot, entry: FieldCardEntry): boolean {
-    if (!this.gameStarted() || entry.pendingDestruction) {
+    if (!this.gameStarted() || this.matchConcluded() || entry.pendingDestruction) {
       return false;
     }
     const turn = this.currentTurn();
@@ -2687,6 +2711,9 @@ export class GameEngineService {
 
   /** Stub — advance turn / pass priority when you add phases. */
   endTurn(): void {
+    if (this.matchConcluded()) {
+      return;
+    }
     const next: PlayerId = this.activePlayer() === 1 ? 2 : 1;
     this.activePlayer.set(next);
     if (this.gameStarted()) {
@@ -2697,7 +2724,7 @@ export class GameEngineService {
 
   /** True when Next Turn is allowed. */
   private mayAdvanceTurn(): boolean {
-    if (!this.gameStarted() || this.currentTurn() === null) {
+    if (!this.gameStarted() || this.matchConcluded() || this.currentTurn() === null) {
       return false;
     }
     const activeSlot: FieldPlayerSlot = this.currentTurn() === 1 ? 'player1' : 'player2';
