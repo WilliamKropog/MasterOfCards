@@ -57,7 +57,7 @@ export interface LiveGameState {
   nextFieldInstanceId: number;
 }
 
-export const LIVE_STARTING_LIFE_POINTS = 1000;
+export const LIVE_STARTING_LIFE_POINTS = 500;
 export const LIVE_OPENING_HAND_SIZE = 5;
 
 function shuffleInPlace<T>(arr: T[]): void {
@@ -72,9 +72,11 @@ function shuffleInPlace<T>(arr: T[]): void {
 function clearActedFlags(cards: LiveFieldCard[]): LiveFieldCard[] {
   return cards.map((e) => {
     const { attacksThisTurn: _removed, ...rest } = e;
+    const used = (rest.usedAbilities ?? []).filter((id) => id !== 'tail-smash');
     return {
       ...rest,
       hasActedThisTurn: false,
+      usedAbilities: used.length > 0 ? used : undefined,
     };
   });
 }
@@ -354,14 +356,79 @@ function refreshManaPool(
 }
 
 /**
- * Apply a land/monster play from hand onto LiveGameState.
- * Returns null when the move is illegal.
+ * Permute a player's hand to `handOrder` when it contains the same cards.
+ * Returns null when `handOrder` is not a rearrangement of the current hand.
+ * Returns `state` unchanged when no order was provided or it already matches.
  */
+function alignHandOrder(
+  state: LiveGameState,
+  controllerSlot: "player1" | "player2",
+  handOrder: readonly string[] | undefined,
+): LiveGameState | null {
+  if (!handOrder) {
+    return state;
+  }
+  const current = controllerSlot === "player1" ? state.player1Hand : state.player2Hand;
+  if (handOrder.length === current.length && handOrder.every((id, index) => id === current[index])) {
+    return state;
+  }
+  if (!sameCardMultiset(current, handOrder)) {
+    return null;
+  }
+  if (controllerSlot === "player1") {
+    return { ...state, player1Hand: [...handOrder] };
+  }
+  return { ...state, player2Hand: [...handOrder] };
+}
+
+function sameCardMultiset(current: readonly string[], next: readonly string[]): boolean {
+  if (current.length !== next.length) {
+    return false;
+  }
+  const counts = new Map<string, number>();
+  for (const id of current) {
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  for (const id of next) {
+    const left = counts.get(id) ?? 0;
+    if (left <= 0) {
+      return false;
+    }
+    counts.set(id, left - 1);
+  }
+  return true;
+}
+
+/** Save a hand rearrangement. The cards themselves do not change. */
+export function applyReorderHandToLiveGameState(
+  state: LiveGameState,
+  controllerSlot: "player1" | "player2",
+  handOrder: readonly string[],
+): LiveGameState | null {
+  if (!state.gameStarted) {
+    return null;
+  }
+  const seat: 1 | 2 = controllerSlot === "player1" ? 1 : 2;
+  if (state.currentTurn !== seat) {
+    return null;
+  }
+  const aligned = alignHandOrder(state, controllerSlot, handOrder);
+  if (!aligned || aligned === state) {
+    return aligned;
+  }
+  return { ...aligned, version: state.version + 1 };
+}
 export function applyPlayCardToLiveGameState(
   state: LiveGameState,
   controllerSlot: 'player1' | 'player2',
   intent: PlayCardIntent,
+  handOrder?: readonly string[],
 ): LiveGameState | null {
+  const aligned = alignHandOrder(state, controllerSlot, handOrder);
+  if (!aligned) {
+    return null;
+  }
+  state = aligned;
   if (!state.gameStarted) {
     return null;
   }
@@ -446,10 +513,8 @@ export function applyPlayCardToLiveGameState(
       entry.blocks = rules.startingBlocks;
     }
     if (intent.cardId === 'king-colossus') {
-      const rockCost = rules.manaCost?.['Rock'] ?? 0;
-      const rockAfter = spent['Rock'] ?? 0;
-      const rockBefore = rockAfter + rockCost;
-      const baseHp = rules.maxHealth ?? 300;
+      const rockBefore = pool['Rock'] ?? 0;
+      const baseHp = rules.maxHealth ?? 100;
       const hp = baseHp + rockBefore * 10;
       entry.currentHealth = hp;
       entry.maxHealthOverride = hp;
@@ -1133,7 +1198,13 @@ export function applyCastSpellToLiveGameState(
   state: LiveGameState,
   controllerSlot: FieldPlayerSlot,
   intent: CastSpellIntent,
+  handOrder?: readonly string[],
 ): LiveGameState | null {
+  const aligned = alignHandOrder(state, controllerSlot, handOrder);
+  if (!aligned) {
+    return null;
+  }
+  state = aligned;
   if (!state.gameStarted) {
     return null;
   }
@@ -1264,6 +1335,11 @@ export type UseAbilityIntent =
       defenderIdentifier: number;
     }
   | {
+      abilityId: 'tail-smash';
+      casterMonsterSlot: number;
+      defenderPlayerSlot: FieldPlayerSlot;
+    }
+  | {
       abilityId: 'praise';
       landRowSlot: FieldPlayerSlot;
       landIndex: number;
@@ -1316,11 +1392,48 @@ export function applyUseAbilityToLiveGameState(
     if (!casterEntry || casterEntry.cardId !== 'rockterrior') {
       return null;
     }
+    if (!canMonsterAct(state, controllerSlot, casterEntry)) {
+      return null;
+    }
     if ((casterEntry.usedAbilities ?? []).includes('tail-smash')) {
       return null;
     }
-    if (!canMonsterAct(state, controllerSlot, casterEntry)) {
+
+    const pool =
+      controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
+    const spent = spendMana(pool, { Rock: 6 });
+    if (spent === null) {
       return null;
+    }
+
+    const next = cloneBoard(state);
+    if (controllerSlot === 'player1') {
+      next.player1ManaPool = spent;
+    } else {
+      next.player2ManaPool = spent;
+    }
+
+    const liveCaster = getMonsterBySlot(next, controllerSlot, intent.casterMonsterSlot);
+    if (!liveCaster) {
+      return null;
+    }
+    setFieldEntry(next, controllerSlot, 'monster', intent.casterMonsterSlot, {
+      ...liveCaster,
+      hasActedThisTurn: true,
+      usedAbilities: [...(liveCaster.usedAbilities ?? []), 'tail-smash'],
+    });
+
+    if ('defenderPlayerSlot' in intent) {
+      const enemy: FieldPlayerSlot = controllerSlot === 'player1' ? 'player2' : 'player1';
+      if (intent.defenderPlayerSlot !== enemy) {
+        return null;
+      }
+      if (intent.defenderPlayerSlot === 'player1') {
+        next.player1LifePoints = Math.max(0, next.player1LifePoints - 60);
+      } else {
+        next.player2LifePoints = Math.max(0, next.player2LifePoints - 60);
+      }
+      return next;
     }
 
     const defenderEntry = getFieldEntry(
@@ -1340,23 +1453,9 @@ export function applyUseAbilityToLiveGameState(
       return null;
     }
 
-    const pool =
-      controllerSlot === 'player1' ? state.player1ManaPool : state.player2ManaPool;
-    const spent = spendMana(pool, { Rock: 3 });
-    if (spent === null) {
-      return null;
-    }
-
     const defenderRules = getLiveCardRules(defenderEntry.cardId);
     if (!defenderRules) {
       return null;
-    }
-
-    const next = cloneBoard(state);
-    if (controllerSlot === 'player1') {
-      next.player1ManaPool = spent;
-    } else {
-      next.player2ManaPool = spent;
     }
 
     const liveDefender = getFieldEntry(
@@ -1365,18 +1464,12 @@ export function applyUseAbilityToLiveGameState(
       intent.defenderZone,
       intent.defenderIdentifier,
     );
-    const liveCaster = getMonsterBySlot(next, controllerSlot, intent.casterMonsterSlot);
-    if (!liveDefender || !liveCaster) {
+    if (!liveDefender) {
       return null;
     }
 
-    const amount = defenderRules.cardElement === 'Ice' ? 160 : 80;
+    const amount = 60;
     const defenderAfter = applyIncomingFieldDamage(liveDefender, amount, defenderRules);
-    setFieldEntry(next, controllerSlot, 'monster', intent.casterMonsterSlot, {
-      ...liveCaster,
-      hasActedThisTurn: true,
-      usedAbilities: [...(liveCaster.usedAbilities ?? []), 'tail-smash'],
-    });
     setFieldEntry(
       next,
       intent.defenderRowSlot,

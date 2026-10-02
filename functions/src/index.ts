@@ -9,6 +9,7 @@ import {
   applyDefendToLiveGameState,
   applyEndTurnToLiveGameState,
   applyPlayCardToLiveGameState,
+  applyReorderHandToLiveGameState,
   applyUseAbilityToLiveGameState,
   createInitialLiveGameState,
   stripUndefinedDeep,
@@ -679,16 +680,26 @@ type SubmitMatchActionRequest = {
   casterMonsterSlot?: number;
   landRowSlot?: "player1" | "player2";
   landIndex?: number;
+  hand?: unknown;
 };
 
 const SUPPORTED_ACTIONS = new Set([
   "endTurn",
   "playCard",
+  "reorderHand",
   "defend",
   "attack",
   "castSpell",
   "useAbility",
 ]);
+
+function parseHandOrder(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const hand = value.filter((entry): entry is string => typeof entry === "string");
+  return hand.length === value.length ? hand : undefined;
+}
 
 /**
  * Action Sync entry point for live match mutations.
@@ -709,7 +720,7 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
   if (!SUPPORTED_ACTIONS.has(type)) {
     throw new HttpsError(
       "invalid-argument",
-      "Supported actions: endTurn, playCard, defend, attack, castSpell, useAbility.",
+      "Supported actions: endTurn, playCard, reorderHand, defend, attack, castSpell, useAbility.",
     );
   }
 
@@ -733,6 +744,9 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         "Match game state is not initialized.",
       );
     }
+    if (match.gameState.player1LifePoints <= 0 || match.gameState.player2LifePoints <= 0) {
+      throw new HttpsError("failed-precondition", "Match is over.");
+    }
 
     const currentTurn = match.gameState.currentTurn === 2 ? 2 : 1;
     if (callerSeat !== currentTurn) {
@@ -750,6 +764,21 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         fromTurn: currentTurn,
         toTurn: nextState.currentTurn,
       };
+    } else if (type === "reorderHand") {
+      const handOrder = parseHandOrder(data.hand);
+      if (!handOrder) {
+        throw new HttpsError("invalid-argument", "reorderHand requires hand.");
+      }
+      const applied = applyReorderHandToLiveGameState(
+        match.gameState,
+        controllerSlot,
+        handOrder,
+      );
+      if (!applied) {
+        throw new HttpsError("failed-precondition", "Illegal hand reorder.");
+      }
+      nextState = applied;
+      actionPayload = { type: "reorderHand" };
     } else if (type === "defend") {
       const monsterFieldSlot =
         typeof data.monsterFieldSlot === "number"
@@ -868,6 +897,7 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         match.gameState,
         controllerSlot,
         intent,
+        parseHandOrder(data.hand),
       );
       if (!applied) {
         throw new HttpsError("failed-precondition", "Illegal castSpell move.");
@@ -897,25 +927,40 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
           typeof data.casterMonsterSlot === "number"
             ? data.casterMonsterSlot
             : -1;
-        if (
-          casterMonsterSlot < 1 ||
-          (data.defenderRowSlot !== "player1" &&
-            data.defenderRowSlot !== "player2") ||
-          (data.defenderZone !== "monster" && data.defenderZone !== "land") ||
-          typeof data.defenderIdentifier !== "number"
-        ) {
+        if (casterMonsterSlot < 1) {
           throw new HttpsError(
             "invalid-argument",
-            "tail-smash requires caster and field target.",
+            "tail-smash requires casterMonsterSlot.",
           );
         }
-        intent = {
-          abilityId: "tail-smash",
-          casterMonsterSlot,
-          defenderRowSlot: data.defenderRowSlot,
-          defenderZone: data.defenderZone,
-          defenderIdentifier: data.defenderIdentifier,
-        };
+        if (
+          data.defenderPlayerSlot === "player1" ||
+          data.defenderPlayerSlot === "player2"
+        ) {
+          intent = {
+            abilityId: "tail-smash",
+            casterMonsterSlot,
+            defenderPlayerSlot: data.defenderPlayerSlot,
+          };
+        } else if (
+          (data.defenderRowSlot === "player1" ||
+            data.defenderRowSlot === "player2") &&
+          (data.defenderZone === "monster" || data.defenderZone === "land") &&
+          typeof data.defenderIdentifier === "number"
+        ) {
+          intent = {
+            abilityId: "tail-smash",
+            casterMonsterSlot,
+            defenderRowSlot: data.defenderRowSlot,
+            defenderZone: data.defenderZone,
+            defenderIdentifier: data.defenderIdentifier,
+          };
+        } else {
+          throw new HttpsError(
+            "invalid-argument",
+            "tail-smash requires a field target or the opponent's life points.",
+          );
+        }
       } else if (abilityId === "praise") {
         if (
           (data.landRowSlot !== "player1" && data.landRowSlot !== "player2") ||
@@ -991,6 +1036,7 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
         match.gameState,
         controllerSlot,
         intent,
+        parseHandOrder(data.hand),
       );
       if (!applied) {
         throw new HttpsError("failed-precondition", "Illegal playCard move.");

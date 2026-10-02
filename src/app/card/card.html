@@ -17,6 +17,7 @@
   [class.card--defending]="isDefending()"
   [class.card--land-building]="isLandUnderConstruction()"
   [class.card--attack-source]="isAttackSource()"
+  [class.card--breaking]="isBreaking()"
   [attr.data-field-slot]="onField() ? (fieldRowSlot() ?? ownerPlayerSlot()) : null"
   [attr.data-field-zone]="onField() ? fieldZone() : null"
   [attr.data-field-index]="onField() ? fieldCardIndex() : null"
@@ -56,6 +57,15 @@
           [class.card-floating-action--wall-shielding]="fb.kind === 'wall-shielding'"
         >{{ fb.text }}</span>
       }
+    }
+    @if (isBreaking()) {
+      <div class="card-shatter" aria-hidden="true">
+        <span class="card-shatter-piece card-shatter-piece--1"></span>
+        <span class="card-shatter-piece card-shatter-piece--2"></span>
+        <span class="card-shatter-piece card-shatter-piece--3"></span>
+        <span class="card-shatter-piece card-shatter-piece--4"></span>
+        <span class="card-shatter-piece card-shatter-piece--5"></span>
+      </div>
     }
     <div class="card-field-main">
       <header class="card-field-name">{{ displayNameWithBlocks() }}</header>

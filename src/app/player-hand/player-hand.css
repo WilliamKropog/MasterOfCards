@@ -35,6 +35,11 @@
   white-space: nowrap;
 }
 
+.player-hand-info:has(.player-hand-lp-damage) {
+  position: relative;
+  z-index: 2000;
+}
+
 .player-hand-title {
   margin: 0;
   font-size: 1rem;
@@ -56,8 +61,9 @@
   left: 100%;
   top: 0;
   margin-left: 0.5rem;
+  z-index: 2000;
   color: rgba(220, 38, 38, 1);
-  font-size: 0.85rem;
+  font-size: 1.275rem;
   font-weight: 800;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   pointer-events: none;
@@ -208,6 +214,12 @@
   color: rgba(161, 120, 54, 1);
   background: rgba(234, 198, 120, 0.35);
   border-color: rgba(180, 140, 70, 0.45);
+}
+
+.player-hand-mana-pill[data-mana-element='Rainbow'] {
+  color: #3b0764;
+  background: linear-gradient(90deg, #fecaca, #fde68a, #bbf7d0, #bae6fd, #ddd6fe);
+  border-color: rgba(109, 40, 217, 0.45);
 }
 
 /* ── Active turn highlight ─────────────────────────────────────────── */

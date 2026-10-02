@@ -39,7 +39,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Monster',
     rarity: 'Common',
     weight: 2,
-    maxHealth: 80,
+    maxHealth: 60,
     attack: 10,
     cardElement: 'Rock',
     attributes: ['Melee'],
@@ -50,7 +50,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Monster',
     rarity: 'Common',
     weight: 1,
-    maxHealth: 50,
+    maxHealth: 40,
     attack: 20,
     cardElement: 'Rock',
     attributes: ['Melee'],
@@ -62,7 +62,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     rarity: 'Common',
     weight: 2,
     manaCost: { Rock: 4 },
-    damage: 60,
+    damage: 70,
     damageMultiplierAgainstZone: { land: 2 },
     cardElement: 'Rock',
   },
@@ -87,8 +87,8 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     maxHealth: 400,
     buildTime: 3,
     space: 3,
-    generateMana: { Rock: 4, Ice: 3, Wind: 3, Mystic: 2, Grass: 2, Lightning: 2 },
-    maxMana: { Rock: 15, Ice: 10, Wind: 10, Mystic: 5, Grass: 5, Lightning: 5 },
+    generateMana: { Rock: 5, Rainbow: 2 },
+    maxMana: { Rock: 15, Rainbow: 6 },
     cardElement: 'Rock',
   },
   'temple-of-being': {
@@ -110,7 +110,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     rarity: 'Common',
     weight: 1,
     maxHealth: 30,
-    attack: 20,
+    attack: 30,
     startingBlocks: 1,
     cardElement: 'Rock',
     attributes: ['Melee'],
@@ -119,11 +119,11 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
   ruptar: {
     id: 'ruptar',
     cardType: 'Monster',
-    rarity: 'Uncommon',
+    rarity: 'Rare',
     weight: 3,
     manaCost: { Rock: 4 },
-    maxHealth: 120,
-    attack: 30,
+    maxHealth: 100,
+    attack: 20,
     multiAttack: 2,
     hasHaste: true,
     cardElement: 'Rock',
@@ -135,7 +135,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Land',
     rarity: 'Uncommon',
     weight: 3,
-    maxHealth: 200,
+    maxHealth: 150,
     buildTime: 1,
     space: 1,
     generateMana: { Rock: 1 },
@@ -147,9 +147,9 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Monster',
     rarity: 'Rare',
     weight: 4,
-    manaCost: { Rock: 8 },
-    maxHealth: 180,
-    attack: 30,
+    manaCost: { Rock: 9 },
+    maxHealth: 140,
+    attack: 40,
     cardElement: 'Rock',
     attributes: ['Melee'],
     monsterClass: 'Dinosaur',
@@ -170,11 +170,11 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Land',
     rarity: 'Rare',
     weight: 3,
-    maxHealth: 160,
+    maxHealth: 120,
     buildTime: 2,
     space: 1,
     generateMana: { Rock: 2, Sand: 2 },
-    maxMana: { Rock: 7, Sand: 7 },
+    maxMana: { Rock: 6, Sand: 6 },
     cardElement: 'Rock',
   },
   'earth-shatter': {
@@ -182,7 +182,7 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Spell',
     rarity: 'Epic',
     weight: 7,
-    manaCost: { Rock: 12 },
+    manaCost: { Rock: 15 },
     allowedTargetZones: ['land'],
     destroysTarget: true,
     cardElement: 'Rock',
@@ -192,12 +192,11 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Land',
     rarity: 'Epic',
     weight: 8,
-    manaCost: { Rock: 7 },
-    maxHealth: 500,
-    buildTime: 4,
+    maxHealth: 300,
+    buildTime: 5,
     space: 5,
-    generateMana: { Rock: 9 },
-    maxMana: { Rock: 20 },
+    generateMana: { Rock: 8 },
+    maxMana: { Rock: 40 },
     cardElement: 'Rock',
   },
   'king-colossus': {
@@ -205,8 +204,8 @@ export const LIVE_CARD_RULES: Record<string, LiveCardRules> = {
     cardType: 'Monster',
     rarity: 'Legendary',
     weight: 10,
-    manaCost: { Rock: 15 },
-    maxHealth: 200,
+    manaCost: { Rock: 20 },
+    maxHealth: 100,
     attack: 50,
     cardElement: 'Rock',
     attributes: ['Melee'],
@@ -225,33 +224,84 @@ export function hasManaCost(cost: ManaMap | undefined): boolean {
   return Object.values(cost).some((n) => n > 0);
 }
 
+/** Universal mana. Pays for any element, and is spent before that element's own mana. */
+export const RAINBOW_MANA = "Rainbow";
+
+interface RainbowSpend {
+  rainbowLeft: number;
+  specific: ManaMap;
+}
+
+/**
+ * Rainbow covers any element and is used before that element's own mana.
+ * A Rainbow cost itself is paid only with Rainbow.
+ * Returns null when the pool cannot cover the cost.
+ */
+function rainbowSpendPlan(pool: ManaMap, cost: ManaMap): RainbowSpend | null {
+  let rainbow = pool[RAINBOW_MANA] ?? 0;
+  const rainbowCost = cost[RAINBOW_MANA] ?? 0;
+  if (rainbowCost > 0) {
+    if (rainbow < rainbowCost) {
+      return null;
+    }
+    rainbow -= rainbowCost;
+  }
+  const specific: ManaMap = {};
+  const elements = Object.keys(cost)
+    .filter((element) => element !== RAINBOW_MANA)
+    .sort();
+  for (const element of elements) {
+    const amount = cost[element] ?? 0;
+    if (amount <= 0) {
+      continue;
+    }
+    const fromRainbow = Math.min(rainbow, amount);
+    const fromSpecific = amount - fromRainbow;
+    if ((pool[element] ?? 0) < fromSpecific) {
+      return null;
+    }
+    rainbow -= fromRainbow;
+    if (fromSpecific > 0) {
+      specific[element] = fromSpecific;
+    }
+  }
+  return { rainbowLeft: rainbow, specific };
+}
+
+function applyRainbowSpend(pool: ManaMap, plan: RainbowSpend): ManaMap {
+  const next: ManaMap = { ...pool };
+  if (plan.rainbowLeft <= 0) {
+    delete next[RAINBOW_MANA];
+  } else {
+    next[RAINBOW_MANA] = plan.rainbowLeft;
+  }
+  for (const [element, amount] of Object.entries(plan.specific)) {
+    const remaining = (next[element] ?? 0) - amount;
+    if (remaining <= 0) {
+      delete next[element];
+    } else {
+      next[element] = remaining;
+    }
+  }
+  return next;
+}
+
 export function canAffordMana(pool: ManaMap, cost: ManaMap | undefined): boolean {
   if (!cost || !hasManaCost(cost)) {
     return true;
   }
-  for (const [el, amount] of Object.entries(cost)) {
-    if ((pool[el] ?? 0) < amount) {
-      return false;
-    }
-  }
-  return true;
+  return rainbowSpendPlan(pool, cost) !== null;
 }
 
 export function spendMana(pool: ManaMap, cost: ManaMap | undefined): ManaMap | null {
-  if (!canAffordMana(pool, cost)) {
-    return null;
-  }
   if (!cost || !hasManaCost(cost)) {
     return { ...pool };
   }
-  const next = { ...pool };
-  for (const [el, amount] of Object.entries(cost)) {
-    next[el] = (next[el] ?? 0) - amount;
-    if (next[el] <= 0) {
-      delete next[el];
-    }
+  const plan = rainbowSpendPlan(pool, cost);
+  if (!plan) {
+    return null;
   }
-  return next;
+  return applyRainbowSpend(pool, plan);
 }
 
 export function addManaCapped(

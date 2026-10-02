@@ -8,7 +8,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { getCardDefinition, mustPlaceLandOnOpponentRow } from '../game/card-catalog';
 import type { CardDragPayload } from '../services/card-drag-payload';
 import { CardDragService } from '../services/card-drag.service';
-import type { FieldCardEntry, FieldZone } from '../services/game-engine.service';
+import type { FieldCardEntry, FieldZone, HandCard } from '../services/game-engine.service';
 import { GameEngineService, MONSTER_FIELD_SLOTS } from '../services/game-engine.service';
 import { Card } from '../card/card';
 import type { PlayerSlot } from '../player-hand/player-hand';
@@ -169,17 +169,17 @@ export class FieldRow {
       if (this.isFieldContainer(prev)) {
         moveItemInArray(prev as FieldCardEntry[], event.previousIndex, event.currentIndex);
       } else {
-        moveItemInArray(prev as string[], event.previousIndex, event.currentIndex);
+        moveItemInArray(prev as HandCard[], event.previousIndex, event.currentIndex);
       }
     }
     this.engine.touchDropContainers(event);
   }
 
-  private isHandContainer(data: string[] | FieldCardEntry[]): boolean {
+  private isHandContainer(data: HandCard[] | FieldCardEntry[]): boolean {
     return data === this.engine.player1Hand() || data === this.engine.player2Hand();
   }
 
-  private isFieldContainer(data: string[] | FieldCardEntry[]): boolean {
+  private isFieldContainer(data: HandCard[] | FieldCardEntry[]): boolean {
     return (
       data === this.engine.player1FieldLand() ||
       data === this.engine.player1FieldMonster() ||
