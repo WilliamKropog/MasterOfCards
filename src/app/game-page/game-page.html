@@ -92,6 +92,15 @@
       >
         {{ result === 'victory' ? 'Victory' : 'Defeat' }}
       </h2>
+      @if (resultRewardReady()) {
+        <p
+          class="match-result-orbs"
+          [attr.aria-label]="'Plus ' + matchOrbReward + ' Blue Orbs'"
+        >
+          <span class="match-result-orbs-amount">+{{ displayedOrbReward() }}</span>
+          <span class="match-result-orbs-dot" aria-hidden="true"></span>
+        </p>
+      }
       @if (resultActionReady()) {
         <button
           matButton="filled"

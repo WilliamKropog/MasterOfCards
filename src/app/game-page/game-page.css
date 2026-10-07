@@ -273,6 +273,26 @@
   color: #dc2626;
 }
 
+.match-result-orbs {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 1.5rem 0 0;
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+  font-weight: 700;
+  color: #e2e8f0;
+  animation: match-result-home-in 0.45s ease;
+}
+
+.match-result-orbs-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
 .match-result-home {
   margin-top: 2.25rem;
   min-width: 11rem;

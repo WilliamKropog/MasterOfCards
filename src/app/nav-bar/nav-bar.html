@@ -99,6 +99,15 @@
       <p class="nav-bar-error" role="alert">{{ grantErr }}</p>
     }
     <ng-content select="[navEnd]"></ng-content>
+    @if (user()) {
+      <p
+        class="nav-bar-orbs"
+        [attr.aria-label]="'Blue Orbs ' + blueOrbs.blueOrbs()"
+      >
+        <span class="nav-bar-orbs-amount">{{ blueOrbs.blueOrbs() }}</span>
+        <span class="nav-bar-orbs-dot" aria-hidden="true"></span>
+      </p>
+    }
   </div>
   @if (matchmaking.searching()) {
     <span class="nav-bar-search-bar" aria-hidden="true"></span>

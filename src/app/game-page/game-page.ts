@@ -4,10 +4,12 @@ import { Auth, authState } from '@angular/fire/auth';
 import { MatButton } from '@angular/material/button';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription, firstValueFrom, take } from 'rxjs';
+import { MATCH_COMPLETION_ORB_REWARD } from '../game/blue-orbs';
 import { SpellDragLineOverlay } from '../spell-drag-line-overlay/spell-drag-line-overlay';
 import { PlayField } from '../play-field/play-field';
 import { PlayerDeck } from '../player-deck/player-deck';
 import { PlayerHand } from '../player-hand/player-hand';
+import { BlueOrbsService } from '../services/blue-orbs.service';
 import { CardDragService } from '../services/card-drag.service';
 import { GameEngineService, type FieldPlayerSlot } from '../services/game-engine.service';
 import { LiveMatchSyncService } from '../services/live-match-sync.service';
@@ -25,6 +27,7 @@ export class GamePage implements OnInit, OnDestroy {
   private readonly cardDrag = inject(CardDragService);
   private readonly matchmaking = inject(MatchmakingService);
   private readonly liveSync = inject(LiveMatchSyncService);
+  private readonly blueOrbs = inject(BlueOrbsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -47,20 +50,34 @@ export class GamePage implements OnInit, OnDestroy {
     return null;
   });
 
-  /** True after the Victory / Defeat title has finished rising. Reveals Return Home. */
+  /** True after the Victory / Defeat title has finished rising. Reveals the orb reward. */
+  protected readonly resultRewardReady = signal(false);
+  /** True after the orb count-up finishes. Reveals Return Home. */
   protected readonly resultActionReady = signal(false);
+  /** Animated Blue Orbs amount shown under Victory / Defeat. */
+  protected readonly displayedOrbReward = signal(0);
+  protected readonly matchOrbReward = MATCH_COMPLETION_ORB_REWARD;
 
   private fragmentSub: Subscription | null = null;
+  private orbCountRaf: number | null = null;
+  private localRewardCompletionId: string | null = null;
+  private localRewardClaimStarted = false;
 
   constructor() {
     effect(() => {
       const result = this.engine.localMatchResult();
       if (!result) {
+        this.resultRewardReady.set(false);
         this.resultActionReady.set(false);
+        this.displayedOrbReward.set(0);
+        this.localRewardCompletionId = null;
+        this.localRewardClaimStarted = false;
+        this.cancelOrbCountUp();
         return;
       }
       this.cardDrag.endDrag();
       this.engine.cancelAllTargetModes();
+      void this.claimLocalRewardIfNeeded();
     });
   }
 
@@ -73,6 +90,7 @@ export class GamePage implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.fragmentSub?.unsubscribe();
     this.liveSync.detach();
+    this.cancelOrbCountUp();
   }
 
   private async bootstrapFromFragment(fragment: string | null): Promise<void> {
@@ -142,7 +160,11 @@ export class GamePage implements OnInit, OnDestroy {
     if (event.target !== event.currentTarget) {
       return;
     }
-    this.resultActionReady.set(true);
+    if (this.resultRewardReady()) {
+      return;
+    }
+    this.resultRewardReady.set(true);
+    this.startOrbCountUp();
   }
 
   protected onEndGameClick(): void {
@@ -219,5 +241,67 @@ export class GamePage implements OnInit, OnDestroy {
       return;
     }
     this.engine.cancelAllTargetModes();
+  }
+
+  private async claimLocalRewardIfNeeded(): Promise<void> {
+    if (this.engine.liveMatchId() || this.localRewardClaimStarted) {
+      return;
+    }
+    if (!this.auth.currentUser) {
+      return;
+    }
+    this.localRewardClaimStarted = true;
+    if (!this.localRewardCompletionId) {
+      this.localRewardCompletionId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    try {
+      await this.blueOrbs.claimLocalMatchReward(this.localRewardCompletionId);
+    } catch {
+      // Allow a later retry if the match result screen is still open.
+      this.localRewardClaimStarted = false;
+    }
+  }
+
+  private startOrbCountUp(): void {
+    this.cancelOrbCountUp();
+    this.displayedOrbReward.set(0);
+    this.resultActionReady.set(false);
+
+    const reducedMotion =
+      typeof matchMedia === 'function' &&
+      matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) {
+      this.displayedOrbReward.set(MATCH_COMPLETION_ORB_REWARD);
+      this.resultActionReady.set(true);
+      return;
+    }
+
+    const durationMs = 1000;
+    const target = MATCH_COMPLETION_ORB_REWARD;
+    const startedAt = performance.now();
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      this.displayedOrbReward.set(Math.round(target * progress));
+      if (progress < 1) {
+        this.orbCountRaf = requestAnimationFrame(tick);
+        return;
+      }
+      this.orbCountRaf = null;
+      this.displayedOrbReward.set(target);
+      this.resultActionReady.set(true);
+    };
+
+    this.orbCountRaf = requestAnimationFrame(tick);
+  }
+
+  private cancelOrbCountUp(): void {
+    if (this.orbCountRaf !== null) {
+      cancelAnimationFrame(this.orbCountRaf);
+      this.orbCountRaf = null;
+    }
   }
 }

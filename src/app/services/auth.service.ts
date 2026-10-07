@@ -152,6 +152,7 @@ export class AuthService {
           usernameLower: usernameKey,
           email: trimmedEmail,
           createdAt: serverTimestamp(),
+          blueOrbs: 0,
         });
       });
     } catch (error) {

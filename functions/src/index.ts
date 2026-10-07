@@ -27,6 +27,11 @@ import {
   type PackId,
 } from "./game/pack-catalog";
 import { LIVE_CARD_RULES } from "./game/card-rules";
+import {
+  MATCH_COMPLETION_ORB_REWARD,
+  userOrbLedgerRef,
+  writeBlueOrbsGrant,
+} from "./game/blue-orbs";
 
 initializeApp();
 
@@ -97,6 +102,10 @@ type MatchDoc = {
   currentTurn?: number;
   actionSeq?: number;
   gameState?: LiveGameState;
+  rewardsGranted?: boolean;
+  winnerUid?: string | null;
+  loserUid?: string | null;
+  blueOrbsAwarded?: number;
 };
 
 function assertParticipant(match: MatchDoc, uid: string): 1 | 2 {
@@ -1047,6 +1056,22 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
 
     const nextSeq = (match.actionSeq ?? 0) + 1;
     const actionRef = matchRef.collection("actions").doc(String(nextSeq));
+    const matchEnded =
+      nextState.player1LifePoints <= 0 || nextState.player2LifePoints <= 0;
+    const shouldGrantRewards = matchEnded && match.rewardsGranted !== true;
+
+    const p1LedgerRef = userOrbLedgerRef(db, match.player1.uid, `match-${matchId}`);
+    const p2LedgerRef = userOrbLedgerRef(db, match.player2.uid, `match-${matchId}`);
+    let p1LedgerExists = false;
+    let p2LedgerExists = false;
+    if (shouldGrantRewards) {
+      const [p1LedgerSnap, p2LedgerSnap] = await Promise.all([
+        tx.get(p1LedgerRef),
+        tx.get(p2LedgerRef),
+      ]);
+      p1LedgerExists = p1LedgerSnap.exists;
+      p2LedgerExists = p2LedgerSnap.exists;
+    }
 
     tx.set(actionRef, {
       seq: nextSeq,
@@ -1055,20 +1080,137 @@ export const submitMatchAction = onCall(callableOptions, async (request) => {
       ...actionPayload,
     });
 
-    tx.update(matchRef, {
+    const matchUpdate: Record<string, unknown> = {
       currentTurn: nextState.currentTurn,
       actionSeq: nextSeq,
       gameState: stripUndefinedDeep(nextState),
-    });
+    };
+
+    if (matchEnded) {
+      const p1Dead = nextState.player1LifePoints <= 0;
+      const p2Dead = nextState.player2LifePoints <= 0;
+      const winnerUid =
+        p1Dead && !p2Dead
+          ? match.player2.uid
+          : p2Dead && !p1Dead
+            ? match.player1.uid
+            : null;
+      const loserUid =
+        winnerUid === match.player1.uid
+          ? match.player2.uid
+          : winnerUid === match.player2.uid
+            ? match.player1.uid
+            : null;
+
+      matchUpdate.status = "completed";
+      matchUpdate.winnerUid = winnerUid;
+      matchUpdate.loserUid = loserUid;
+      matchUpdate.completedAt = FieldValue.serverTimestamp();
+      matchUpdate.blueOrbsAwarded = MATCH_COMPLETION_ORB_REWARD;
+
+      if (shouldGrantRewards) {
+        if (!p1LedgerExists) {
+          writeBlueOrbsGrant(
+            tx,
+            db,
+            match.player1.uid,
+            `match-${matchId}`,
+            MATCH_COMPLETION_ORB_REWARD,
+            { reason: "match-completion", matchId },
+          );
+        }
+        if (!p2LedgerExists) {
+          writeBlueOrbsGrant(
+            tx,
+            db,
+            match.player2.uid,
+            `match-${matchId}`,
+            MATCH_COMPLETION_ORB_REWARD,
+            { reason: "match-completion", matchId },
+          );
+        }
+        matchUpdate.rewardsGranted = true;
+      }
+    }
+
+    tx.update(matchRef, matchUpdate);
 
     return {
       seq: nextSeq,
       currentTurn: nextState.currentTurn,
       version: nextState.version,
       type,
+      matchEnded,
+      rewardsGranted: shouldGrantRewards ? true : match.rewardsGranted === true,
     };
   });
 
   logger.info("submitMatchAction applied", { matchId, uid, ...result });
   return result;
+});
+
+/**
+ * Awards Blue Orbs for a finished local (hotseat) match.
+ * `completionId` is client-generated and used as the ledger key so retries are safe.
+ */
+export const claimLocalMatchReward = onCall(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Sign in to claim match rewards.");
+  }
+
+  const uid = request.auth.uid;
+  const data = (request.data ?? {}) as { completionId?: unknown };
+  const completionId =
+    typeof data.completionId === "string" ? data.completionId.trim() : "";
+  if (!completionId || completionId.length < 8 || completionId.length > 80) {
+    throw new HttpsError(
+      "invalid-argument",
+      "completionId must be a stable id between 8 and 80 characters.",
+    );
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(completionId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "completionId contains invalid characters.",
+    );
+  }
+
+  const ledgerId = `local-${completionId}`;
+  const ledgerRef = userOrbLedgerRef(db, uid, ledgerId);
+  const userRef = db.collection("users").doc(uid);
+
+  const outcome = await db.runTransaction(async (tx) => {
+    const [ledgerSnap, userSnap] = await Promise.all([
+      tx.get(ledgerRef),
+      tx.get(userRef),
+    ]);
+    const previous =
+      typeof userSnap.data()?.blueOrbs === "number"
+        ? (userSnap.data()?.blueOrbs as number)
+        : 0;
+
+    if (ledgerSnap.exists) {
+      return {
+        ok: true as const,
+        awarded: 0,
+        blueOrbs: previous,
+        alreadyGranted: true as const,
+      };
+    }
+
+    writeBlueOrbsGrant(tx, db, uid, ledgerId, MATCH_COMPLETION_ORB_REWARD, {
+      reason: "local-match-completion",
+      matchId: completionId,
+    });
+
+    return {
+      ok: true as const,
+      awarded: MATCH_COMPLETION_ORB_REWARD,
+      blueOrbs: previous + MATCH_COMPLETION_ORB_REWARD,
+      alreadyGranted: false as const,
+    };
+  });
+
+  logger.info("claimLocalMatchReward", { uid, ledgerId, ...outcome });
+  return outcome;
 });
