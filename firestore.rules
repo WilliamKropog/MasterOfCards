@@ -41,8 +41,15 @@ service cloud.firestore {
           'usernameLower',
           'email',
           'createdAt'
-        ]);
-      allow update: if isOwner(userId);
+        ])
+        // blueOrbs is optional at signup; when present it must start at 0.
+        && (
+          !request.resource.data.keys().hasAny(['blueOrbs'])
+          || request.resource.data.blueOrbs == 0
+        );
+      // Clients may update profile fields, but never blueOrbs (Admin/Cloud Functions only).
+      allow update: if isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blueOrbs']);
       allow delete: if false;
 
       // Owned card instances. Clients may read; only Cloud Functions (Admin) write.
@@ -59,6 +66,12 @@ service cloud.firestore {
 
       // Saved decks (deck-1 / deck-2 / deck-3). Clients may read; only Admin writes.
       match /decks/{deckId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
+
+      // Blue Orbs grant history. Clients may read; only Admin writes.
+      match /orbLedger/{entryId} {
         allow read: if isOwner(userId);
         allow create, update, delete: if false;
       }

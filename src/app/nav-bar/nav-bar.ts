@@ -5,6 +5,7 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../services/auth.service';
 import { MatchmakingService } from '../services/matchmaking.service';
+import { BlueOrbsService } from '../services/blue-orbs.service';
 import { PackInventoryService } from '../services/pack-inventory.service';
 import { PackService } from '../services/pack.service';
 
@@ -20,6 +21,7 @@ export class NavBar {
   protected readonly matchmaking = inject(MatchmakingService);
   protected readonly pack = inject(PackService);
   protected readonly packInventory = inject(PackInventoryService);
+  protected readonly blueOrbs = inject(BlueOrbsService);
 
   /** Dev-only grant buttons (emulator / local testing). Hidden in production builds. */
   protected readonly showDevPackGrants = environment.useEmulators;
